@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 13.1 (Next Generation)
+  Version: 13.2 (Next Generation)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: クラス軸割り当て、特殊授業ブロック統合、ローカル完結(爆速化)
+  Description: ステップ順序変更、教員選択バグ修正、不可枠設定の復活
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 13.1 (NEXT)</title>
+    <title>Smart TimeTable - Ver 13.2 (NEXT)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style type="text/tailwindcss">
@@ -81,7 +81,9 @@
     const DAYS = ['月', '火', '水', '木', '金'];
     const PERIODS = [1, 2, 3, 4, 5, 6];
     const MAX_STEPS = 9;
-    const stepTitles = ["1. 基本設定", "2. 教科と教室", "3. 教員名簿と不可枠", "4. 特殊授業ブロック", "5. 行事・不可枠", "6. クラス別 担当割り当て", "7. 配置ルール", "8. 点検", "9. ダッシュボード"];
+    
+    // ステップ順序の変更を反映
+    const stepTitles = ["1. 基本設定", "2. 教科と教室", "3. 特殊授業ブロック", "4. 行事・全校不可枠", "5. 教員名簿と不可枠", "6. クラス別 担当割り当て", "7. 配置ルール", "8. 点検", "9. ダッシュボード"];
     let currentStep = 1;
 
     const initialRooms = [
@@ -122,7 +124,7 @@
         specialBlocks: [], 
         classAssignments: {}, 
         advancedRules: { limitOneSubjectPerDay: true, continuousClasses: [], lastPeriodSubjects: [] },
-        generatedSchedule: null, dashView: 'class', dashFilter: '1-1'
+        generatedSchedule: null, dashView: 'class', dashFilter: '1-1', selectedTeacherId: null
     };
 
     // --- Utils ---
@@ -170,7 +172,7 @@
             state.rooms = JSON.parse(JSON.stringify(initialRooms));
         }
         
-        ['globalBlocks', 'mathGroups', 'periods', 'grades'].forEach(k => { if(p[k] !== undefined) state[k] = p[k]; });
+        ['globalBlocks', 'mathGroups', 'periods', 'grades', 'selectedTeacherId'].forEach(k => { if(p[k] !== undefined) state[k] = p[k]; });
         if (p.advancedRules) state.advancedRules = p.advancedRules;
         if (p.teachers && Array.isArray(p.teachers)) {
             state.teachers = p.teachers;
@@ -183,7 +185,6 @@
         if (p.specialBlocks) state.specialBlocks = p.specialBlocks;
         if (p.classAssignments) {
             state.classAssignments = p.classAssignments;
-            // overridesのキーをnameからidにマイグレーション
             Object.keys(state.classAssignments).forEach(cls => {
                 const ovr = state.classAssignments[cls].overrides;
                 const newOvr = {};
@@ -235,6 +236,33 @@
         return loads;
     };
 
+    const buildGrid = (ngMap, globalBlocksMap, actionStr, cellType = 'teacher') => {
+        let html = `<div class="overflow-x-auto w-full custom-scrollbar min-h-0"><table class="border-separate border-spacing-1 select-none table-fixed w-max mx-auto">`;
+        html += `<thead><tr><th class="w-8"></th>`;
+        DAYS.forEach(d => { html += `<th class="text-center text-xs font-black text-slate-400 w-8 md:w-10">${d}</th>`; });
+        html += `</tr></thead><tbody>`;
+        PERIODS.forEach(p => {
+            html += `<tr><td class="text-right pr-2 text-[10px] font-bold text-slate-400 align-middle">${p}限</td>`;
+            DAYS.forEach(d => {
+                const k = `${d}-${p}`; const gl = globalBlocksMap?.[k];
+                let cls = 'w-7 h-7 md:w-9 md:h-9 border-2 rounded-md flex items-center justify-center cursor-pointer text-[10px] font-bold transition-colors mx-auto ', icon = '', click = '';
+                if(cellType === 'global') {
+                    cls += gl ? 'bg-slate-800 border-slate-800 text-white shadow-md' : 'bg-white border-slate-200 text-slate-200 hover:bg-blue-50';
+                    icon = gl ? '■' : '〇'; click = `onclick="${actionStr.replace('__KEY__', k)}"`;
+                } else {
+                    const ng = ngMap?.[k];
+                    if (gl) { cls += 'bg-slate-100 border-slate-200 cursor-not-allowed text-slate-300'; icon = '■'; }
+                    else if (ng) { cls += 'bg-rose-50 border-rose-300 text-rose-500 hover:bg-rose-100 shadow-inner'; icon = '✕'; click = `onclick="${actionStr.replace('__KEY__', k)}"`; }
+                    else { cls += 'bg-white border-slate-200 text-slate-200 hover:bg-blue-50'; icon = '〇'; click = `onclick="${actionStr.replace('__KEY__', k)}"`; }
+                }
+                html += `<td class="p-0"><div ${gl&&cellType!=='global'?'':click} class="${cls}">${icon}</div></td>`;
+            });
+            html += `</tr>`;
+        });
+        html += `</tbody></table></div>`;
+        return html;
+    }
+
     // --- Views ---
     const render = () => {
         save();
@@ -249,7 +277,6 @@
         content.innerHTML = [viewStep1, viewStep2, viewStep3, viewStep4, viewStep5, viewStep6, viewStep7, viewStep8, viewStep9][currentStep-1]();
 
         setTimeout(() => {
-            // Restore scroll if elements have IDs
             Object.keys(scrollMap).forEach(id => {
                 const el = document.getElementById(id);
                 if(el) { el.scrollTop = scrollMap[id].t; el.scrollLeft = scrollMap[id].l; }
@@ -314,7 +341,7 @@
                 </div>
                 <div class="flex-1 overflow-auto custom-scrollbar pr-1 relative border border-slate-200 rounded-xl bg-white" id="step2-subs-scroll">
                     <table class="w-full text-xs text-center border-collapse min-w-[700px]">
-                    <thead class="sticky top-0 bg-slate-100 z-10 shadow-sm"><tr><th class="p-2 border-r border-slate-200 text-left pl-3 w-28">科目名</th><th class="p-2 border-r border-slate-200 w-24">基本の教室</th>${GRADES.map(g=>`<th class="p-2 border-r border-slate-200">${g}年</th>`).join('')}<th class="w-8"></th></tr></thead>
+                    <thead class="sticky top-0 bg-slate-100 z-10 shadow-sm rounded-t-lg"><tr><th class="p-2 border-r border-slate-200 text-left pl-3 w-28">科目名</th><th class="p-2 border-r border-slate-200 w-24">基本の教室</th>${GRADES.map(g=>`<th class="p-2 border-r border-slate-200">${g}年</th>`).join('')}<th class="w-8"></th></tr></thead>
                     <tbody>
                         ${state.subjects.map((s) => `<tr class="border-b border-slate-100 hover:bg-slate-50"><td class="p-1 border-r border-slate-100"><input type="text" value="${s.name}" onchange="actions.updateSubject('${s.id}', 'name', this.value)" class="m3-input !p-1.5 w-full font-bold bg-transparent border-transparent focus:bg-white focus:border-blue-300 shadow-none hover:bg-slate-100 focus:shadow-sm"></td><td class="p-1 border-r border-slate-100"><select onchange="actions.updateSubject('${s.id}', 'defaultRoom', this.value)" class="m3-input !p-1.5 text-[10px] w-full bg-transparent border-transparent focus:bg-white focus:border-blue-300 cursor-pointer shadow-none hover:bg-slate-100 focus:shadow-sm">${rmOpts.replace(`value="${s.defaultRoom||'通常教室'}"`, `value="${s.defaultRoom||'通常教室'}" selected`)}</select></td>${GRADES.map(g=>`<td class="p-1 border-r border-slate-100"><div class="flex items-center justify-center gap-1"><button onclick="actions.updateSubjectHour('${s.id}', ${g}, -1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded font-black text-slate-500 transition-colors">-</button><span class="w-4 text-center font-black text-blue-600">${s.stdHours[g]||0}</span><button onclick="actions.updateSubjectHour('${s.id}', ${g}, 1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded font-black text-slate-500 transition-colors">+</button></div></td>`).join('')}<td><button onclick="actions.removeSubject('${s.id}')" class="text-slate-300 hover:text-rose-500 font-bold p-1">✕</button></td></tr>`).join('')}
                     </tbody>
@@ -323,24 +350,8 @@
         </div>`;
     };
 
-    // Step 3: 教員名簿と不可枠
-    const viewStep3 = () => `
-        <div class="flex flex-col md:flex-row gap-4 h-full">
-            <div class="w-full md:w-1/3 flex flex-col bg-slate-50 rounded-2xl border border-slate-200 p-3 h-1/2 md:h-full">
-                <div class="flex justify-between items-center mb-2"><h3 class="font-black text-xs">教員名簿</h3><button onclick="state.teachers.push({id:'t'+Date.now(), name:'新規教員', maxHours:24, ngTimes:{}});render()" class="text-[10px] bg-blue-600 text-white px-2 py-1 rounded-md font-bold shadow-sm">+ 追加</button></div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1" id="step3-t-scroll">
-                    ${state.teachers.map((t, i) => `<div class="flex items-center gap-2 bg-white p-2 rounded-xl border shadow-sm"><input type="text" value="${t.name}" onchange="state.teachers[${i}].name=this.value;render()" class="flex-1 min-w-0 text-xs font-bold outline-none border-b border-transparent focus:border-blue-300"><div class="flex items-center gap-1 shrink-0"><span class="text-[9px] text-slate-400">上限:</span><input type="number" value="${t.maxHours||24}" onchange="state.teachers[${i}].maxHours=parseInt(this.value)||0;render()" class="w-10 text-xs font-black text-center bg-slate-50 rounded p-1 outline-none"></div><button onclick="state.teachers.splice(${i},1);render()" class="text-slate-300 hover:text-rose-500 font-bold ml-1">✕</button></div>`).join('')}
-                </div>
-            </div>
-            <div class="flex-1 flex flex-col bg-slate-50 rounded-2xl border border-slate-200 p-4 h-1/2 md:h-full items-center justify-center">
-                <h3 class="font-black text-sm mb-1">個人の勤務不可時間設定</h3>
-                <p class="text-[10px] text-slate-500 mb-4 text-center">次世代版では個別の不可枠は必要最小限に留める設計です。</p>
-                <div class="text-4xl text-slate-200 font-black">🚧</div>
-            </div>
-        </div>`;
-
-    // Step 4: 特殊授業ブロック
-    const viewStep4 = () => {
+    // Step 3: 特殊授業ブロック (旧Step 4)
+    const viewStep3 = () => {
         const sOpts = state.subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
         const rOpts = `<option value="通常教室">通常教室</option>` + state.rooms.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
 
@@ -357,7 +368,7 @@
                 </div>
                 <div class="text-[10px] text-slate-500 mt-2">※作成後、対象となるクラスと教員を下部で設定してください。</div>
             </div>
-            <div class="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1" id="step4-sp-scroll">
+            <div class="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1" id="step3-sp-scroll">
                 ${state.specialBlocks.length===0?'<div class="text-center text-slate-400 font-bold text-xs mt-10">特殊ブロックはありません</div>':state.specialBlocks.map((b, i) => {
                     const subName = state.subjects.find(s=>s.id === b.subjectId)?.name || '不明';
                     return `<div class="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col gap-2 relative">
@@ -384,13 +395,54 @@
         </div>`;
     };
 
-    // Step 5: 行事ブロック
-    const viewStep5 = () => `
+    // Step 4: 行事・不可枠 (旧Step 5)
+    const viewStep4 = () => `
         <div class="flex flex-col items-center justify-center h-full text-center space-y-4">
             <h2 class="text-xl font-black">行事・全校ブロック設定</h2>
-            <p class="text-xs text-slate-500 max-w-md">現在プロトタイプのため全校ブロックのUIは省略しています。</p>
-            <div class="text-4xl text-slate-200 font-black">🚧</div>
+            <p class="text-xs text-slate-500 max-w-md">全校朝会やクラブなど、授業を入れてはいけない枠を設定します。</p>
+            <div class="bg-slate-50 border border-slate-200 rounded-3xl p-4 shadow-inner">
+                 ${buildGrid(null, state.globalBlocks, `actions.toggleBlock('__KEY__')`, 'global')}
+            </div>
         </div>`;
+
+    // Step 5: 教員名簿と不可枠 (旧Step 3) - 選択バグ修正＆不可枠復活
+    const viewStep5 = () => {
+        if(!state.selectedTeacherId && state.teachers.length > 0) state.selectedTeacherId = state.teachers[0].id;
+        const t = state.teachers.find(x => String(x.id) === String(state.selectedTeacherId));
+
+        return `
+        <div class="flex flex-col md:flex-row gap-4 h-full">
+            <div class="w-full md:w-1/3 flex flex-col bg-slate-50 rounded-2xl border border-slate-200 p-3 h-1/2 md:h-full">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="font-black text-xs">教員名簿</h3>
+                    <div class="flex gap-1.5">
+                        <button onclick="actions.openBulk('teachers')" class="text-[10px] bg-white border border-slate-200 px-2 py-1 rounded-md font-bold shadow-sm hover:bg-slate-50">一括貼付</button>
+                        <button onclick="actions.addTeacher()" class="text-[10px] bg-blue-600 text-white px-2 py-1 rounded-md font-bold shadow-sm hover:bg-blue-700">+ 追加</button>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1" id="step5-t-scroll">
+                    ${state.teachers.map((tc) => {
+                        const isSel = String(tc.id) === String(state.selectedTeacherId);
+                        return `<div onclick="if(state.selectedTeacherId!=='${tc.id}') { state.selectedTeacherId='${tc.id}'; render(); }" class="flex items-center gap-2 p-2 rounded-xl border shadow-sm cursor-pointer transition-all ${isSel?'bg-blue-50 border-blue-400':'bg-white border-slate-200 hover:bg-slate-50'}">
+                            <input id="t-input-${tc.id}" type="text" value="${tc.name}" onchange="actions.updateTeacher('${tc.id}','name',this.value)" onclick="if(state.selectedTeacherId!=='${tc.id}') { event.stopPropagation(); state.selectedTeacherId='${tc.id}'; render(); setTimeout(()=>document.getElementById('t-input-${tc.id}').focus(), 10); }" class="flex-1 min-w-0 text-xs font-bold outline-none bg-transparent border-b border-transparent focus:border-blue-400 px-1">
+                            <div class="flex items-center gap-1 shrink-0" onclick="event.stopPropagation()">
+                                <span class="text-[9px] ${isSel?'text-blue-500':'text-slate-400'} font-bold">上限:</span>
+                                <input type="number" value="${tc.maxHours||24}" onchange="actions.updateTeacher('${tc.id}','maxHours',parseInt(this.value)||0)" class="w-10 text-xs font-black text-center bg-white rounded p-1 outline-none border border-slate-200 focus:border-blue-400">
+                            </div>
+                            <button onclick="event.stopPropagation(); actions.removeTeacher('${tc.id}')" class="text-slate-300 hover:text-rose-500 font-bold ml-1 px-1">✕</button>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>
+            <div class="flex-1 flex flex-col bg-slate-50 rounded-2xl border border-slate-200 p-4 h-1/2 md:h-full items-center">
+                <h3 class="font-black text-sm mb-1">個人の勤務不可時間設定</h3>
+                ${t ? `
+                <p class="text-[10px] text-slate-500 mb-4 text-center"><span class="font-bold text-blue-600">${t.name}</span> 先生の授業を入れない時間（✕）を設定します。<br>※全校ブロックと重なる時間は■で表示されます。</p>
+                ${buildGrid(t.ngTimes, state.globalBlocks, `actions.toggleTeacherNG('${t.id}', '__KEY__')`, 'teacher')}
+                ` : `<div class="flex-1 flex items-center justify-center text-slate-400 font-bold text-sm">左のリストから教員を選択してください</div>`}
+            </div>
+        </div>`;
+    };
 
     // Step 6: クラス別担当設定 (NEW MAIN UI)
     const viewStep6 = () => {
@@ -561,7 +613,7 @@
 
     // --- Actions ---
     window.actions = {
-        exportData: () => { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_v13_1.json"; a.click(); },
+        exportData: () => { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_v13_2.json"; a.click(); },
         importData: () => { const i=document.createElement('input'); i.type='file'; i.onchange=e=>{ const r=new FileReader(); r.readAsText(e.target.files[0]); r.onload=e=>{ try { sanitizeState(JSON.parse(e.target.result)); currentStep=1; render(); showToast("読み込みました", "success"); } catch(err) { showToast("エラー", "error"); } } }; i.click(); },
         resetData: () => { if(confirm("初期化しますか？")) { localStorage.clear(); location.reload(); } },
         
@@ -600,7 +652,7 @@
             if(c>0) showToast(`${c}件追加しました`, "success"); 
         },
 
-        // 特殊ブロック用
+        // Step 3 (旧4) 特殊ブロック
         addSpecialBlock: () => {
             const subId = document.getElementById('sp-sub').value; const hrs = document.getElementById('sp-hrs').value;
             if(!subId || !hrs) { showToast("教科と時数を入力してください", "error"); return; }
@@ -611,7 +663,34 @@
         toggleSpecialTarget: (id, cls) => { const b = state.specialBlocks.find(x=>x.id===id); const i = b.targets.indexOf(cls); if(i>-1) b.targets.splice(i,1); else b.targets.push(cls); render(); },
         toggleSpecialTeacher: (id, tId) => { const b = state.specialBlocks.find(x=>x.id===id); const i = b.teachers.indexOf(tId); if(i>-1) b.teachers.splice(i,1); else b.teachers.push(tId); render(); },
 
-        // クラス割り当て用
+        // Step 4 (旧5) 行事ブロック
+        toggleBlock: (k) => { state.globalBlocks[k] = !state.globalBlocks[k]; render(); },
+
+        // Step 5 (旧3) 教員と不可枠
+        addTeacher: () => {
+            const count = state.teachers.length + 1;
+            state.teachers.push({id:`t_${Date.now()}_${Math.floor(Math.random()*1000)}`, name: `教員${count}`, maxHours:24, homeroom:'', ngTimes:{}, assignments:[]});
+            render();
+        },
+        updateTeacher: (id, key, val) => {
+            const t = state.teachers.find(x => String(x.id) === String(id));
+            if(t) { t[key] = val; render(); }
+        },
+        removeTeacher: (id) => {
+            state.teachers = state.teachers.filter(t => String(t.id) !== String(id));
+            if(String(state.selectedTeacherId) === String(id)) state.selectedTeacherId = state.teachers[0]?.id || null;
+            render();
+        },
+        toggleTeacherNG: (id, k) => {
+            const t = state.teachers.find(x => String(x.id) === String(id));
+            if(t) {
+                if(!t.ngTimes) t.ngTimes = {};
+                if(t.ngTimes[k]) delete t.ngTimes[k]; else t.ngTimes[k] = true;
+                render();
+            }
+        },
+
+        // Step 6 クラス割り当て用
         updateHomeroom: (cls, tId) => { state.classAssignments[cls].homeroom = tId; render(); },
         updateSubjectOverride: (cls, subId, key, val) => {
             if(!state.classAssignments[cls].overrides[subId]) state.classAssignments[cls].overrides[subId] = {};
