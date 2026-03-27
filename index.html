@@ -1,24 +1,25 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 10.0 (GitHub Pages + High-Density UI Edition)
+  Version: 10.1 (GitHub Pages + High-Density UI Edition)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: 一覧性重視の超高密度UI・欠落していた全配置ルールの復活・完全統合版
+  Description: スクロールバグ修正・ボタン位置固定・高密度UI統合版
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 10.0</title>
+    <title>Smart TimeTable - Ver 10.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
         /* 画面外スクロールを完全に防ぎ、100%の高さに固定する */
         html, body { height: 100%; height: 100dvh; overflow: hidden; margin: 0; padding: 0; font-family: 'Noto Sans JP', sans-serif; background-color: #f1f5f9; color: #0f172a; -webkit-tap-highlight-color: transparent; }
         
-        #app-container { height: 100%; display: flex; flex-direction: column; padding: 8px; max-width: 1800px; margin: 0 auto; width: 100%; }
+        #app-container { height: 100%; display: flex; flex-direction: column; padding: 8px; max-width: 1800px; margin: 0 auto; width: 100%; overflow: hidden; }
 
-        .m3-card { @apply bg-white rounded-xl shadow-sm border border-slate-200 p-3 md:p-5 flex flex-col overflow-hidden; }
+        /* min-h-0 を付与してカードが中身のサイズ以上に伸びないように固定 */
+        .m3-card { @apply bg-white rounded-xl shadow-sm border border-slate-200 p-3 md:p-5 flex flex-col overflow-hidden min-h-0; }
         
         .m3-btn-primary { @apply bg-blue-600 text-white px-6 py-2.5 rounded-lg font-black hover:bg-blue-700 active:scale-95 transition-all shadow-sm flex flex-row flex-nowrap items-center justify-center gap-2 disabled:opacity-30 disabled:pointer-events-none text-sm whitespace-nowrap; }
         .m3-btn-secondary { @apply bg-white text-slate-600 border border-slate-300 px-6 py-2.5 rounded-lg font-black hover:bg-slate-50 active:scale-95 transition-all flex flex-row flex-nowrap items-center justify-center gap-2 text-sm whitespace-nowrap; }
@@ -81,7 +82,7 @@
             </div>
             <div class="min-w-0 flex items-baseline gap-2">
                 <h1 class="text-xl font-black tracking-tighter text-slate-800 truncate leading-none">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate hidden sm:block">Ver 10.0 High-Density Edition</p>
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate hidden sm:block">Ver 10.1 High-Density Edition</p>
             </div>
         </div>
         <div class="flex flex-row items-center gap-2 shrink-0">
@@ -92,13 +93,14 @@
         </div>
     </header>
 
-    <div id="wizard-card" class="m3-card flex-1">
+    <!-- min-h-0を追加し、Flexコンテナのオーバーフローを防止 -->
+    <div id="wizard-card" class="m3-card flex-1 flex flex-col min-h-0">
         <div id="progress-dots" class="flex justify-center gap-1.5 mb-3 shrink-0"></div>
         
-        <!-- コンテンツエリア -->
-        <div id="step-content" class="fade-in flex-1 overflow-hidden flex flex-col relative"></div>
+        <!-- コンテンツエリア：min-h-0を追加して、親枠を押し広げないようにする -->
+        <div id="step-content" class="fade-in flex-1 overflow-hidden flex flex-col relative min-h-0"></div>
         
-        <!-- フッター -->
+        <!-- フッター：shrink-0で常に下部に固定 -->
         <div id="navigation-bar" class="flex justify-between items-center mt-3 pt-3 border-t border-slate-200 shrink-0">
             <button id="btn-prev" class="m3-btn-secondary">戻る</button>
             <button id="btn-next" class="m3-btn-primary"><span id="btn-next-text">次へ進む</span></button>
@@ -119,9 +121,6 @@
 </div>
 
 <script>
-    // ==========================================
-    // ★ ここにご自身のGASウェブアプリURLを貼り付けます ★
-    // ==========================================
     const GAS_URL = "https://script.google.com/macros/s/AKfycbwQS-riVqzIoMJykIbT0eWtJwAGsJMV1VcaTqPJDZjpb2q7bcoE35b_nXRrGWUcn5-K/exec";
 
     const DAYS = ['月', '火', '水', '木', '金'];
@@ -191,10 +190,10 @@
         } catch(e) {}
     };
 
-    function save() { try { localStorage.setItem('tt_v100_data', JSON.stringify(state)); } catch(e) {} }
+    function save() { try { localStorage.setItem('tt_v101_data', JSON.stringify(state)); } catch(e) {} }
     function load() {
         try {
-            const s = localStorage.getItem('tt_v100_data');
+            const s = localStorage.getItem('tt_v101_data');
             if(s) { 
                 const p = JSON.parse(s);
                 if(!p.subjects || p.subjects.length < 10) return false;
@@ -225,7 +224,7 @@
     }
 
     function getGridHtml(ngMap, globalBlocksMap, actionStr, cellType = 'teacher') {
-        let html = `<div class="overflow-x-auto w-full custom-scrollbar"><table class="border-separate border-spacing-1 select-none table-fixed w-max mx-auto">`;
+        let html = `<div class="overflow-x-auto w-full custom-scrollbar min-h-0"><table class="border-separate border-spacing-1 select-none table-fixed w-max mx-auto">`;
         html += `<thead><tr><th class="w-8"></th>`;
         DAYS.forEach(d => { html += `<th class="text-center text-xs font-black text-slate-400 w-8 md:w-10">${d}</th>`; });
         html += `</tr></thead><tbody>`;
@@ -278,9 +277,9 @@
 
     function viewStep1(el) {
         let h = `<div class="mb-3 shrink-0"><h2 class="text-lg font-black text-slate-800">1. 日課時数の設定</h2><p class="text-[10px] font-bold text-slate-500">各学年が何限まで授業を行うか設定します。</p></div>
-        <div class="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-sm flex-1 custom-scrollbar">
+        <div class="overflow-y-auto overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-sm flex-1 custom-scrollbar min-h-0">
             <table class="w-full text-xs text-center border-collapse min-w-[500px]">
-                <thead class="bg-slate-50 border-b border-slate-200"><tr><th class="p-2 border-r border-slate-200 w-20">学年</th>${DAYS.map(d=>`<th class="p-2 border-r border-slate-100">${d}曜</th>`).join('')}</tr></thead>
+                <thead class="bg-slate-50 border-b border-slate-200 sticky top-0 z-10"><tr><th class="p-2 border-r border-slate-200 w-20">学年</th>${DAYS.map(d=>`<th class="p-2 border-r border-slate-100">${d}曜</th>`).join('')}</tr></thead>
                 <tbody>`;
         [1,2,3,4,5,6].forEach(g => {
             h += `<tr class="border-b border-slate-100"><td class="p-2 bg-slate-50 font-bold border-r border-slate-200">${g}年</td>`;
@@ -294,9 +293,9 @@
 
     function viewStep2(el) {
         el.innerHTML = `<div class="mb-4 shrink-0"><h2 class="text-lg font-black text-slate-800">2. 学級数の設定</h2></div>
-        <div class="grid grid-cols-3 md:grid-cols-6 gap-3 flex-1 overflow-y-auto custom-scrollbar content-start">
+        <div class="grid grid-cols-3 md:grid-cols-6 gap-3 flex-1 overflow-y-auto custom-scrollbar content-start pr-2 min-h-0">
             ${[1,2,3,4,5,6].map(g => `
-                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center">
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center shrink-0">
                     <span class="text-slate-500 font-bold text-xs mb-2">${g}年生</span>
                     <div class="flex items-center gap-2">
                         <button onclick="state.grades[${g}]=Math.max(1, state.grades[${g}]-1);render()" class="w-6 h-6 rounded-md border border-slate-200 flex items-center justify-center font-bold text-slate-400 hover:bg-slate-50">-</button>
@@ -316,19 +315,19 @@
             <div><h2 class="text-lg font-black">3. 特別教室の不可枠設定</h2><p class="text-[10px] text-slate-500">同時に使えるクラス数と不可時間を設定します。</p></div>
             <div class="flex gap-2"><button onclick="actions.openBulk('rooms')" class="m3-btn-action">一括貼付</button><button onclick="actions.addRoom()" class="m3-btn-action">+追加</button></div>
         </div>
-        <div class="flex flex-col md:flex-row h-full gap-3 overflow-hidden">
+        <div class="flex flex-col md:flex-row flex-1 gap-3 overflow-hidden min-h-0">
             <div class="w-full md:w-1/4 min-w-[150px] flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm h-1/3 md:h-full shrink-0">
                 <div class="p-2 bg-slate-50 border-b border-slate-200 font-bold text-xs text-slate-500 shrink-0">教室一覧</div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1 min-h-0">
                     ${state.rooms.map((r, idx)=>`
-                        <div class="flex items-center justify-between p-2 rounded-lg cursor-pointer font-bold text-xs transition-all border overflow-hidden ${state.selectedRoomId===r.id?'bg-blue-600 border-blue-600 text-white':'text-slate-600 border-slate-100 hover:bg-slate-50'}">
+                        <div class="flex items-center justify-between p-2 rounded-lg cursor-pointer font-bold text-xs transition-all border overflow-hidden shrink-0 ${state.selectedRoomId===r.id?'bg-blue-600 border-blue-600 text-white':'text-slate-600 border-slate-100 hover:bg-slate-50'}">
                             <span onclick="state.selectedRoomId=${r.id};render()" class="flex-1 truncate">${r.name}</span>
                             <button onclick="state.rooms.splice(${idx},1);render()" class="${state.selectedRoomId===r.id?'text-white hover:text-rose-200':'text-slate-300 hover:text-rose-500'} px-2 shrink-0">✕</button>
                         </div>
                     `).join('')}
                 </div>
             </div>
-            <div class="flex-1 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm">
+            <div class="flex-1 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm min-h-0">
                 ${room?`
                     <div class="p-3 bg-blue-50 border-b border-blue-100 flex flex-wrap justify-between items-center gap-2 shrink-0">
                         <input type="text" value="${room.name}" onchange="actions.updateRoom(${room.id},'name',this.value)" class="bg-white px-3 py-1.5 rounded-lg text-sm font-black text-blue-900 border border-blue-200 outline-none flex-1">
@@ -337,11 +336,11 @@
                             <input type="number" value="${room.capacity||1}" min="1" onchange="actions.updateRoom(${room.id},'capacity',parseInt(this.value)||1)" class="w-10 p-1 text-center font-black text-blue-700 text-sm outline-none bg-blue-50 rounded">
                         </div>
                     </div>
-                    <div class="flex-1 p-3 overflow-y-auto flex flex-col items-center custom-scrollbar">
-                        <h4 class="text-[10px] font-bold text-slate-400 mb-2">使えない時間 (✕をタップ)</h4>
+                    <div class="flex-1 p-3 overflow-y-auto flex flex-col items-center custom-scrollbar min-h-0">
+                        <h4 class="text-[10px] font-bold text-slate-400 mb-2 shrink-0">使えない時間 (✕をタップ)</h4>
                         ${getGridHtml(room.ngTimes, state.globalBlocks, `actions.toggleRoomNG(${room.id}, '__KEY__')`, 'room')}
                     </div>
-                `:`<div class="flex-1 flex items-center justify-center text-slate-400 font-bold text-sm">教室を選択してください</div>`}
+                `:`<div class="flex-1 flex items-center justify-center text-slate-400 font-bold text-sm min-h-0">教室を選択してください</div>`}
             </div>
         </div>`;
     }
@@ -351,7 +350,7 @@
             <div><h2 class="text-lg font-black">4. 科目と標準時数</h2><p class="text-[10px] text-slate-500">週の授業数を設定します。</p></div>
             <div class="flex gap-2"><button onclick="actions.openBulk('subjects')" class="m3-btn-action">一括貼付</button><button onclick="actions.addSubject()" class="m3-btn-action">+追加</button></div>
         </div>
-        <div class="flex-1 overflow-auto bg-white border border-slate-200 rounded-xl shadow-sm custom-scrollbar">
+        <div class="flex-1 overflow-auto bg-white border border-slate-200 rounded-xl shadow-sm custom-scrollbar min-h-0">
             <table class="w-full text-xs text-center border-collapse min-w-[600px]">
                 <thead class="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                     <tr><th class="p-2 border-r border-slate-200 text-left">科目</th>${[1,2,3,4,5,6].map(g=>`<th class="p-2 border-r border-slate-100">${g}年</th>`).join('')}<th class="w-10"></th></tr>
@@ -371,16 +370,16 @@
 
     function viewStep5(el) {
         el.innerHTML = `<div class="mb-3 shrink-0"><h2 class="text-lg font-black">5. 全校・学年ブロック</h2><p class="text-[10px] text-slate-500">朝会や委員会など、授業を入れてはいけない枠</p></div>
-        <div class="flex flex-col md:flex-row gap-4 flex-1 overflow-hidden">
+        <div class="flex flex-col md:flex-row gap-4 flex-1 overflow-hidden min-h-0">
             <div class="w-full md:w-1/2 flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm h-1/2 md:h-full shrink-0">
                 <div class="p-2 bg-slate-50 border-b border-slate-200 font-bold text-xs text-slate-600 shrink-0">全校一斉ブロック</div>
-                <div class="p-4 flex flex-col items-center flex-1 overflow-y-auto custom-scrollbar">
+                <div class="p-4 flex flex-col items-center flex-1 overflow-y-auto custom-scrollbar min-h-0">
                     ${getGridHtml(null, state.globalBlocks, `actions.toggleBlock('__KEY__')`, 'global')}
                 </div>
             </div>
             <div class="w-full md:w-1/2 flex flex-col bg-slate-50 rounded-xl p-3 border border-slate-200 h-1/2 md:h-full overflow-hidden shadow-inner shrink-0">
                 <h4 class="font-bold text-xs mb-3 text-slate-600 shrink-0">学年別の予約（クラブ等）</h4>
-                <div class="flex flex-col gap-2 flex-1 overflow-y-auto custom-scrollbar pr-2">
+                <div class="flex flex-col gap-2 flex-1 overflow-y-auto custom-scrollbar pr-2 min-h-0">
                     ${[1,2,3,4,5,6].map(g=>`
                         <div class="bg-white p-3 rounded-xl flex items-center justify-between shadow-sm border border-slate-100 gap-2 shrink-0">
                             <span class="text-sm font-black text-slate-700">${g}年</span>
@@ -404,7 +403,7 @@
             <div><h2 class="text-lg font-black">6. 教員名簿登録</h2></div>
             <div class="flex gap-2"><button onclick="actions.openBulk('teachers')" class="m3-btn-action">一括貼付</button><button onclick="actions.addTeacher()" class="m3-btn-action">+追加</button></div>
         </div>
-        <div class="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-2">
+        <div class="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-2 min-h-0">
             <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3 content-start">
                 ${state.teachers.map((t,idx)=>`
                     <div class="bg-white p-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2 group overflow-hidden shrink-0">
@@ -432,21 +431,21 @@
         state.teachers.forEach(t => { if(t.id !== state.selectedTeacherId) copyOpts += `<option value="${t.id}">${t.name}</option>`; });
 
         el.innerHTML = `<div class="mb-3 shrink-0"><h2 class="text-lg font-black">7. 担当授業・ピン留め</h2></div>
-        <div class="flex flex-col lg:flex-row h-full gap-4 overflow-hidden">
+        <div class="flex flex-col lg:flex-row flex-1 gap-4 overflow-hidden min-h-0">
             <div class="w-full lg:w-1/4 min-w-[180px] flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm h-1/4 lg:h-full shrink-0">
                 <div class="p-2 bg-slate-50 border-b border-slate-200 font-bold text-xs text-slate-600 shrink-0">教員を選択</div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1 min-h-0">
                     ${state.teachers.map(t=>{
                         const cur = t.assignments?.reduce((s,a)=>s+(a.isTT?0:(a.isJoint?a.hours:(a.target.includes('年全体')?a.hours*state.grades[a.target.charAt(0)]:a.hours*a.target.split(',').length))),0)||0;
                         const max = t.maxHours||24;
-                        return `<div onclick="state.selectedTeacherId=${t.id};render()" class="p-2 rounded-lg cursor-pointer text-xs font-bold transition-all flex justify-between items-center border overflow-hidden ${state.selectedTeacherId===t.id?'bg-blue-600 border-blue-600 text-white':'text-slate-600 border-slate-100 hover:bg-slate-50'}">
+                        return `<div onclick="state.selectedTeacherId=${t.id};render()" class="p-2 rounded-lg cursor-pointer text-xs font-bold transition-all flex justify-between items-center border overflow-hidden shrink-0 ${state.selectedTeacherId===t.id?'bg-blue-600 border-blue-600 text-white':'text-slate-600 border-slate-100 hover:bg-slate-50'}">
                             <span class="truncate min-w-0 flex-1">${t.name}</span><span class="text-[9px] bg-black/10 px-1.5 py-0.5 rounded shrink-0 ${cur>max?'text-rose-500 font-black bg-rose-100':''}">${cur}/${max}</span>
                         </div>`;
                     }).join('')}
                 </div>
             </div>
             
-            <div class="flex-1 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm h-3/4 lg:h-full">
+            <div class="flex-1 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm h-3/4 lg:h-full min-h-0">
                 ${teacher?`
                     <div class="p-3 bg-blue-50 border-b border-blue-100 flex flex-wrap items-center justify-between gap-2 shrink-0">
                         <div class="flex items-center gap-2 min-w-0">
@@ -465,20 +464,20 @@
                         </div>
                     </div>
                     
-                    <div class="flex-1 overflow-y-auto p-3 flex flex-col xl:flex-row gap-4 custom-scrollbar">
+                    <div class="flex-1 overflow-y-auto p-3 flex flex-col xl:flex-row gap-4 custom-scrollbar min-h-0">
                         <div class="shrink-0 flex flex-col items-center">
                             <span class="text-[10px] font-bold text-slate-400 mb-1">✕=不可時間</span>
                             ${getGridHtml(teacher.ngTimes, state.globalBlocks, `actions.toggleTeacherNG(${teacher.id}, '__KEY__')`, 'teacher')}
                         </div>
                         
-                        <div class="flex-1 flex flex-col overflow-hidden">
+                        <div class="flex-1 flex flex-col overflow-hidden min-h-0">
                             <div class="flex justify-between items-center mb-2 shrink-0">
                                 <span class="text-[10px] font-bold text-slate-400">担当授業</span>
                                 <button onclick="actions.addAssignment(${teacher.id})" class="m3-btn-action !text-[10px] !py-1 !px-2 bg-blue-50">+追加</button>
                             </div>
-                            <div class="space-y-2 overflow-y-auto custom-scrollbar pr-1 pb-4">
+                            <div class="space-y-2 overflow-y-auto custom-scrollbar pr-1 pb-4 flex-1 min-h-0">
                                 ${teacher.assignments?.length?teacher.assignments.map((as, aIdx)=>`
-                                    <div class="bg-slate-50 border border-slate-200 p-2 rounded-lg flex flex-wrap items-center gap-1.5 relative group hover:border-blue-300">
+                                    <div class="bg-slate-50 border border-slate-200 p-2 rounded-lg flex flex-wrap items-center gap-1.5 relative group hover:border-blue-300 shrink-0">
                                         <button onclick="actions.removeAssignment(${teacher.id},${aIdx})" class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 text-[10px]">✕</button>
                                         
                                         <select onchange="actions.updateAssignment(${teacher.id},${aIdx},'subject',this.value)" class="m3-input !p-1 !text-xs flex-1 min-w-[60px]">${subOptions.replace(`value="${as.subject}"`, `value="${as.subject}" selected`)}</select>
@@ -501,7 +500,7 @@
                             </div>
                         </div>
                     </div>
-                `:`<div class="flex-1 flex items-center justify-center text-slate-300 font-bold text-xs">教員を選択</div>`}
+                `:`<div class="flex-1 flex items-center justify-center text-slate-300 font-bold text-xs min-h-0">教員を選択</div>`}
             </div>
         </div>`;
     }
@@ -515,10 +514,10 @@
             <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200"><span class="text-[10px] font-bold text-slate-400">週時数</span><input id="mg-hours" type="number" value="4" class="w-10 p-1 font-bold text-blue-600 text-center bg-blue-50 rounded outline-none"></div>
             <button onclick="actions.addMathGroup()" class="m3-btn-primary !text-xs !py-1.5 !px-4 ml-auto">追加</button>
         </div>
-        <div class="space-y-2 flex-1 overflow-y-auto custom-scrollbar pr-2">
+        <div class="space-y-2 flex-1 overflow-y-auto custom-scrollbar pr-2 min-h-0">
             ${state.mathGroups.length === 0 ? '<div class="text-center text-xs text-slate-400 py-8">未設定</div>' : ''}
             ${state.mathGroups.map((m, idx) => `
-                <div class="bg-white border border-slate-200 p-3 rounded-lg shadow-sm flex justify-between items-center">
+                <div class="bg-white border border-slate-200 p-3 rounded-lg shadow-sm flex justify-between items-center shrink-0">
                     <div class="flex items-center gap-4">
                         <span class="bg-blue-100 text-blue-800 font-black text-xs px-2 py-1 rounded">${m.grade}年 算数</span>
                         <span class="text-xs font-bold text-slate-700">${m.groupCount}展開/${m.teacherCount}名</span>
@@ -586,21 +585,28 @@
         DAYS.forEach(d => PERIODS.forEach(p => { timeOpts += `<option value="${d}曜${p}限">${d}${p}</option>`; }));
 
         el.innerHTML = `<div class="mb-3 shrink-0"><h2 class="text-lg font-black">9. 配置ルールと点検</h2></div>
-        <div class="flex flex-col lg:flex-row gap-4 flex-1 overflow-hidden">
+        <div class="flex flex-col lg:flex-row gap-4 flex-1 overflow-hidden min-h-0">
             <div class="w-full lg:w-1/2 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2 shrink-0">
                 <!-- 高 -->
                 <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm shrink-0">
                     <span class="text-xs font-black text-rose-600 mb-2 block">1. 必須ルール</span>
                     <div class="space-y-3">
-                        <div class="flex flex-wrap items-center gap-1.5">
-                            <span class="text-[10px] font-bold w-full text-slate-600">最終コマ固定（たまいち等）</span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] font-bold w-full">最終コマ固定（たまいち等）</span>
                             ${state.subjects.map(s => {
                                 const isChecked = state.advancedRules.lastPeriodSubjects?.includes(s.name);
                                 return `<label class="cursor-pointer select-none text-[10px] px-2 py-1 rounded border ${isChecked?'bg-rose-100 border-rose-300 text-rose-700 font-bold':'bg-slate-50 border-slate-200 text-slate-500'}"><input type="checkbox" class="hidden" ${isChecked?'checked':''} onchange="actions.toggleLastPeriod('${s.name}')">${s.name.substring(0,2)}</label>`;
                             }).join('')}
                         </div>
-                        <div class="flex flex-wrap items-center gap-1.5">
-                            <span class="text-[10px] font-bold w-full text-slate-600">連続授業（ニコイチ）</span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] font-bold w-full">学年全クラスを担任授業にする固定枠</span>
+                            <select id="adv-hr-grade" class="m3-input !p-1 !text-xs w-20"><option value="">学年</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}年生">${g}年</option>`).join('')}</select>
+                            <select id="adv-hr-time" class="m3-input !p-1 !text-xs flex-1">${timeOpts}</select>
+                            <button onclick="actions.addHomeroomTime()" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">+</button>
+                            <div class="w-full flex flex-wrap gap-1">${state.advancedRules.homeroomOnlyTimes.map((c,i)=>`<span class="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border flex items-center gap-1">${c.grade.replace('年生','年')} ${c.time} <b onclick="state.advancedRules.homeroomOnlyTimes.splice(${i},1);render()" class="text-red-400 cursor-pointer">✕</b></span>`).join('')}</div>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] font-bold w-full">連続（ニコイチ）</span>
                             <select id="adv-grade" class="m3-input !p-1 !text-xs w-20"><option value="全学年">全</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}年生">${g}年</option>`).join('')}</select>
                             <select id="adv-sub" class="m3-input !p-1 !text-xs w-20">${state.subjects.map(s=>`<option value="${s.name}">${s.name.substring(0,2)}</option>`).join('')}</select>
                             <button onclick="actions.addCont()" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">+</button>
@@ -610,13 +616,6 @@
                             <span class="text-[10px] font-bold text-slate-700">ニコイチを「1-2, 3-4, 5-6限」に限定</span>
                             <input type="checkbox" ${state.advancedRules.limitContinuousToSpecificPeriods?'checked':''} onchange="state.advancedRules.limitContinuousToSpecificPeriods=this.checked;save()" class="w-4 h-4 text-blue-600">
                         </label>
-                        <div class="flex flex-wrap items-center gap-1.5">
-                            <span class="text-[10px] font-bold w-full text-slate-600">学年全クラスを担任授業にする固定枠</span>
-                            <select id="adv-hr-grade" class="m3-input !p-1 !text-xs w-20"><option value="">学年</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}年生">${g}年</option>`).join('')}</select>
-                            <select id="adv-hr-time" class="m3-input !p-1 !text-xs flex-1">${timeOpts}</select>
-                            <button onclick="actions.addHomeroomTime()" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">+</button>
-                            <div class="w-full flex flex-wrap gap-1">${state.advancedRules.homeroomOnlyTimes.map((c,i)=>`<span class="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border flex items-center gap-1">${c.grade.replace('年生','年')} ${c.time} <b onclick="state.advancedRules.homeroomOnlyTimes.splice(${i},1);render()" class="text-red-400 cursor-pointer">✕</b></span>`).join('')}</div>
-                        </div>
                     </div>
                 </div>
 
@@ -628,7 +627,7 @@
                         <input type="checkbox" ${state.advancedRules.limitOneSubjectPerDay?'checked':''} onchange="state.advancedRules.limitOneSubjectPerDay=this.checked;save()" class="w-4 h-4 text-blue-600">
                     </label>
                     <div class="flex items-center gap-2">
-                        <span class="text-[10px] font-bold text-slate-600">専科を避ける</span>
+                        <span class="text-[10px] font-bold">専科を避ける</span>
                         <select id="adv-sp-time" class="m3-input !p-1 !text-xs w-24">${timeOpts}</select>
                         <button onclick="actions.addAvoidSpecialist()" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">+</button>
                     </div>
@@ -639,29 +638,29 @@
                 <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm shrink-0">
                     <span class="text-xs font-black text-emerald-600 mb-2 block">3. ソフト制約</span>
                     <div class="space-y-3">
-                        <div class="flex flex-wrap items-center gap-1.5">
-                            <span class="text-[10px] font-bold w-full text-slate-600">実施日を離す（等間隔）</span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] font-bold w-full">実施日を離す（等間隔）</span>
                             ${state.subjects.map(s => {
                                 const isChecked = state.advancedRules.maxIntervalSubjects?.includes(s.name);
                                 return `<label class="cursor-pointer select-none text-[10px] px-2 py-1 rounded border ${isChecked?'bg-emerald-100 border-emerald-300 text-emerald-700 font-bold':'bg-slate-50 border-slate-200 text-slate-500'}"><input type="checkbox" class="hidden" ${isChecked?'checked':''} onchange="actions.toggleMaxInterval('${s.name}')">${s.name.substring(0,2)}</label>`;
                             }).join('')}
                         </div>
-                        <div class="flex flex-wrap items-center gap-1.5">
-                            <span class="text-[10px] font-bold w-full text-slate-600">午前優先</span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] font-bold w-full">午前優先</span>
                             ${state.subjects.map(s => {
                                 const isChecked = state.advancedRules.amPrioritySubjects.includes(s.name);
                                 return `<label class="cursor-pointer select-none text-[10px] px-2 py-1 rounded border ${isChecked?'bg-blue-100 border-blue-300 text-blue-700 font-bold':'bg-slate-50 border-slate-200 text-slate-500'}"><input type="checkbox" class="hidden" ${isChecked?'checked':''} onchange="actions.toggleAmPriority('${s.name}')">${s.name.substring(0,2)}</label>`;
                             }).join('')}
                         </div>
-                        <div class="flex flex-wrap items-center gap-1.5">
-                            <span class="text-[10px] font-bold w-full text-slate-600">学年内で連続して配置</span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] font-bold w-full">学年内で連続して配置</span>
                             ${state.subjects.map(s => {
                                 const isChecked = state.advancedRules.consecutiveGradeSubjects.includes(s.name);
                                 return `<label class="cursor-pointer select-none text-[10px] px-2 py-1 rounded border ${isChecked?'bg-indigo-100 border-indigo-300 text-indigo-700 font-bold':'bg-slate-50 border-slate-200 text-slate-500'}"><input type="checkbox" class="hidden" ${isChecked?'checked':''} onchange="actions.toggleConsecutive('${s.name}')">${s.name.substring(0,2)}</label>`;
                             }).join('')}
                         </div>
-                        <div class="flex flex-wrap items-center gap-1.5">
-                            <span class="text-[10px] font-bold w-full text-slate-600">体育を避ける時間</span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] font-bold w-full">体育を避ける時間</span>
                             <select id="adv-pe-grade" class="m3-input !p-1 !text-xs w-20"><option value="">学年</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}年生">${g}年</option>`).join('')}</select>
                             <select id="adv-pe-period" class="m3-input !p-1 !text-xs w-20">
                                 <option value="">時間</option><option value="1限">1限</option><option value="5限">5限</option><option value="6限">6限</option>
@@ -673,14 +672,14 @@
                 </div>
             </div>
             
-            <div class="flex-1 bg-slate-900 rounded-xl p-4 flex flex-col overflow-hidden shadow-inner">
+            <div class="flex-1 bg-slate-900 rounded-xl p-4 flex flex-col overflow-hidden shadow-inner min-h-0">
                 <div class="flex items-center justify-between mb-2 shrink-0">
                     <div class="flex items-center gap-2">
                         <div class="w-2 h-2 rounded-full ${pass?'bg-emerald-500':'bg-rose-500'} animate-pulse"></div>
                         <span class="text-xs font-black text-white">プレフライト・マトリックス</span>
                     </div>
                 </div>
-                <div class="flex-1 overflow-auto custom-scrollbar bg-white rounded-lg border-2 border-slate-700 p-1">
+                <div class="flex-1 overflow-auto custom-scrollbar bg-white rounded-lg border-2 border-slate-700 p-1 min-h-0">
                     ${matrixHtml}
                 </div>
                 ${!pass ? `<div class="mt-2 p-2 bg-rose-500/20 border border-rose-500/50 rounded-lg text-[9px] text-rose-300 font-bold max-h-[60px] overflow-y-auto">
@@ -701,7 +700,7 @@
         const isUndoDisabled = state.undoStack.length === 0;
 
         el.innerHTML = `
-        <div class="flex flex-col h-full overflow-hidden animate-in fade-in duration-300">
+        <div class="flex flex-col flex-1 overflow-hidden animate-in fade-in duration-300 min-h-0">
             <div class="flex items-center justify-between gap-4 mb-3 bg-white border border-slate-200 p-2 rounded-xl shadow-sm shrink-0">
                 <div class="flex items-center gap-1">
                     <button onclick="actions.setDashView('class')" class="px-3 py-1.5 rounded-lg font-black text-xs transition-all ${state.dashboardView==='class'?'bg-blue-600 text-white':'bg-slate-50 text-slate-500 hover:bg-slate-100'}">学級別</button>
@@ -719,7 +718,7 @@
                 </div>
             </div>
 
-            <div class="flex-1 overflow-auto bg-white border border-slate-200 rounded-xl shadow-sm custom-scrollbar p-1">
+            <div class="flex-1 overflow-auto bg-white border border-slate-200 rounded-xl shadow-sm custom-scrollbar p-1 min-h-0">
                 <div class="grid grid-cols-[40px_repeat(5,1fr)] min-w-[600px] h-full gap-px bg-slate-200">
                     <div class="bg-slate-50 flex items-center justify-center font-black text-slate-400 text-[9px] uppercase">Time</div>
                     ${DAYS.map(d => `<div class="bg-slate-50 flex items-center justify-center font-black text-slate-700 text-xs py-2">${d}曜</div>`).join('')}
@@ -834,7 +833,7 @@
         closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); },
         exportData() { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_config.json"; a.click(); },
         importData() { const i=document.createElement('input'); i.type='file'; i.onchange=e=>{ const r=new FileReader(); r.readAsText(e.target.files[0]); r.onload=e=>{ Object.assign(state, JSON.parse(e.target.result)); currentStep=1; render(); } }; i.click(); },
-        resetData() { if(confirm("初期化しますか？")) { localStorage.removeItem('tt_v100_data'); location.reload(); } },
+        resetData() { if(confirm("初期化しますか？")) { localStorage.removeItem('tt_v101_data'); location.reload(); } },
         addMathGroup() { state.mathGroups.push({id:Date.now(), grade:document.getElementById('mg-grade').value||'1', groupCount:document.getElementById('mg-count').value||'4'}); render(); },
         copyTeacherSettings(targetId) {
             const srcId = document.getElementById('copy-src').value; if(!srcId) return;
