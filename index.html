@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 10.3 (GitHub Pages + High-Density UI Edition)
+  Version: 10.4 (GitHub Pages + High-Density UI Edition)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: 全修正統合版（ボタン位置、エラー画面、少人数算数、スクロールバグ修正）
+  Description: ボタン連打時のダブルタップズーム防止機能を追加
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 10.3</title>
+    <title>Smart TimeTable - Ver 10.4</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
@@ -38,6 +38,9 @@
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
         
         .select-none { user-select: none; -webkit-user-select: none; }
+        
+        /* ★ ボタン等の連続タップによる画面拡大（ダブルタップズーム）を防止 ★ */
+        button, input, select, textarea, label, .dash-cell, .time-cell, [onclick] { touch-action: manipulation; }
         
         /* ダッシュボード用セルスタイル */
         .dash-cell { @apply min-h-[50px] p-1 border-r border-b border-slate-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer relative overflow-hidden bg-white; }
@@ -82,7 +85,7 @@
             </div>
             <div class="min-w-0 flex items-baseline gap-2">
                 <h1 class="text-xl font-black tracking-tighter text-slate-800 truncate leading-none">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate hidden sm:block">Ver 10.3 High-Density Edition</p>
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate hidden sm:block">Ver 10.4 High-Density Edition</p>
             </div>
         </div>
         <div class="flex flex-row items-center gap-2 shrink-0">
@@ -191,10 +194,10 @@
         } catch(e) {}
     };
 
-    function save() { try { localStorage.setItem('tt_v103_data', JSON.stringify(state)); } catch(e) {} }
+    function save() { try { localStorage.setItem('tt_v104_data', JSON.stringify(state)); } catch(e) {} }
     function load() {
         try {
-            const s = localStorage.getItem('tt_v103_data');
+            const s = localStorage.getItem('tt_v104_data');
             if(s) { 
                 const p = JSON.parse(s);
                 if(!p.subjects || p.subjects.length < 10) return false;
@@ -490,8 +493,8 @@
                                         </div>
                                         
                                         <div class="flex items-center gap-1.5 bg-white border border-slate-200 rounded px-1.5 py-1 shrink-0">
-                                            <label class="flex items-center gap-0.5 cursor-pointer"><input type="checkbox" ${as.isJoint?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isJoint',this.checked)" class="w-3 h-3"><span class="text-[9px] font-bold text-slate-500">同</span></label>
-                                            <label class="flex items-center gap-0.5 cursor-pointer border-l border-slate-200 pl-1.5"><input type="checkbox" ${as.isTT?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isTT',this.checked)" class="w-3 h-3"><span class="text-[9px] font-bold text-slate-500">TT</span></label>
+                                            <label class="flex items-center gap-0.5 cursor-pointer"><input type="checkbox" ${as.isJoint?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isJoint',this.checked)" class="w-3 h-3 text-blue-600"><span class="text-[9px] font-bold text-slate-500">同</span></label>
+                                            <label class="flex items-center gap-0.5 cursor-pointer border-l border-slate-200 pl-1.5"><input type="checkbox" ${as.isTT?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isTT',this.checked)" class="w-3 h-3 text-blue-600"><span class="text-[9px] font-bold text-slate-500">TT</span></label>
                                         </div>
                                         
                                         <div class="w-full h-0 border-t-4 border-dashed border-slate-200 my-2 hidden lg:block"></div>
@@ -848,7 +851,7 @@
         closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); },
         exportData() { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_config.json"; a.click(); },
         importData() { const i=document.createElement('input'); i.type='file'; i.onchange=e=>{ const r=new FileReader(); r.readAsText(e.target.files[0]); r.onload=e=>{ Object.assign(state, JSON.parse(e.target.result)); currentStep=1; render(); } }; i.click(); },
-        resetData() { if(confirm("初期化しますか？")) { localStorage.removeItem('tt_v103_data'); location.reload(); } },
+        resetData() { if(confirm("初期化しますか？")) { localStorage.removeItem('tt_v104_data'); location.reload(); } },
         addMathGroup() { state.mathGroups.push({id:Date.now(), grade:document.getElementById('mg-grade').value||'1', groupCount:document.getElementById('mg-groups').value||'4', teacherCount:document.getElementById('mg-teachers').value||'4', totalTeacherCount:document.getElementById('mg-total-teachers').value||'4', hours:document.getElementById('mg-hours').value||'4'}); render(); },
         copyTeacherSettings(targetId) {
             const srcId = document.getElementById('copy-src').value; if(!srcId) return;
