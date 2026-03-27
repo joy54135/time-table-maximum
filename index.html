@@ -1,124 +1,116 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 9.8 (GitHub Pages + GAS API Edition)
+  Version: 9.9 (GitHub Pages + High-Density UI Edition)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: 全ステップ統合・全科目搭載・ダッシュボードUI刷新・API通信完全対応
+  Description: 一覧性重視の超高密度UI・画面見切れの完全修正・全科目対応
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart TimeTable - Ver 9.8</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart TimeTable - Ver 9.9</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Noto Sans JP', sans-serif; background-color: #f8fafc; color: #1e293b; -webkit-tap-highlight-color: transparent; }
-        .m3-card { @apply bg-white rounded-[32px] md:rounded-[40px] shadow-sm border border-slate-200 p-5 md:p-10 transition-all duration-300; }
+        /* 画面外スクロールを完全に防ぎ、100%の高さに固定する */
+        html, body { height: 100%; height: 100dvh; overflow: hidden; margin: 0; padding: 0; font-family: 'Noto Sans JP', sans-serif; background-color: #f1f5f9; color: #0f172a; -webkit-tap-highlight-color: transparent; }
         
-        .m3-btn-primary { @apply bg-blue-600 text-white px-8 py-5 rounded-full font-black hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-200 flex flex-row flex-nowrap items-center justify-center gap-2 md:gap-3 disabled:opacity-30 disabled:pointer-events-none text-lg md:text-xl whitespace-nowrap; }
-        .m3-btn-secondary { @apply bg-white text-slate-600 border-2 border-slate-200 px-8 py-5 rounded-full font-black hover:bg-slate-50 active:scale-95 transition-all flex flex-row flex-nowrap items-center justify-center gap-2 md:gap-3 text-lg md:text-xl whitespace-nowrap; }
-        .m3-btn-action { @apply bg-white text-blue-600 border-2 border-blue-200 px-5 py-3 md:px-6 md:py-4 rounded-2xl font-black hover:bg-blue-50 hover:border-blue-300 active:scale-95 transition-all text-sm md:text-lg flex flex-row flex-nowrap items-center justify-center gap-2 shrink-0 shadow-sm whitespace-nowrap; }
+        #app-container { height: 100%; display: flex; flex-direction: column; padding: 8px; max-width: 1800px; margin: 0 auto; width: 100%; }
+
+        .m3-card { @apply bg-white rounded-xl shadow-sm border border-slate-200 p-3 md:p-5 flex flex-col overflow-hidden; }
         
-        .m3-input { @apply p-4 bg-white border-2 border-slate-200 rounded-2xl outline-none focus:border-blue-500 font-bold text-base md:text-lg transition-colors w-full shadow-sm; }
+        .m3-btn-primary { @apply bg-blue-600 text-white px-6 py-2.5 rounded-lg font-black hover:bg-blue-700 active:scale-95 transition-all shadow-sm flex flex-row flex-nowrap items-center justify-center gap-2 disabled:opacity-30 disabled:pointer-events-none text-sm whitespace-nowrap; }
+        .m3-btn-secondary { @apply bg-white text-slate-600 border border-slate-300 px-6 py-2.5 rounded-lg font-black hover:bg-slate-50 active:scale-95 transition-all flex flex-row flex-nowrap items-center justify-center gap-2 text-sm whitespace-nowrap; }
+        .m3-btn-action { @apply bg-white text-blue-600 border border-blue-200 px-3 py-1.5 rounded-md font-bold hover:bg-blue-50 active:scale-95 transition-all text-xs flex flex-row flex-nowrap items-center justify-center gap-1 shrink-0 shadow-sm whitespace-nowrap; }
         
-        .step-dot { @apply h-2 w-6 md:w-10 rounded-full transition-all duration-500 bg-slate-200; }
-        .step-dot.active { @apply bg-blue-600 w-12 md:w-16; }
-        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .m3-input { @apply p-2 bg-white border border-slate-300 rounded-md outline-none focus:border-blue-500 font-bold text-xs md:text-sm transition-colors w-full shadow-sm; }
         
-        #modal-overlay { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 100; }
-        .m3-modal { @apply bg-white rounded-[40px] p-8 md:p-12 max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]; }
-        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .step-dot { @apply h-1.5 w-4 rounded-full transition-all duration-500 bg-slate-200; }
+        .step-dot.active { @apply bg-blue-600 w-8; }
+        .fade-in { animation: fadeIn 0.2s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
         
-        .time-cell { @apply w-12 h-12 md:w-16 md:h-16 border-[3px] rounded-2xl flex items-center justify-center cursor-pointer transition-all select-none mx-auto shadow-sm; }
+        #modal-overlay { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(2px); z-index: 100; }
+        .m3-modal { @apply bg-white rounded-2xl p-6 max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh]; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
+        
         .select-none { user-select: none; -webkit-user-select: none; }
         
-        /* ダッシュボード用セルスタイル（選択状態を黄色く強調） */
-        .dash-cell { @apply min-h-[100px] p-2 border-r border-b border-slate-200 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer relative overflow-hidden bg-white; }
+        /* ダッシュボード用セルスタイル */
+        .dash-cell { @apply min-h-[50px] p-1 border-r border-b border-slate-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer relative overflow-hidden bg-white; }
         .dash-cell:hover:not(.selected) { @apply bg-blue-50; }
-        .dash-cell.conflict { @apply bg-rose-50 ring-4 ring-rose-500 ring-inset; }
-        
-        .dash-cell.selected { 
-            background-color: #fef3c7 !important; /* bg-amber-100 */
-            border-color: #f59e0b !important; /* border-amber-500 */
-            transform: scale(1.05); 
-            z-index: 20; 
-            box-shadow: 0 20px 25px -5px rgba(245, 158, 11, 0.4); 
-            border-radius: 12px; 
-            border-width: 4px !important;
-        }
+        .dash-cell.conflict { @apply bg-rose-50 ring-2 ring-rose-500 ring-inset; }
+        .dash-cell.selected { background-color: #fef3c7 !important; border-color: #f59e0b !important; z-index: 20; box-shadow: 0 4px 6px -1px rgba(245, 158, 11, 0.4); border-width: 2px !important; }
         .dash-cell.selected .text-slate-800 { color: #92400e !important; }
         
-        /* 全科目のカラーチップ */
-        .sub-chip { @apply px-3 py-1 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-wider shadow-sm border; }
-        .bg-sub-ja { background-color: #dbeafe; color: #1e40af; border-color: #bfdbfe; } /* 国語 */
-        .bg-sub-ma { background-color: #fef9c3; color: #854d0e; border-color: #fef08a; } /* 算数 */
-        .bg-sub-sc { background-color: #dcfce7; color: #166534; border-color: #bbf7d0; } /* 理科 */
-        .bg-sub-so { background-color: #e0e7ff; color: #3730a3; border-color: #c7d2fe; } /* 社会 */
-        .bg-sub-li { background-color: #ffedd5; color: #9a3412; border-color: #fed7aa; } /* 生活 */
-        .bg-sub-mu { background-color: #fae8ff; color: #701a75; border-color: #f5d0fe; } /* 音楽 */
-        .bg-sub-ar { background-color: #f5f3ff; color: #5b21b6; border-color: #ddd6fe; } /* 図工 */
-        .bg-sub-ho { background-color: #ffe4e6; color: #9f1239; border-color: #fecdd3; } /* 家庭 */
-        .bg-sub-pe-in { background-color: #fef08a; color: #ca8a04; border-color: #fde047; } /* 中体育 */
-        .bg-sub-pe-out { background-color: #fed7aa; color: #ea580c; border-color: #fdba74; } /* 外体育 */
-        .bg-sub-mo { background-color: #f3f4f6; color: #374151; border-color: #e5e7eb; } /* 道徳 */
-        .bg-sub-en { background-color: #cffafe; color: #1e3a8a; border-color: #a5f3fc; } /* 外国語 */
-        .bg-sub-co { background-color: #d1fae5; color: #065f46; border-color: #a7f3d0; } /* 総合 */
-        .bg-sub-hr { background-color: #e2e8f0; color: #0f172a; border-color: #cbd5e1; } /* 学活 */
-        .bg-sub-sp { background-color: #fee2e2; color: #be123c; border-color: #fecaca; } /* たまいち */
+        /* カラーチップ */
+        .sub-chip { @apply px-1.5 py-0.5 rounded text-[9px] font-black uppercase shadow-sm border; }
+        .bg-sub-ja { background-color: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
+        .bg-sub-ma { background-color: #fef9c3; color: #854d0e; border-color: #fef08a; }
+        .bg-sub-sc { background-color: #dcfce7; color: #166534; border-color: #bbf7d0; }
+        .bg-sub-so { background-color: #e0e7ff; color: #3730a3; border-color: #c7d2fe; }
+        .bg-sub-li { background-color: #ffedd5; color: #9a3412; border-color: #fed7aa; }
+        .bg-sub-mu { background-color: #fae8ff; color: #701a75; border-color: #f5d0fe; }
+        .bg-sub-ar { background-color: #f5f3ff; color: #5b21b6; border-color: #ddd6fe; }
+        .bg-sub-ho { background-color: #ffe4e6; color: #9f1239; border-color: #fecdd3; }
+        .bg-sub-pe-in { background-color: #fef08a; color: #ca8a04; border-color: #fde047; }
+        .bg-sub-pe-out { background-color: #fed7aa; color: #ea580c; border-color: #fdba74; }
+        .bg-sub-mo { background-color: #f3f4f6; color: #374151; border-color: #e5e7eb; }
+        .bg-sub-en { background-color: #cffafe; color: #1e3a8a; border-color: #a5f3fc; }
+        .bg-sub-co { background-color: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+        .bg-sub-hr { background-color: #e2e8f0; color: #0f172a; border-color: #cbd5e1; }
+        .bg-sub-sp { background-color: #fee2e2; color: #be123c; border-color: #fecaca; }
         .bg-sub-default { background-color: #f1f5f9; color: #475569; border-color: #e2e8f0; }
 
         #toast { transition: opacity 0.3s, transform 0.3s; z-index: 9999; }
     </style>
 </head>
-<body class="p-3 md:p-8 h-screen flex flex-col relative overflow-hidden select-none">
+<body>
 
-<div id="toast" class="fixed top-8 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-10 py-5 rounded-full shadow-2xl opacity-0 pointer-events-none font-bold text-lg md:text-xl flex items-center gap-3">
+<div id="toast" class="fixed top-4 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-xl shadow-xl opacity-0 pointer-events-none font-bold text-sm flex items-center gap-2">
     <span id="toast-msg">メッセージ</span>
 </div>
 
-<div id="app" class="max-w-[1700px] mx-auto w-full flex-1 flex flex-col overflow-hidden">
-    <header id="main-header" class="flex flex-row flex-nowrap items-center justify-between mb-6 md:mb-8 shrink-0 px-2 md:px-4">
-        <div class="flex flex-row items-center gap-4 md:gap-6 min-w-0">
-            <div class="w-14 h-14 md:w-16 md:h-16 bg-blue-600 rounded-3xl flex items-center justify-center text-white shadow-xl shadow-blue-200 shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+<div id="app-container">
+    <header id="main-header" class="flex flex-row items-center justify-between mb-2 shrink-0 px-2">
+        <div class="flex flex-row items-center gap-3 min-w-0">
+            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-sm shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
             </div>
-            <div class="min-w-0">
-                <h1 class="text-xl md:text-4xl font-black tracking-tighter text-slate-800 truncate">Smart TimeTable</h1>
-                <p class="text-[10px] md:text-sm font-bold text-slate-400 uppercase tracking-widest leading-none mt-2 truncate">Ver 9.8 Web Edition</p>
+            <div class="min-w-0 flex items-baseline gap-2">
+                <h1 class="text-xl font-black tracking-tighter text-slate-800 truncate leading-none">Smart TimeTable</h1>
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate hidden sm:block">Ver 9.9 High-Density Edition</p>
             </div>
         </div>
-        <div class="flex flex-row items-center gap-2 md:gap-6 shrink-0">
-            <div id="step-title" class="hidden xl:block text-lg font-black text-blue-700 bg-white border-2 border-blue-100 px-8 py-3 rounded-full shadow-sm whitespace-nowrap"></div>
-            <button onclick="actions.exportData()" class="text-xs md:text-base font-black text-slate-400 hover:text-blue-600 transition-all uppercase tracking-widest border-r-2 border-slate-200 pr-2 md:pr-6 py-2 whitespace-nowrap">Export</button>
-            <button onclick="actions.importData()" class="text-xs md:text-base font-black text-slate-400 hover:text-blue-600 transition-all uppercase tracking-widest border-r-2 border-slate-200 pr-2 md:pr-6 py-2 whitespace-nowrap">Import</button>
-            <button onclick="actions.resetData()" class="text-xs md:text-base font-black text-slate-400 hover:text-rose-500 transition-all uppercase tracking-widest py-2 pl-1 md:pl-2 whitespace-nowrap">Reset</button>
+        <div class="flex flex-row items-center gap-2 shrink-0">
+            <div id="step-title" class="hidden md:block text-xs font-black text-blue-700 bg-white border border-blue-200 px-3 py-1 rounded-md shadow-sm"></div>
+            <button onclick="actions.exportData()" class="text-xs font-bold text-slate-500 hover:text-blue-600 transition-colors px-2">Export</button>
+            <button onclick="actions.importData()" class="text-xs font-bold text-slate-500 hover:text-blue-600 transition-colors px-2 border-l border-slate-300">Import</button>
+            <button onclick="actions.resetData()" class="text-xs font-bold text-slate-500 hover:text-rose-500 transition-colors px-2 border-l border-slate-300">Reset</button>
         </div>
     </header>
 
-    <div id="wizard-card" class="m3-card relative flex-1 flex flex-col overflow-hidden">
-        <div id="progress-dots" class="flex justify-center gap-3 mb-8 shrink-0"></div>
-        <div id="step-content" class="fade-in flex-1 overflow-hidden flex flex-col"></div>
-        <div id="navigation-bar" class="flex justify-between items-center mt-8 pt-8 border-t-4 border-slate-50 shrink-0">
-            <button id="btn-prev" class="m3-btn-secondary w-[140px] md:w-[200px]">
-                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                <span class="whitespace-nowrap font-black">戻る</span>
-            </button>
-            <button id="btn-next" class="m3-btn-primary w-[200px] md:w-[280px]">
-                <span id="btn-next-text" class="whitespace-nowrap font-black">次へ進む</span>
-                <svg id="btn-next-icon" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </button>
+    <div id="wizard-card" class="m3-card flex-1">
+        <div id="progress-dots" class="flex justify-center gap-1.5 mb-3 shrink-0"></div>
+        
+        <!-- コンテンツエリア：ここがスクロールする -->
+        <div id="step-content" class="fade-in flex-1 overflow-hidden flex flex-col relative"></div>
+        
+        <!-- フッター -->
+        <div id="navigation-bar" class="flex justify-between items-center mt-3 pt-3 border-t border-slate-200 shrink-0">
+            <button id="btn-prev" class="m3-btn-secondary">戻る</button>
+            <button id="btn-next" class="m3-btn-primary"><span id="btn-next-text">次へ進む</span></button>
         </div>
     </div>
 </div>
 
-<div id="loading-overlay" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[200] hidden items-center justify-center flex-col gap-6">
-    <div class="w-24 h-24 border-8 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-    <div class="text-white text-center px-6">
-        <h3 class="text-3xl font-black mb-2 tracking-widest text-white">AIソルバーと通信中...</h3>
-        <p id="loading-text" class="text-blue-300 font-bold text-lg">クラウド上のエンジンが不整合ゼロの最適解を探索しています。</p>
+<div id="loading-overlay" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] hidden items-center justify-center flex-col gap-4">
+    <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+    <div class="text-white text-center">
+        <h3 class="text-xl font-black tracking-widest mb-1">AI通信中...</h3>
+        <p class="text-blue-200 font-bold text-xs">最適解を探索しています。</p>
     </div>
 </div>
 
@@ -129,17 +121,14 @@
 <script>
     // ==========================================
     // ★ ここにご自身のGASウェブアプリURLを貼り付けます ★
-    // 例: https://script.google.com/macros/s/AKfycb.../exec
     // ==========================================
     const GAS_URL = "https://script.google.com/macros/s/AKfycbwQS-riVqzIoMJykIbT0eWtJwAGsJMV1VcaTqPJDZjpb2q7bcoE35b_nXRrGWUcn5-K/exec";
-
 
     const DAYS = ['月', '火', '水', '木', '金'];
     const PERIODS = [1, 2, 3, 4, 5, 6];
     let currentStep = 1;
     const MAX_STEPS = 10;
 
-    // 初期データ (全科目網羅)
     const state = {
         periods: {
             1:{月:5,火:5,水:4,木:5,金:5}, 2:{月:5,火:5,水:5,木:5,金:5}, 3:{月:6,火:6,水:5,木:6,金:5},
@@ -168,116 +157,72 @@
             { name: '学活', stdHours: {1:1, 2:1, 3:1, 4:1, 5:1, 6:1} },
             { name: 'たまいち', stdHours: {1:1, 2:1, 3:1, 4:1, 5:1, 6:1} } 
         ],
-        globalBlocks: {}, 
-        teachers: [],
-        mathGroups: [],
+        globalBlocks: {}, teachers: [], mathGroups: [],
         advancedRules: {
-            limitContinuousToSpecificPeriods: true,
-            limitOneSubjectPerDay: true,
-            continuousClasses: [], 
-            homeroomOnlyTimes: [], 
-            amPrioritySubjects: [], 
-            consecutiveGradeSubjects: [], 
-            avoidPeTimes: [], 
-            avoidSpecialistTimes: [],
-            lastPeriodSubjects: [], 
-            maxIntervalSubjects: [] 
+            limitContinuousToSpecificPeriods: true, limitOneSubjectPerDay: true, continuousClasses: [], homeroomOnlyTimes: [], 
+            amPrioritySubjects: [], consecutiveGradeSubjects: [], avoidPeTimes: [], avoidSpecialistTimes: [], lastPeriodSubjects: [], maxIntervalSubjects: [] 
         },
-        selectedTeacherId: null,
-        selectedRoomId: null,
-        generatedSchedule: null,
-        dashboardView: "class", 
-        dashboardFilter: "1-1", 
-        selectedDashCell: null,
-        undoStack: [],
-        conflicts: []
+        selectedTeacherId: null, selectedRoomId: null, generatedSchedule: null, dashboardView: "class", dashboardFilter: "1-1", selectedDashCell: null, undoStack: [], conflicts: []
     };
 
-    const stepTitles = ["1. 日課時数", "2. クラス数", "3. 教室・時間枠", "4. 科目・時数", "5. 全校ブロック", "6. 教員名簿", "7. 担当授業・ピン留め", "8. 少人数指導", "9. 配置ルールと最終点検", "10. 最終調整ボード"];
+    const stepTitles = ["1.日課時数", "2.クラス数", "3.教室設定", "4.科目・時数", "5.全校ブロック", "6.教員名簿", "7.担当授業設定", "8.少人数指導", "9.配置ルール", "10.ダッシュボード"];
 
     function showToast(msg) {
         const t = document.getElementById('toast');
         document.getElementById('toast-msg').innerText = msg;
         t.classList.remove('opacity-0', 'translate-y-[-20px]');
-        setTimeout(() => t.classList.add('opacity-0', 'translate-y-[-20px]'), 3000);
+        setTimeout(() => t.classList.add('opacity-0', 'translate-y-[-20px]'), 2500);
     }
 
-    // タップや入れ替え時に鳴らす効果音
     const playBeep = (type) => {
         try {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext) return;
-            const ctx = new AudioContext();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator(); const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
             if (type === 'select') {
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(880, ctx.currentTime);
-                gain.gain.setValueAtTime(0.1, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
-                osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 0.1);
+                osc.type = 'sine'; osc.frequency.setValueAtTime(880, ctx.currentTime);
+                gain.gain.setValueAtTime(0.05, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+                osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.1);
             } else if (type === 'swap') {
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(1200, ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.1);
-                gain.gain.setValueAtTime(0.1, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-                osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 0.15);
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(1200, ctx.currentTime); osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.05, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+                osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.15);
             }
         } catch(e) {}
     };
 
-    // 白画面バグ回避のための保護された Save/Load
-    function save() { 
-        try { localStorage.setItem('tt_v98_data', JSON.stringify(state)); } catch(e) {} 
-    }
+    function save() { try { localStorage.setItem('tt_v99_data', JSON.stringify(state)); } catch(e) {} }
     function load() {
         try {
-            const s = localStorage.getItem('tt_v98_data');
+            const s = localStorage.getItem('tt_v99_data');
             if(s) { 
-                const parsed = JSON.parse(s);
-                if(!parsed.subjects || parsed.subjects.length < 10) {
-                    console.warn("古いデータ形式のためリセットします");
-                    return false;
-                }
-                Object.assign(state, parsed); 
-                return true; 
+                const p = JSON.parse(s);
+                if(!p.subjects || p.subjects.length < 10) return false;
+                Object.assign(state, p); return true; 
             }
-        } catch(e) { console.warn("Storage access restricted.", e); }
-        return false;
+        } catch(e) { } return false;
     }
 
     function getGridHtml(ngMap, globalBlocksMap, actionStr, cellType = 'teacher') {
-        let html = `<div class="overflow-x-auto w-full flex justify-center"><table class="border-separate border-spacing-2 md:border-spacing-3 select-none table-fixed w-max">`;
-        html += `<thead><tr><th class="w-12 md:w-16"></th>`;
-        DAYS.forEach(d => { html += `<th class="text-center text-sm md:text-lg font-black text-slate-500 pb-2 w-12 md:w-16 cursor-default">${d}</th>`; });
+        let html = `<div class="overflow-x-auto w-full custom-scrollbar"><table class="border-separate border-spacing-1 select-none table-fixed w-max mx-auto">`;
+        html += `<thead><tr><th class="w-8"></th>`;
+        DAYS.forEach(d => { html += `<th class="text-center text-xs font-black text-slate-400 w-8 md:w-10">${d}</th>`; });
         html += `</tr></thead><tbody>`;
-        
         PERIODS.forEach(p => {
-            html += `<tr><td class="text-right pr-2 md:pr-4 text-sm md:text-base font-bold text-slate-400 align-middle whitespace-nowrap cursor-default">${p}限</td>`;
+            html += `<tr><td class="text-right pr-2 text-[10px] font-bold text-slate-400 align-middle">${p}限</td>`;
             DAYS.forEach(d => {
-                const k = `${d}-${p}`;
-                const gl = globalBlocksMap?.[k];
-                const iconCircle = `<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 md:w-8 md:h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle></svg>`;
-                const iconX = `<svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 md:w-10 md:h-10 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
-                let cls = '', icon = '', click = '';
-                
+                const k = `${d}-${p}`; const gl = globalBlocksMap?.[k];
+                let cls = 'w-7 h-7 md:w-9 md:h-9 border-2 rounded-md flex items-center justify-center cursor-pointer text-[10px] font-bold transition-colors mx-auto ', icon = '', click = '';
                 if(cellType === 'global') {
-                    cls = gl ? 'bg-rose-50 border-rose-300 text-rose-500 hover:bg-rose-100 hover:border-rose-400' : 'bg-white border-slate-300 text-slate-300 hover:bg-blue-50 hover:text-blue-400 hover:border-blue-400';
-                    icon = gl ? iconX : iconCircle;
-                    click = `onclick="${actionStr.replace('__KEY__', k)}"`;
+                    cls += gl ? 'bg-rose-50 border-rose-300 text-rose-500 hover:bg-rose-100' : 'bg-white border-slate-200 text-slate-200 hover:bg-blue-50';
+                    icon = gl ? '✕' : ''; click = `onclick="${actionStr.replace('__KEY__', k)}"`;
                 } else {
                     const ng = ngMap?.[k];
-                    if (gl) { cls = 'bg-slate-100 border-slate-200 cursor-not-allowed shadow-none text-slate-400'; icon = iconX; }
-                    else if (ng) { cls = 'bg-rose-50 border-rose-300 text-rose-500 hover:bg-rose-100 hover:border-rose-400'; icon = iconX; click = `onclick="${actionStr.replace('__KEY__', k)}"`; }
-                    else { cls = 'bg-white border-slate-300 text-slate-300 hover:bg-blue-50 hover:text-blue-400 hover:border-blue-400'; icon = iconCircle; click = `onclick="${actionStr.replace('__KEY__', k)}"`; }
+                    if (gl) { cls += 'bg-slate-100 border-slate-200 cursor-not-allowed text-slate-300'; icon = '■'; }
+                    else if (ng) { cls += 'bg-rose-50 border-rose-300 text-rose-500 hover:bg-rose-100'; icon = '✕'; click = `onclick="${actionStr.replace('__KEY__', k)}"`; }
+                    else { cls += 'bg-white border-slate-200 text-slate-200 hover:bg-blue-50'; icon = ''; click = `onclick="${actionStr.replace('__KEY__', k)}"`; }
                 }
-                html += `<td class="p-0"><div ${click} class="w-10 h-10 md:w-14 md:h-14 border-[3px] rounded-xl md:rounded-2xl flex items-center justify-center cursor-pointer transition-colors shadow-sm mx-auto ${cls}">${icon}</div></td>`;
+                html += `<td class="p-0"><div ${click} class="${cls}">${icon}</div></td>`;
             });
             html += `</tr>`;
         });
@@ -288,68 +233,54 @@
     function render() {
         try {
             save();
-            const content = document.getElementById('step-content');
-            const nextBtn = document.getElementById('btn-next');
-            const nextText = document.getElementById('btn-next-text');
-            const dots = document.getElementById('progress-dots');
             document.getElementById('step-title').innerText = stepTitles[currentStep-1];
-            
-            nextBtn.disabled = false;
-            nextBtn.classList.remove('opacity-50');
-            nextText.innerText = (currentStep === 9) ? 'AI自動生成を開始' : (currentStep === MAX_STEPS) ? 'スプシに出力' : '次へ進む';
+            const nextBtn = document.getElementById('btn-next');
+            nextBtn.disabled = false; nextBtn.classList.remove('opacity-50');
+            document.getElementById('btn-next-text').innerText = (currentStep === 9) ? 'AI自動生成' : (currentStep === MAX_STEPS) ? 'スプシ出力' : '次へ進む';
 
+            const dots = document.getElementById('progress-dots');
             dots.style.display = (currentStep === MAX_STEPS) ? 'none' : 'flex';
             dots.innerHTML = '';
             for(let i=1; i<MAX_STEPS; i++) dots.innerHTML += `<div class="step-dot ${i <= currentStep ? 'active' : ''}"></div>`;
 
+            const content = document.getElementById('step-content');
             content.innerHTML = '';
-            if(currentStep === 1) viewStep1(content);
-            else if(currentStep === 2) viewStep2(content);
-            else if(currentStep === 3) viewStep3(content);
-            else if(currentStep === 4) viewStep4(content);
-            else if(currentStep === 5) viewStep5(content);
-            else if(currentStep === 6) viewStep6(content);
-            else if(currentStep === 7) viewStep7(content);
-            else if(currentStep === 8) viewStep8(content);
-            else if(currentStep === 9) viewStep9(content, nextBtn);
-            else if(currentStep === 10) viewStep10(content);
+            if(currentStep === 1) viewStep1(content); else if(currentStep === 2) viewStep2(content);
+            else if(currentStep === 3) viewStep3(content); else if(currentStep === 4) viewStep4(content);
+            else if(currentStep === 5) viewStep5(content); else if(currentStep === 6) viewStep6(content);
+            else if(currentStep === 7) viewStep7(content); else if(currentStep === 8) viewStep8(content);
+            else if(currentStep === 9) viewStep9(content, nextBtn); else if(currentStep === 10) viewStep10(content);
 
             document.getElementById('btn-prev').style.visibility = currentStep === 1 ? 'hidden' : 'visible';
-        } catch(e) {
-            console.error("Render Error:", e);
-            document.getElementById('step-content').innerHTML = `<div class="text-red-500 font-bold text-center mt-10">描画エラーが発生しました。リセットをお試しください。<br>${e.message}</div>`;
-        }
+        } catch(e) { console.error(e); }
     }
 
     function viewStep1(el) {
-        let h = `<div class="mb-8"><h2 class="text-3xl font-black">1. 日課時数の設定</h2><p class="text-lg text-slate-500 font-bold mt-2">各学年が何限まで授業を行うか設定します。</p></div>
-        <div class="overflow-x-auto border-2 border-slate-200 rounded-[32px] bg-white shadow-sm flex-1 custom-scrollbar">
-            <table class="w-full text-lg md:text-xl text-center border-collapse min-w-[700px]">
-                <thead class="bg-slate-50 border-b-2 border-slate-200">
-                    <tr><th class="p-6 border-r-2 border-slate-200 w-36">学年</th>${DAYS.map(d=>`<th class="p-6 border-r-2 border-slate-100 font-black">${d}曜</th>`).join('')}</tr>
-                </thead>
+        let h = `<div class="mb-3 shrink-0"><h2 class="text-lg font-black text-slate-800">1. 日課時数の設定</h2><p class="text-[10px] font-bold text-slate-500">各学年が何限まで授業を行うか設定します。</p></div>
+        <div class="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-sm flex-1 custom-scrollbar">
+            <table class="w-full text-xs text-center border-collapse min-w-[500px]">
+                <thead class="bg-slate-50 border-b border-slate-200"><tr><th class="p-2 border-r border-slate-200 w-20">学年</th>${DAYS.map(d=>`<th class="p-2 border-r border-slate-100">${d}曜</th>`).join('')}</tr></thead>
                 <tbody>`;
         [1,2,3,4,5,6].forEach(g => {
-            h += `<tr class="border-b-2 border-slate-100"><td class="p-5 bg-slate-50 font-bold border-r-2 border-slate-200">${g}年生</td>`;
+            h += `<tr class="border-b border-slate-100"><td class="p-2 bg-slate-50 font-bold border-r border-slate-200">${g}年</td>`;
             DAYS.forEach(d => {
-                h += `<td class="p-4 border-r-2 border-slate-100"><input type="number" min="0" max="6" value="${state.periods[g][d]}" onchange="state.periods[${g}]['${d}']=parseInt(this.value)||0;render()" class="w-28 p-4 bg-blue-50/50 rounded-2xl text-center font-black text-blue-600 outline-none focus:ring-4 ring-blue-400 text-3xl"></td>`;
+                h += `<td class="p-1 border-r border-slate-100"><input type="number" min="0" max="6" value="${state.periods[g][d]}" onchange="state.periods[${g}]['${d}']=parseInt(this.value)||0;render()" class="w-12 p-1 bg-blue-50/50 rounded text-center font-black text-blue-600 outline-none focus:ring-2 ring-blue-400"></td>`;
             });
             h += `</tr>`;
         });
-        h += `</tbody></table></div>`;
-        el.innerHTML = h;
+        h += `</tbody></table></div>`; el.innerHTML = h;
     }
 
     function viewStep2(el) {
-        el.innerHTML = `<div class="mb-10"><h2 class="text-3xl font-black">2. 学級数の設定</h2><p class="text-lg text-slate-500 font-bold mt-2">今年度の各学年のクラス数を設定します。</p></div>
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-6 md:gap-10 flex-1 overflow-y-auto custom-scrollbar pr-4 pt-2">
+        el.innerHTML = `<div class="mb-4 shrink-0"><h2 class="text-lg font-black text-slate-800">2. 学級数の設定</h2></div>
+        <div class="grid grid-cols-3 md:grid-cols-6 gap-3 flex-1 overflow-y-auto custom-scrollbar content-start">
             ${[1,2,3,4,5,6].map(g => `
-                <div class="bg-white p-8 md:p-10 rounded-[40px] border-2 border-slate-200 shadow-sm flex flex-col items-center">
-                    <span class="text-slate-500 font-black text-xl mb-6">${g}年生</span>
-                    <div class="flex items-center gap-6">
-                        <button onclick="state.grades[${g}]=Math.max(1, state.grades[${g}]-1);render()" class="w-20 h-20 text-4xl rounded-full border-2 border-slate-200 flex items-center justify-center font-bold text-slate-400 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all">-</button>
-                        <span class="text-6xl md:text-7xl font-black text-blue-600 w-20 text-center">${state.grades[g]}</span>
-                        <button onclick="state.grades[${g}]=Math.min(6, state.grades[${g}]+1);render()" class="w-20 h-20 text-4xl rounded-full border-2 border-slate-200 flex items-center justify-center font-bold text-slate-400 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all">+</button>
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center">
+                    <span class="text-slate-500 font-bold text-xs mb-2">${g}年生</span>
+                    <div class="flex items-center gap-2">
+                        <button onclick="state.grades[${g}]=Math.max(1, state.grades[${g}]-1);render()" class="w-6 h-6 rounded-md border border-slate-200 flex items-center justify-center font-bold text-slate-400 hover:bg-slate-50">-</button>
+                        <span class="text-2xl font-black text-blue-600 w-8 text-center">${state.grades[g]}</span>
+                        <button onclick="state.grades[${g}]=Math.min(6, state.grades[${g}]+1);render()" class="w-6 h-6 rounded-md border border-slate-200 flex items-center justify-center font-bold text-slate-400 hover:bg-slate-50">+</button>
                     </div>
                 </div>
             `).join('')}
@@ -360,62 +291,56 @@
         if(!state.selectedRoomId && state.rooms.length > 0) state.selectedRoomId = state.rooms[0].id;
         const room = state.rooms.find(r => r.id === state.selectedRoomId);
 
-        el.innerHTML = `<div class="mb-8 flex flex-wrap justify-between items-end gap-6">
-            <div><h2 class="text-3xl font-black">3. 特別教室の不可枠設定</h2><p class="text-lg text-slate-500 font-bold mt-2">体育館など同時に使えるクラス数と、使えない時間を設定します。</p></div>
-            <div class="flex flex-row flex-nowrap gap-4">
-                <button onclick="actions.openBulk('rooms')" class="m3-btn-action"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> スプシ貼付</button>
-                <button onclick="actions.addRoom()" class="m3-btn-action"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="shrink-0"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> 新規追加</button>
-            </div>
+        el.innerHTML = `<div class="mb-3 flex flex-wrap justify-between items-end gap-2 shrink-0">
+            <div><h2 class="text-lg font-black">3. 特別教室の不可枠設定</h2><p class="text-[10px] text-slate-500">同時に使えるクラス数と不可時間を設定します。</p></div>
+            <div class="flex gap-2"><button onclick="actions.openBulk('rooms')" class="m3-btn-action">一括貼付</button><button onclick="actions.addRoom()" class="m3-btn-action">+追加</button></div>
         </div>
-        <div class="flex flex-col lg:flex-row h-full gap-8 overflow-hidden">
-            <div class="w-full lg:w-1/3 min-w-[300px] flex flex-col bg-white border-2 border-slate-200 rounded-[40px] overflow-hidden shadow-sm h-1/3 lg:h-full">
-                <div class="p-6 bg-slate-50 border-b-2 border-slate-200 font-black text-lg text-slate-600">教室を選択</div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
+        <div class="flex flex-col md:flex-row h-full gap-3 overflow-hidden">
+            <div class="w-full md:w-1/4 min-w-[150px] flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm h-1/3 md:h-full shrink-0">
+                <div class="p-2 bg-slate-50 border-b border-slate-200 font-bold text-xs text-slate-500 shrink-0">教室一覧</div>
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
                     ${state.rooms.map((r, idx)=>`
-                        <div class="flex items-center justify-between p-5 rounded-2xl cursor-pointer font-bold text-lg md:text-xl transition-all overflow-hidden ${state.selectedRoomId===r.id?'bg-blue-600 text-white shadow-lg':'text-slate-600 hover:bg-slate-50 border-2 border-slate-100 hover:border-blue-200'}">
-                            <span onclick="state.selectedRoomId=${r.id};render()" class="flex-1 truncate min-w-0 pl-2">${r.name}</span>
-                            <button onclick="state.rooms.splice(${idx},1);render()" class="${state.selectedRoomId===r.id?'text-white hover:text-rose-200 bg-white/20':'text-slate-300 hover:text-rose-500 bg-slate-100 hover:bg-rose-50'} p-3 rounded-full transition-colors shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                        <div class="flex items-center justify-between p-2 rounded-lg cursor-pointer font-bold text-xs transition-all border overflow-hidden ${state.selectedRoomId===r.id?'bg-blue-600 border-blue-600 text-white':'text-slate-600 border-slate-100 hover:bg-slate-50'}">
+                            <span onclick="state.selectedRoomId=${r.id};render()" class="flex-1 truncate">${r.name}</span>
+                            <button onclick="state.rooms.splice(${idx},1);render()" class="${state.selectedRoomId===r.id?'text-white hover:text-rose-200':'text-slate-300 hover:text-rose-500'} px-2 shrink-0">✕</button>
                         </div>
                     `).join('')}
                 </div>
             </div>
-            <div class="flex-1 bg-white border-2 border-slate-200 rounded-[40px] overflow-hidden flex flex-col shadow-sm h-2/3 lg:h-full">
+            <div class="flex-1 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm">
                 ${room?`
-                    <div class="p-8 bg-blue-50 border-b-2 border-blue-100 flex flex-wrap justify-between items-center gap-6">
-                        <input type="text" value="${room.name}" onchange="actions.updateRoom(${room.id},'name',this.value)" class="bg-white px-6 py-4 rounded-2xl text-2xl font-black text-blue-900 border-2 border-blue-200 outline-none focus:border-blue-500 min-w-[250px] flex-1 shadow-sm">
-                        <div class="flex items-center gap-4 bg-white px-6 py-4 rounded-2xl shadow-sm border-2 border-slate-200">
-                            <span class="text-base md:text-lg font-bold text-slate-500 whitespace-nowrap">同時に使えるクラス数</span>
-                            <input type="number" value="${room.capacity||1}" min="1" onchange="actions.updateRoom(${room.id},'capacity',parseInt(this.value)||1)" class="w-24 p-3 text-center font-black text-blue-700 text-2xl outline-none bg-blue-50 rounded-xl border border-blue-100 focus:ring-2 ring-blue-400">
+                    <div class="p-3 bg-blue-50 border-b border-blue-100 flex flex-wrap justify-between items-center gap-2 shrink-0">
+                        <input type="text" value="${room.name}" onchange="actions.updateRoom(${room.id},'name',this.value)" class="bg-white px-3 py-1.5 rounded-lg text-sm font-black text-blue-900 border border-blue-200 outline-none flex-1">
+                        <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200 shrink-0">
+                            <span class="text-[10px] font-bold text-slate-500">同時使用数</span>
+                            <input type="number" value="${room.capacity||1}" min="1" onchange="actions.updateRoom(${room.id},'capacity',parseInt(this.value)||1)" class="w-10 p-1 text-center font-black text-blue-700 text-sm outline-none bg-blue-50 rounded">
                         </div>
                     </div>
-                    <div class="flex-1 p-8 overflow-y-auto flex flex-col items-center custom-scrollbar">
-                        <h4 class="text-lg font-black text-slate-500 mb-8 bg-slate-100 px-10 py-4 rounded-full border-2 border-slate-200">教室が使えない時間（✕=使用不可）</h4>
+                    <div class="flex-1 p-3 overflow-y-auto flex flex-col items-center custom-scrollbar">
+                        <h4 class="text-[10px] font-bold text-slate-400 mb-2">使えない時間 (✕をタップ)</h4>
                         ${getGridHtml(room.ngTimes, state.globalBlocks, `actions.toggleRoomNG(${room.id}, '__KEY__')`, 'room')}
                     </div>
-                `:`<div class="flex-1 flex items-center justify-center text-slate-400 font-bold text-2xl">教室を追加してください</div>`}
+                `:`<div class="flex-1 flex items-center justify-center text-slate-400 font-bold text-sm">教室を選択してください</div>`}
             </div>
         </div>`;
     }
 
     function viewStep4(el) {
-        el.innerHTML = `<div class="mb-8 flex flex-wrap justify-between items-end gap-6">
-            <div><h2 class="text-3xl font-black">4. 科目と標準時数</h2><p class="text-lg text-slate-500 font-bold mt-2">各学年の科目ごとの週の授業数を設定します。</p></div>
-            <div class="flex flex-row flex-nowrap gap-4">
-                <button onclick="actions.openBulk('subjects')" class="m3-btn-action"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> スプシ貼付</button>
-                <button onclick="actions.addSubject()" class="m3-btn-action"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="shrink-0"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> 新規追加</button>
-            </div>
+        el.innerHTML = `<div class="mb-3 flex flex-wrap justify-between items-end gap-2 shrink-0">
+            <div><h2 class="text-lg font-black">4. 科目と標準時数</h2><p class="text-[10px] text-slate-500">週の授業数を設定します。</p></div>
+            <div class="flex gap-2"><button onclick="actions.openBulk('subjects')" class="m3-btn-action">一括貼付</button><button onclick="actions.addSubject()" class="m3-btn-action">+追加</button></div>
         </div>
-        <div class="flex-1 overflow-auto bg-white border-2 border-slate-200 rounded-[40px] shadow-sm custom-scrollbar p-6">
-            <table class="w-full text-lg md:text-xl text-center border-collapse min-w-[1000px]">
-                <thead class="bg-slate-50 border-b-4 border-slate-200 sticky top-0 z-10">
-                    <tr><th class="p-6 border-r-2 border-slate-200 w-1/4">科目名</th>${[1,2,3,4,5,6].map(g=>`<th class="p-6 border-r-2 border-slate-100">${g}年生</th>`).join('')}<th class="w-20"></th></tr>
+        <div class="flex-1 overflow-auto bg-white border border-slate-200 rounded-xl shadow-sm custom-scrollbar">
+            <table class="w-full text-xs text-center border-collapse min-w-[600px]">
+                <thead class="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
+                    <tr><th class="p-2 border-r border-slate-200 text-left">科目</th>${[1,2,3,4,5,6].map(g=>`<th class="p-2 border-r border-slate-100">${g}年</th>`).join('')}<th class="w-10"></th></tr>
                 </thead>
                 <tbody>
                     ${state.subjects.map((s, sIdx)=>`
-                        <tr class="border-b-2 border-slate-100 hover:bg-slate-50 transition-colors">
-                            <td class="p-5 border-r-2 border-slate-100"><input type="text" value="${s.name}" onchange="state.subjects[${sIdx}].name=this.value" class="m3-input text-center text-xl min-w-0 w-full"></td>
-                            ${[1,2,3,4,5,6].map(g=>`<td class="p-4 border-r-2 border-slate-100"><input type="number" value="${s.stdHours[g]||0}" onchange="state.subjects[${sIdx}].stdHours[${g}]=parseInt(this.value)||0" class="w-24 p-4 text-center font-black text-blue-600 outline-none bg-white border-2 border-slate-200 rounded-2xl focus:border-blue-500 shadow-sm text-2xl mx-auto"></td>`).join('')}
-                            <td><button onclick="state.subjects.splice(${sIdx},1);render()" class="text-slate-300 hover:text-rose-500 p-4 bg-slate-100 rounded-full hover:bg-rose-100 transition-colors mx-auto block shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></td>
+                        <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                            <td class="p-1.5 border-r border-slate-100"><input type="text" value="${s.name}" onchange="state.subjects[${sIdx}].name=this.value" class="w-full p-1 bg-transparent text-xs font-bold outline-none border border-transparent focus:border-blue-200 rounded"></td>
+                            ${[1,2,3,4,5,6].map(g=>`<td class="p-1 border-r border-slate-100"><input type="number" value="${s.stdHours[g]||0}" onchange="state.subjects[${sIdx}].stdHours[${g}]=parseInt(this.value)||0" class="w-10 p-1 text-center font-black text-blue-600 outline-none bg-white border border-slate-200 rounded focus:border-blue-500 mx-auto"></td>`).join('')}
+                            <td><button onclick="state.subjects.splice(${sIdx},1);render()" class="text-slate-300 hover:text-rose-500 text-xs font-bold">✕</button></td>
                         </tr>
                     `).join('')}
                 </tbody>
@@ -424,27 +349,27 @@
     }
 
     function viewStep5(el) {
-        el.innerHTML = `<div class="mb-8"><h2 class="text-3xl font-black">5. 全校・学年ブロック設定</h2><p class="text-lg text-slate-500 font-bold mt-2">朝会や委員会など、授業を入れてはいけない枠を確保します。</p></div>
-        <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 flex-1 overflow-hidden">
-            <div class="flex flex-col bg-white border-2 border-slate-200 rounded-[40px] overflow-hidden shadow-sm h-full">
-                <div class="p-6 bg-slate-50 border-b-2 border-slate-200 font-black text-lg text-slate-600 shrink-0">全校一斉ブロック</div>
-                <div class="p-8 flex flex-col items-center flex-1 overflow-y-auto custom-scrollbar">
+        el.innerHTML = `<div class="mb-3 shrink-0"><h2 class="text-lg font-black">5. 全校・学年ブロック</h2><p class="text-[10px] text-slate-500">朝会や委員会など、授業を入れてはいけない枠</p></div>
+        <div class="flex flex-col md:flex-row gap-4 flex-1 overflow-hidden">
+            <div class="w-full md:w-1/2 flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm h-1/2 md:h-full shrink-0">
+                <div class="p-2 bg-slate-50 border-b border-slate-200 font-bold text-xs text-slate-600 shrink-0">全校一斉ブロック</div>
+                <div class="p-4 flex flex-col items-center flex-1 overflow-y-auto custom-scrollbar">
                     ${getGridHtml(null, state.globalBlocks, `actions.toggleBlock('__KEY__')`, 'global')}
                 </div>
             </div>
-            <div class="flex flex-col bg-slate-50 rounded-[40px] p-8 border-2 border-slate-200 h-full overflow-hidden shadow-inner">
-                <h4 class="font-black text-xl mb-6 text-slate-700 shrink-0">学年別の予約（クラブ活動など）</h4>
-                <div class="flex flex-col gap-5 flex-1 overflow-y-auto custom-scrollbar pr-4">
+            <div class="w-full md:w-1/2 flex flex-col bg-slate-50 rounded-xl p-3 border border-slate-200 h-1/2 md:h-full overflow-hidden shadow-inner shrink-0">
+                <h4 class="font-bold text-xs mb-3 text-slate-600 shrink-0">学年別の予約（クラブ等）</h4>
+                <div class="flex flex-col gap-2 flex-1 overflow-y-auto custom-scrollbar pr-2">
                     ${[1,2,3,4,5,6].map(g=>`
-                        <div class="bg-white p-6 rounded-3xl flex flex-col lg:flex-row lg:items-center justify-between shadow-sm border-2 border-slate-200 gap-5 hover:border-blue-200 transition-colors">
-                            <span class="text-xl font-black text-slate-700">${g}年生</span>
-                            <div class="flex gap-3 flex-wrap lg:justify-end">
+                        <div class="bg-white p-3 rounded-xl flex items-center justify-between shadow-sm border border-slate-100 gap-2 shrink-0">
+                            <span class="text-sm font-black text-slate-700">${g}年</span>
+                            <div class="flex gap-1.5 flex-wrap justify-end">
                                 ${DAYS.map(d=>PERIODS.map(p=>{
                                     const key = `grade-${g}-${d}-${p}`;
                                     if(!state.globalBlocks[key]) return '';
-                                    return `<span onclick="actions.toggleBlock('${key}')" class="text-base font-bold bg-rose-50 border border-rose-300 text-rose-600 px-5 py-2.5 rounded-xl cursor-pointer hover:bg-rose-100 transition-colors shadow-sm flex items-center gap-2">${d}曜${p}限 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></span>`;
+                                    return `<span onclick="actions.toggleBlock('${key}')" class="text-[10px] font-bold bg-rose-50 border border-rose-200 text-rose-600 px-2 py-1 rounded cursor-pointer hover:bg-rose-100 flex items-center gap-1">${d}${p} ✕</span>`;
                                 }).join('')).join('')}
-                                <button onclick="actions.openGradeBlockModal(${g})" class="text-base text-blue-700 font-black px-6 py-3 bg-blue-50 border-2 border-blue-200 rounded-xl hover:bg-blue-100 transition-colors shadow-sm flex items-center gap-2 whitespace-nowrap"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> 追加</button>
+                                <button onclick="actions.openGradeBlockModal(${g})" class="text-[10px] text-blue-700 font-bold px-2 py-1 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100">+ 追加</button>
                             </div>
                         </div>
                     `).join('')}
@@ -454,19 +379,16 @@
     }
 
     function viewStep6(el) {
-        el.innerHTML = `<div class="mb-8 flex flex-wrap justify-between items-end gap-6 shrink-0">
-            <div><h2 class="text-3xl font-black">6. 教員名簿登録</h2></div>
-            <div class="flex flex-row flex-nowrap gap-4">
-                <button onclick="actions.openBulk('teachers')" class="m3-btn-action"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> スプシ貼付</button>
-                <button onclick="actions.addTeacher()" class="m3-btn-action"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="shrink-0"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> 新規追加</button>
-            </div>
+        el.innerHTML = `<div class="mb-3 flex flex-wrap justify-between items-end gap-2 shrink-0">
+            <div><h2 class="text-lg font-black">6. 教員名簿登録</h2></div>
+            <div class="flex gap-2"><button onclick="actions.openBulk('teachers')" class="m3-btn-action">一括貼付</button><button onclick="actions.addTeacher()" class="m3-btn-action">+追加</button></div>
         </div>
-        <div class="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 content-start">
+        <div class="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-2">
+            <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3 content-start">
                 ${state.teachers.map((t,idx)=>`
-                    <div class="bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-sm flex items-center gap-4 group hover:border-blue-400 hover:shadow-md transition-all overflow-hidden shrink-0">
-                        <input type="text" value="${t.name}" onchange="state.teachers[${idx}].name=this.value" class="flex-1 min-w-0 w-full p-3 bg-slate-50 font-black text-xl border-none rounded-xl focus:ring-2 ring-blue-500 outline-none text-slate-700">
-                        <button onclick="state.teachers.splice(${idx},1);render()" class="text-slate-300 hover:text-rose-500 p-4 bg-slate-100 rounded-full opacity-0 group-hover:opacity-100 hover:bg-rose-50 transition-all shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                    <div class="bg-white p-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2 group overflow-hidden shrink-0">
+                        <input type="text" value="${t.name}" onchange="state.teachers[${idx}].name=this.value" class="flex-1 min-w-0 w-full p-1.5 bg-slate-50 font-bold text-xs border-none rounded outline-none">
+                        <button onclick="state.teachers.splice(${idx},1);render()" class="text-slate-300 hover:text-rose-500 px-1 text-xs shrink-0 font-bold">✕</button>
                     </div>
                 `).join('')}
             </div>
@@ -477,359 +399,295 @@
         if(!state.selectedTeacherId && state.teachers.length > 0) state.selectedTeacherId = state.teachers[0].id;
         const teacher = state.teachers.find(x => x.id === state.selectedTeacherId);
 
-        let hrOptions = `<option value="">専科等（担任なし）</option>`;
-        [1,2,3,4,5,6].forEach(g => { for(let c=1; c<=state.grades[g]; c++) hrOptions += `<option value="${g}-${c}">${g}年${c}組 担任</option>`; });
-        let roomOptions = `<option value="通常教室">通常教室 (自クラス)</option>` + state.rooms.map(r => `<option value="${r.name}">${r.name}</option>`).join('');
-        let subOptions = `<option value="">-- 科目 --</option>` + state.subjects.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+        let hrOptions = `<option value="">専科等</option>`;
+        [1,2,3,4,5,6].forEach(g => { for(let c=1; c<=state.grades[g]; c++) hrOptions += `<option value="${g}-${c}">${g}年${c}組</option>`; });
+        let roomOptions = `<option value="通常教室">通常教室</option>` + state.rooms.map(r => `<option value="${r.name}">${r.name}</option>`).join('');
+        let subOptions = `<option value="">-科目-</option>` + state.subjects.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
         
-        let timeOptions = `<option value="">📍自動配置</option><option value="am-priority">🌤️ 午前を優先配置</option>`;
-        DAYS.forEach(d => PERIODS.forEach(p => timeOptions += `<option value="${d}-${p}">📌 ${d}曜 ${p}限 に固定</option>`));
+        let timeOptions = `<option value="">自動</option><option value="am-priority">午前</option>`;
+        DAYS.forEach(d => PERIODS.forEach(p => timeOptions += `<option value="${d}-${p}">${d}${p}</option>`));
 
-        let copyOpts = `<option value="">-- 他の教員から設定をコピー --</option>`;
-        state.teachers.forEach(t => { if(t.id !== state.selectedTeacherId) copyOpts += `<option value="${t.id}">${t.name} の設定</option>`; });
+        let copyOpts = `<option value="">-コピー元-</option>`;
+        state.teachers.forEach(t => { if(t.id !== state.selectedTeacherId) copyOpts += `<option value="${t.id}">${t.name}</option>`; });
 
-        el.innerHTML = `<div class="flex flex-col lg:flex-row h-full gap-8 overflow-hidden">
-            <div class="w-full lg:w-1/4 min-w-[300px] flex flex-col bg-white border-2 border-slate-200 rounded-[40px] overflow-hidden shadow-sm h-1/3 lg:h-full">
-                <div class="p-6 bg-slate-50 border-b-2 border-slate-200 font-black text-lg text-slate-600">教員を選択</div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-3">
+        el.innerHTML = `<div class="mb-3 shrink-0"><h2 class="text-lg font-black">7. 担当授業・ピン留め</h2></div>
+        <div class="flex flex-col lg:flex-row h-full gap-4 overflow-hidden">
+            <div class="w-full lg:w-1/4 min-w-[180px] flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm h-1/4 lg:h-full shrink-0">
+                <div class="p-2 bg-slate-50 border-b border-slate-200 font-bold text-xs text-slate-600 shrink-0">教員を選択</div>
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
                     ${state.teachers.map(t=>{
-                        const cur = t.assignments?.reduce((s,a)=>{
-                            if(a.isTT) return s;
-                            let hrs = 0;
-                            if(a.isJoint) hrs = a.hours;
-                            else if(a.target === '自分のクラス') hrs = a.hours;
-                            else if(a.target.includes('年全体')) hrs = a.hours * state.grades[a.target.charAt(0)];
-                            else hrs = a.hours * a.target.split(',').length;
-                            return s + hrs;
-                        },0)||0;
+                        const cur = t.assignments?.reduce((s,a)=>s+(a.isTT?0:(a.isJoint?a.hours:(a.target.includes('年全体')?a.hours*state.grades[a.target.charAt(0)]:a.hours*a.target.split(',').length))),0)||0;
                         const max = t.maxHours||24;
-                        return `<div onclick="state.selectedTeacherId=${t.id};render()" class="p-5 rounded-2xl cursor-pointer text-lg font-black transition-all flex justify-between items-center border-2 overflow-hidden ${state.selectedTeacherId===t.id?'bg-blue-600 border-blue-600 text-white shadow-lg':'text-slate-700 hover:bg-slate-50 border-slate-100 hover:border-blue-200'}">
-                            <span class="truncate min-w-0 pl-1">${t.name}</span><span class="text-base bg-black/10 px-4 py-2 rounded-xl shrink-0 ${cur>max?'text-rose-200 bg-rose-500/50':''}">${cur}/${max}</span>
+                        return `<div onclick="state.selectedTeacherId=${t.id};render()" class="p-2 rounded-lg cursor-pointer text-xs font-bold transition-all flex justify-between items-center border overflow-hidden ${state.selectedTeacherId===t.id?'bg-blue-600 border-blue-600 text-white':'text-slate-600 border-slate-100 hover:bg-slate-50'}">
+                            <span class="truncate min-w-0 flex-1">${t.name}</span><span class="text-[9px] bg-black/10 px-1.5 py-0.5 rounded shrink-0 ${cur>max?'text-rose-500 font-black bg-rose-100':''}">${cur}/${max}</span>
                         </div>`;
                     }).join('')}
                 </div>
             </div>
             
-            <div class="flex-1 bg-white border-2 border-slate-200 rounded-[40px] overflow-hidden flex flex-col shadow-sm h-2/3 lg:h-full">
+            <div class="flex-1 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm h-3/4 lg:h-full">
                 ${teacher?`
-                    <div class="p-8 bg-blue-50 border-b-2 border-blue-100 flex flex-col 2xl:flex-row gap-8 items-start 2xl:items-center justify-between">
-                        <div class="flex flex-col md:flex-row items-start md:items-center gap-6 w-full 2xl:w-auto min-w-0">
-                            <h3 class="text-3xl font-black text-blue-900 truncate">${teacher.name}</h3>
-                            <div class="flex items-center gap-3 border-l-4 border-blue-200 pl-6 shrink-0">
-                                <select id="copy-src" class="p-3 text-sm md:text-base rounded-xl border-2 border-blue-200 outline-none text-slate-600 font-bold bg-white w-48">${copyOpts}</select>
-                                <button onclick="actions.copyTeacherSettings(${teacher.id})" class="text-sm md:text-base bg-white border-2 border-blue-200 text-blue-700 px-6 py-3 rounded-xl font-black hover:bg-blue-100 shadow-sm transition-colors whitespace-nowrap">上書き</button>
+                    <div class="p-3 bg-blue-50 border-b border-blue-100 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <h3 class="text-base font-black text-blue-900 truncate max-w-[120px]">${teacher.name}</h3>
+                            <div class="flex items-center gap-1 border-l border-blue-200 pl-2 shrink-0">
+                                <select id="copy-src" class="p-1 text-[10px] rounded border border-blue-200 outline-none text-slate-600 bg-white w-20">${copyOpts}</select>
+                                <button onclick="actions.copyTeacherSettings(${teacher.id})" class="text-[10px] bg-white border border-blue-200 text-blue-700 px-2 py-1 rounded font-bold hover:bg-blue-100">上書き</button>
                             </div>
                         </div>
-                        <div class="flex flex-wrap items-center gap-6 w-full 2xl:w-auto bg-white p-5 rounded-3xl shadow-sm border-2 border-slate-200 shrink-0">
-                            <div class="flex items-center gap-4">
-                                <span class="text-base font-black text-slate-500 whitespace-nowrap">担任</span>
-                                <select onchange="actions.updateTeacher(${teacher.id},'homeroom',this.value)" class="p-3 md:p-4 text-base md:text-lg font-black rounded-2xl border-2 border-slate-200 outline-none bg-slate-50 focus:border-blue-400">${hrOptions.replace(`value="${teacher.homeroom||''}"`, `value="${teacher.homeroom||''}" selected`)}</select>
-                            </div>
-                            <div class="w-0.5 h-10 bg-slate-200 hidden sm:block"></div>
-                            <div class="flex items-center gap-4">
-                                <span class="text-base font-black text-slate-500 whitespace-nowrap">上限コマ</span>
-                                <input type="number" value="${teacher.maxHours||24}" onchange="actions.updateTeacher(${teacher.id},'maxHours',parseInt(this.value)||0)" class="w-24 p-3 md:p-4 text-xl text-center font-black rounded-2xl border-2 border-slate-200 outline-none bg-slate-50 focus:border-blue-400">
-                            </div>
+                        <div class="flex items-center gap-3 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shrink-0">
+                            <span class="text-[10px] font-bold text-slate-500">担任</span>
+                            <select onchange="actions.updateTeacher(${teacher.id},'homeroom',this.value)" class="p-1 text-xs font-bold rounded border border-slate-200 outline-none bg-slate-50">${hrOptions.replace(`value="${teacher.homeroom||''}"`, `value="${teacher.homeroom||''}" selected`)}</select>
+                            <div class="w-px h-4 bg-slate-200"></div>
+                            <span class="text-[10px] font-bold text-slate-500">上限</span>
+                            <input type="number" value="${teacher.maxHours||24}" onchange="actions.updateTeacher(${teacher.id},'maxHours',parseInt(this.value)||0)" class="w-10 p-1 text-xs text-center font-bold rounded border border-slate-200 outline-none bg-slate-50">
                         </div>
                     </div>
                     
-                    <div class="flex-1 overflow-y-auto p-8 flex flex-col 2xl:flex-row gap-12 custom-scrollbar">
+                    <div class="flex-1 overflow-y-auto p-3 flex flex-col xl:flex-row gap-4 custom-scrollbar">
                         <div class="shrink-0 flex flex-col items-center">
-                            <span class="text-lg font-black text-slate-500 mb-6 bg-slate-100 px-8 py-3 rounded-full border-2 border-slate-200">勤務不可時間 (✕)</span>
+                            <span class="text-[10px] font-bold text-slate-400 mb-1">✕=不可時間</span>
                             ${getGridHtml(teacher.ngTimes, state.globalBlocks, `actions.toggleTeacherNG(${teacher.id}, '__KEY__')`, 'teacher')}
                         </div>
                         
                         <div class="flex-1 flex flex-col overflow-hidden">
-                            <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
-                                <span class="text-lg font-black text-slate-500 bg-slate-100 px-8 py-3 rounded-full border-2 border-slate-200">担当授業とクラスの設定</span>
-                                <button onclick="actions.addAssignment(${teacher.id})" class="m3-btn-action bg-blue-50">+ 授業を追加</button>
+                            <div class="flex justify-between items-center mb-2 shrink-0">
+                                <span class="text-[10px] font-bold text-slate-400">担当授業</span>
+                                <button onclick="actions.addAssignment(${teacher.id})" class="m3-btn-action !text-[10px] !py-1 !px-2 bg-blue-50">+追加</button>
                             </div>
-                            <div class="space-y-5 overflow-y-auto custom-scrollbar pr-4 pb-8">
+                            <div class="space-y-2 overflow-y-auto custom-scrollbar pr-1 pb-4">
                                 ${teacher.assignments?.length?teacher.assignments.map((as, aIdx)=>`
-                                    <div class="bg-slate-50 border-2 border-slate-200 p-6 md:p-8 rounded-[32px] flex flex-wrap items-center gap-5 relative group shadow-sm hover:border-blue-300 transition-colors">
-                                        <button onclick="actions.removeAssignment(${teacher.id},${aIdx})" class="absolute -top-4 -right-4 w-12 h-12 bg-white border-2 border-slate-200 rounded-full text-slate-400 hover:text-rose-500 flex items-center justify-center shadow-lg transition-all z-10"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                                    <div class="bg-slate-50 border border-slate-200 p-2 rounded-lg flex flex-wrap items-center gap-1.5 relative group hover:border-blue-300">
+                                        <button onclick="actions.removeAssignment(${teacher.id},${aIdx})" class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 text-[10px]">✕</button>
                                         
-                                        <select onchange="actions.updateAssignment(${teacher.id},${aIdx},'subject',this.value)" class="m3-input flex-1 min-w-[150px]">
-                                            ${subOptions.replace(`value="${as.subject}"`, `value="${as.subject}" selected`)}
-                                        </select>
+                                        <select onchange="actions.updateAssignment(${teacher.id},${aIdx},'subject',this.value)" class="m3-input !p-1 !text-xs flex-1 min-w-[60px]">${subOptions.replace(`value="${as.subject}"`, `value="${as.subject}" selected`)}</select>
+                                        <select onchange="if(this.value==='custom') actions.openCustomTargetModal(${teacher.id},${aIdx}); else actions.updateAssignment(${teacher.id},${aIdx},'target',this.value)" class="m3-input !p-1 !text-xs flex-[1.5] min-w-[70px]">${actions.getTargetOptions(as.target)}</select>
                                         
-                                        <select onchange="if(this.value==='custom') actions.openCustomTargetModal(${teacher.id},${aIdx}); else actions.updateAssignment(${teacher.id},${aIdx},'target',this.value)" class="m3-input flex-[1.5] min-w-[180px]">
-                                            ${actions.getTargetOptions(as.target)}
-                                        </select>
-                                        
-                                        <div class="flex items-center bg-white border-2 border-slate-200 rounded-2xl px-4 py-2 shadow-sm shrink-0">
-                                            <input type="number" value="${as.hours}" min="1" onchange="actions.updateAssignment(${teacher.id},${aIdx},'hours',parseInt(this.value)||1)" class="w-20 p-3 text-center font-black text-blue-600 outline-none text-2xl">
-                                            <span class="text-base font-bold text-slate-500 pr-2">コマ</span>
+                                        <div class="flex items-center bg-white border border-slate-200 rounded px-1 py-0.5 shrink-0">
+                                            <input type="number" value="${as.hours}" min="1" onchange="actions.updateAssignment(${teacher.id},${aIdx},'hours',parseInt(this.value)||1)" class="w-8 p-0.5 text-center font-black text-blue-600 outline-none text-sm">
+                                            <span class="text-[8px] font-bold text-slate-400">コマ</span>
                                         </div>
                                         
-                                        <div class="flex items-center gap-6 bg-white border-2 border-slate-200 rounded-2xl px-6 py-5 shadow-sm shrink-0">
-                                            <label class="flex items-center gap-3 cursor-pointer" title="複数学級で同時に授業を行う場合">
-                                                <input type="checkbox" ${as.isJoint?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isJoint',this.checked)" class="w-7 h-7 text-blue-600 rounded-lg shrink-0">
-                                                <span class="text-base font-black text-slate-600">合同</span>
-                                            </label>
-                                            <div class="w-1 h-10 bg-slate-100 rounded-full"></div>
-                                            <label class="flex items-center gap-3 cursor-pointer pl-1" title="副担当として参加（時数計算に影響しない）">
-                                                <input type="checkbox" ${as.isTT?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isTT',this.checked)" class="w-7 h-7 text-blue-600 rounded-lg shrink-0">
-                                                <span class="text-base font-black text-slate-600">TT参加</span>
-                                            </label>
+                                        <div class="flex items-center gap-1.5 bg-white border border-slate-200 rounded px-1.5 py-1 shrink-0">
+                                            <label class="flex items-center gap-0.5 cursor-pointer"><input type="checkbox" ${as.isJoint?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isJoint',this.checked)" class="w-3 h-3"><span class="text-[9px] font-bold text-slate-500">同</span></label>
+                                            <label class="flex items-center gap-0.5 cursor-pointer border-l border-slate-200 pl-1.5"><input type="checkbox" ${as.isTT?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isTT',this.checked)" class="w-3 h-3"><span class="text-[9px] font-bold text-slate-500">TT</span></label>
                                         </div>
                                         
-                                        <div class="w-full h-0 border-t-4 border-dashed border-slate-200 my-2 hidden lg:block"></div>
-                                        
-                                        <select onchange="actions.updateAssignment(${teacher.id},${aIdx},'room',this.value)" class="m3-input flex-1 min-w-[160px]">
-                                            ${roomOptions.replace(`value="${as.room}"`, `value="${as.room}" selected`)}
-                                        </select>
-                                        <select onchange="actions.updateAssignment(${teacher.id},${aIdx},'fixedTime',this.value)" class="p-4 bg-white border-2 rounded-2xl outline-none font-bold text-lg md:text-xl transition-colors flex-[1.5] min-w-[240px] shadow-sm ${as.fixedTime==='am-priority'?'border-blue-400 text-blue-700 bg-blue-50':(as.fixedTime?'border-amber-400 text-amber-800 bg-amber-50':'border-slate-200 text-slate-600')}">
-                                            ${timeOptions.replace(`value="${as.fixedTime||''}"`, `value="${as.fixedTime||''}" selected`)}
-                                        </select>
+                                        <select onchange="actions.updateAssignment(${teacher.id},${aIdx},'room',this.value)" class="m3-input !p-1 !text-[10px] flex-1 min-w-[70px]">${roomOptions.replace(`value="${as.room}"`, `value="${as.room}" selected`)}</select>
+                                        <select onchange="actions.updateAssignment(${teacher.id},${aIdx},'fixedTime',this.value)" class="m3-input !p-1 !text-[10px] flex-[1.2] min-w-[70px] ${as.fixedTime==='am-priority'?'!bg-blue-50 !text-blue-700':(as.fixedTime?'!bg-amber-50 !text-amber-700':'')}">${timeOptions.replace(`value="${as.fixedTime||''}"`, `value="${as.fixedTime||''}" selected`)}</select>
                                     </div>
-                                `).join(''):`<div class="text-center py-16 text-slate-400 text-xl font-bold bg-slate-50 rounded-[40px] border-4 border-dashed border-slate-200">担当授業がありません</div>`}
+                                `).join(''):`<div class="text-center py-6 text-slate-300 text-[10px] font-bold">授業なし</div>`}
                             </div>
                         </div>
                     </div>
-                `:`<div class="flex-1 flex items-center justify-center text-slate-400 font-bold text-3xl">左から教員を選択してください</div>`}
+                `:`<div class="flex-1 flex items-center justify-center text-slate-300 font-bold text-xs">教員を選択</div>`}
             </div>
         </div>`;
     }
 
     function viewStep8(el) {
-        el.innerHTML = `<div class="mb-8"><h2 class="text-3xl font-black">8. 少人数指導の設定</h2><p class="text-lg text-slate-500 font-bold mt-2">学年全体や複数クラスを解体してのグループ展開設定を行います。</p></div>
-        <div class="bg-slate-50 p-8 md:p-10 rounded-[40px] border-2 border-slate-200 mb-10 flex flex-wrap items-center gap-6 shrink-0 shadow-sm">
-            <select id="mg-grade" class="m3-input w-auto min-w-[160px]"><option value="">学年</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}">${g}年生</option>`).join('')}</select>
-            <div class="flex items-center gap-4 bg-white px-6 py-4 rounded-2xl border-2 border-slate-200 shadow-sm"><span class="text-lg font-bold text-slate-500 whitespace-nowrap">展開数</span><input id="mg-groups" type="number" value="4" class="w-20 p-4 outline-none font-black text-blue-600 text-2xl text-center bg-blue-50 rounded-xl"></div>
-            <div class="flex items-center gap-4 bg-white px-6 py-4 rounded-2xl border-2 border-slate-200 shadow-sm"><span class="text-lg font-bold text-slate-500 whitespace-nowrap">教員数</span><input id="mg-teachers" type="number" value="4" class="w-20 p-4 outline-none font-black text-blue-600 text-2xl text-center bg-blue-50 rounded-xl"></div>
-            <div class="flex items-center gap-4 bg-white px-6 py-4 rounded-2xl border-2 border-slate-200 shadow-sm"><span class="text-lg font-bold text-slate-500 whitespace-nowrap">週時数</span><input id="mg-hours" type="number" value="4" class="w-20 p-4 outline-none font-black text-blue-600 text-2xl text-center bg-blue-50 rounded-xl"></div>
-            <button onclick="actions.addMathGroup()" class="m3-btn-primary ml-auto shadow-xl">設定を追加</button>
+        el.innerHTML = `<div class="mb-3 shrink-0"><h2 class="text-lg font-black">8. 少人数指導の設定</h2><p class="text-[10px] text-slate-500">学年全体や複数クラスを解体してのグループ展開設定</p></div>
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4 flex flex-wrap items-center gap-3 shrink-0 shadow-sm">
+            <select id="mg-grade" class="m3-input !w-auto !py-1.5 !px-2"><option value="">学年</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}">${g}年</option>`).join('')}</select>
+            <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200"><span class="text-[10px] font-bold text-slate-400">展開数</span><input id="mg-groups" type="number" value="4" class="w-10 p-1 font-bold text-blue-600 text-center bg-blue-50 rounded outline-none"></div>
+            <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200"><span class="text-[10px] font-bold text-slate-400">教員数</span><input id="mg-teachers" type="number" value="4" class="w-10 p-1 font-bold text-blue-600 text-center bg-blue-50 rounded outline-none"></div>
+            <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200"><span class="text-[10px] font-bold text-slate-400">週時数</span><input id="mg-hours" type="number" value="4" class="w-10 p-1 font-bold text-blue-600 text-center bg-blue-50 rounded outline-none"></div>
+            <button onclick="actions.addMathGroup()" class="m3-btn-primary !text-xs !py-1.5 !px-4 ml-auto">追加</button>
         </div>
-        <div class="space-y-5 overflow-y-auto custom-scrollbar max-h-[400px] pr-4">
-            ${state.mathGroups.length === 0 ? '<div class="text-center text-lg text-slate-400 font-bold py-12">設定されていません</div>' : ''}
+        <div class="space-y-2 flex-1 overflow-y-auto custom-scrollbar pr-2">
+            ${state.mathGroups.length === 0 ? '<div class="text-center text-xs text-slate-400 py-8">未設定</div>' : ''}
             ${state.mathGroups.map((m, idx) => `
-                <div class="bg-white border-2 border-slate-200 p-8 rounded-3xl shadow-sm flex justify-between items-center hover:border-blue-300 transition-colors">
-                    <div class="flex flex-wrap items-center gap-8 md:gap-10">
-                        <span class="bg-blue-100 text-blue-800 font-black text-xl md:text-2xl px-6 py-4 rounded-2xl shadow-sm">${m.grade}年生 算数</span>
-                        <span class="text-xl md:text-2xl font-bold text-slate-700 whitespace-nowrap">${m.groupCount}展開 / ${m.teacherCount}名指導</span>
-                        <span class="text-lg md:text-xl font-black text-slate-500 border-2 border-slate-200 px-6 py-4 rounded-2xl bg-slate-50 whitespace-nowrap">週${m.hours}コマ</span>
+                <div class="bg-white border border-slate-200 p-3 rounded-lg shadow-sm flex justify-between items-center">
+                    <div class="flex items-center gap-4">
+                        <span class="bg-blue-100 text-blue-800 font-black text-xs px-2 py-1 rounded">${m.grade}年 算数</span>
+                        <span class="text-xs font-bold text-slate-700">${m.groupCount}展開/${m.teacherCount}名</span>
+                        <span class="text-[10px] font-bold text-slate-500 border px-2 py-0.5 rounded bg-slate-50">週${m.hours}コマ</span>
                     </div>
-                    <button onclick="state.mathGroups.splice(${idx},1);render()" class="text-slate-300 hover:text-rose-500 font-bold p-5 bg-slate-50 rounded-full hover:bg-rose-50 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                    <button onclick="state.mathGroups.splice(${idx},1);render()" class="text-slate-300 hover:text-rose-500 font-bold text-xs px-2">✕</button>
                 </div>
             `).join('')}
         </div>`;
     }
 
     function viewStep9(el, nextBtn) {
-        let timeOpts = '<option value="">曜日・時間を選択</option>';
-        DAYS.forEach(d => PERIODS.forEach(p => { timeOpts += `<option value="${d}曜${p}限">${d}曜 ${p}限</option>`; }));
+        const errors = []; const classNeeds = {}; const classAssigned = {}; 
+        Object.entries(state.grades).forEach(([g, n]) => { for(let i=1; i<=n; i++) { state.subjects.forEach(s => { classNeeds[`${g}-${i}-${s.name}`] = s.stdHours[g] || 0; classAssigned[`${g}-${i}-${s.name}`] = 0; }); } });
+        state.teachers.forEach(t => {
+            let tLoad = 0; let avail = 0;
+            DAYS.forEach(d => PERIODS.forEach(p => { if(!t.ngTimes?.[`${d}-${p}`] && !state.globalBlocks[`${d}-${p}`]) avail++; }));
+            t.assignments?.forEach(as => {
+                const targets = as.target.split(',').map(s=>s.trim());
+                let actHrs = 0;
+                if(as.isJoint) actHrs = as.hours; else if(as.target === '自分のクラス') actHrs = as.hours; else if(as.target.includes('年全体')) actHrs = as.hours * state.grades[as.target.charAt(0)]; else actHrs = as.hours * targets.length;
+                tLoad += actHrs;
+                if(!as.isTT) {
+                    if(as.target === '自分のクラス' && t.homeroom) { if(classAssigned[`${t.homeroom}-${as.subject}`]!==undefined) classAssigned[`${t.homeroom}-${as.subject}`] += as.hours; }
+                    else if(as.target.includes('年全体')) { const g = as.target.charAt(0); for(let i=1; i<=state.grades[g]; i++) if(classAssigned[`${g}-${i}-${as.subject}`]!==undefined) classAssigned[`${g}-${i}-${as.subject}`] += as.hours; }
+                    else { targets.forEach(tgt => { const match = tgt.match(/(\d+)年(\d+)組/); if(match) { const k = `${match[1]}-${match[2]}`; if(classAssigned[`${k}-${as.subject}`]!==undefined) classAssigned[`${k}-${as.subject}`] += as.hours; } }); }
+                }
+            });
+            if(tLoad > (t.maxHours||24)) errors.push(`[教員負荷] ${t.name}: 上限超過 (${tLoad}/${t.maxHours||24}コマ)`);
+            if(tLoad > avail) errors.push(`[枠不足] ${t.name}: 担当授業(${tLoad}コマ) が 可能枠(${avail}コマ) を超えています`);
+        });
+        state.mathGroups.forEach(m => { for(let i=1; i<=state.grades[m.grade]; i++) if(classAssigned[`${m.grade}-${i}-算数`]!==undefined) classAssigned[`${m.grade}-${i}-算数`] += parseInt(m.hours); });
 
-        el.innerHTML = `<div class="mb-8 shrink-0"><h2 class="text-3xl font-black">9. 配置ルールと最終点検</h2><p class="text-lg text-slate-500 font-bold mt-2">自動生成エンジンに渡す高度な配置ルールを設定します。</p></div>
-        <div class="flex flex-col xl:flex-row gap-10 flex-1 overflow-y-auto xl:overflow-hidden custom-scrollbar pb-10 xl:pb-0">
-            <div class="w-full xl:w-1/2 flex flex-col gap-8 xl:overflow-y-auto custom-scrollbar pr-2 xl:pr-4 shrink-0 xl:shrink">
-                
-                <!-- 優先度: 高 -->
-                <div>
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="bg-rose-100 text-rose-700 px-4 py-1.5 rounded-xl text-sm font-black tracking-widest border-2 border-rose-200 whitespace-nowrap">優先度: 高</span>
-                        <h3 class="font-black text-xl md:text-2xl text-slate-800">1. 授業の形状と一斉配置</h3>
-                    </div>
-                    <div class="space-y-6">
-                        <div class="bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-sm">
-                            <span class="text-base font-bold text-slate-600 block mb-2">1日の最後の時間に配置する教科</span>
-                            <p class="text-sm text-slate-400 mb-4 font-bold">その日の最終コマ（5時間授業なら5限、6時間なら6限）に固定します。（例：たまいちタイム）</p>
-                            <div class="flex flex-wrap gap-3">
-                                ${state.subjects.map(s => {
-                                    const isChecked = state.advancedRules.lastPeriodSubjects?.includes(s.name);
-                                    return `<label class="cursor-pointer select-none">
-                                        <input type="checkbox" class="hidden peer" ${isChecked ? 'checked' : ''} onchange="actions.toggleLastPeriod('${s.name}')">
-                                        <div class="px-5 py-3 rounded-2xl border-2 border-slate-200 text-slate-500 font-black peer-checked:bg-rose-100 peer-checked:text-rose-700 peer-checked:border-rose-300 transition-all text-base shadow-sm bg-slate-50">${s.name}</div>
-                                    </label>`;
-                                }).join('')}
-                            </div>
-                        </div>
+        let totalErr = 0;
+        let matrixHtml = `<div class="overflow-x-auto custom-scrollbar pb-2"><table class="w-full text-[10px] text-center border-collapse whitespace-nowrap min-w-[800px]">
+            <thead class="bg-slate-100 border-b border-slate-200 sticky top-0 z-10">
+                <tr><th class="p-1.5 border-r border-slate-200">クラス</th>${state.subjects.map(s=>`<th class="p-1.5 border-r border-slate-200 font-bold">${s.name.substring(0,2)}</th>`).join('')}<th class="p-1.5 font-bold text-slate-500">実/必</th></tr>
+            </thead><tbody>`;
+        Object.entries(state.grades).forEach(([g, n]) => {
+            for(let i=1; i<=n; i++) {
+                const k = `${g}-${i}`; let cTotalAct = 0, cTotalNeed = 0;
+                matrixHtml += `<tr class="border-b border-slate-100 hover:bg-slate-50"><td class="p-1 bg-slate-50 font-bold border-r border-slate-200">${k}</td>`;
+                state.subjects.forEach(s => {
+                    const need = classNeeds[`${k}-${s.name}`]; const act = classAssigned[`${k}-${s.name}`];
+                    cTotalNeed += need; cTotalAct += act; const diff = act - need;
+                    let cls = 'text-slate-300', txt = '-';
+                    if(need > 0 || act > 0) {
+                        if(diff === 0) { cls = 'bg-emerald-50 text-emerald-600 font-bold'; txt = '✓'; }
+                        else if(diff < 0) { cls = 'bg-rose-100 text-rose-600 font-black'; txt = diff; totalErr++; }
+                        else { cls = 'bg-amber-100 text-amber-600 font-black'; txt = `+${diff}`; totalErr++; }
+                    }
+                    matrixHtml += `<td class="p-1 border-r border-slate-100 ${cls}">${txt}</td>`;
+                });
+                const cDiff = cTotalAct - cTotalNeed; const cCls = cDiff===0?'text-slate-400':(cDiff<0?'text-rose-500 font-bold':'text-amber-500 font-bold');
+                matrixHtml += `<td class="p-1 bg-slate-50 border-l border-slate-200 ${cCls}">${cTotalAct}/${cTotalNeed}</td></tr>`;
+            }
+        });
+        matrixHtml += `</tbody></table></div>`;
 
-                        <div class="bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-sm">
-                            <span class="text-base font-bold text-slate-600 block mb-4">連続授業（ニコイチ）の指定</span>
-                            <div class="flex flex-wrap gap-3 mb-4">
-                                <select id="adv-grade" class="m3-input flex-1 min-w-[120px]"><option value="全学年">全学年</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}年生">${g}年生</option>`).join('')}</select>
-                                <select id="adv-sub" class="m3-input flex-1 min-w-[120px]">${state.subjects.map(s=>`<option value="${s.name}">${s.name}</option>`).join('')}</select>
-                                <button onclick="actions.addCont()" class="bg-blue-600 text-white hover:bg-blue-700 transition-colors px-6 rounded-2xl text-2xl font-black shadow-md">+</button>
-                            </div>
-                            <div class="space-y-2">
-                                ${state.advancedRules.continuousClasses.map((c,i)=>`<div class="text-base flex justify-between items-center bg-slate-50 p-4 rounded-2xl border-2 border-slate-200"><span class="font-bold text-slate-700">${c.grade} ${c.subject}</span><button onclick="state.advancedRules.continuousClasses.splice(${i},1);render()" class="text-rose-400 font-black hover:bg-rose-50 px-4 py-2 rounded-xl transition-colors">✕</button></div>`).join('')}
-                            </div>
-                            <label class="mt-6 flex items-center justify-between cursor-pointer hover:bg-slate-50 p-4 rounded-2xl transition-colors border-2 border-transparent hover:border-slate-200">
-                                <span class="text-base font-bold text-slate-700">連続授業を「1-2, 3-4, 5-6限」のペアに限定する</span>
-                                <input type="checkbox" ${state.advancedRules.limitContinuousToSpecificPeriods?'checked':''} onchange="state.advancedRules.limitContinuousToSpecificPeriods=this.checked;save()" class="w-8 h-8 text-blue-600 rounded-lg shrink-0">
-                            </label>
-                        </div>
-                        
-                        <div class="bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-sm">
-                            <span class="text-base font-bold text-slate-600 block mb-4">学年全クラスを担任授業にする固定枠（行事準備など）</span>
-                            <div class="flex flex-wrap gap-3 mb-4">
-                                <select id="adv-hr-grade" class="m3-input flex-1 min-w-[120px]"><option value="">学年</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}年生">${g}年生</option>`).join('')}</select>
-                                <select id="adv-hr-time" class="m3-input flex-[1.5] min-w-[160px]">${timeOpts}</select>
-                                <button onclick="actions.addHomeroomTime()" class="bg-blue-600 text-white hover:bg-blue-700 transition-colors px-6 rounded-2xl text-2xl font-black shadow-md">+</button>
-                            </div>
-                            <div class="space-y-2">
-                                ${state.advancedRules.homeroomOnlyTimes.map((c,i)=>`<div class="text-base flex justify-between items-center bg-slate-50 p-4 rounded-2xl border-2 border-slate-200"><span class="font-bold text-slate-700">${c.grade} <span class="text-blue-600 ml-2">${c.time}</span></span><button onclick="state.advancedRules.homeroomOnlyTimes.splice(${i},1);render()" class="text-rose-400 font-black hover:bg-rose-50 px-4 py-2 rounded-xl transition-colors">✕</button></div>`).join('')}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        const pass = errors.length === 0 && totalErr === 0;
+        nextBtn.disabled = !pass;
+        if(!pass) { nextBtn.classList.add('opacity-50'); document.getElementById('btn-next-text').innerText = 'エラー修正'; }
 
-                <!-- 優先度: 中 -->
-                <div class="pt-4">
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="bg-amber-100 text-amber-700 px-4 py-1.5 rounded-xl text-sm font-black tracking-widest border-2 border-amber-200 whitespace-nowrap">優先度: 中</span>
-                        <h3 class="font-black text-xl md:text-2xl text-slate-800">2. 教科の配置バランス</h3>
-                    </div>
-                    <div class="space-y-6">
-                        <label class="bg-white p-6 rounded-3xl border-2 border-slate-200 flex items-center justify-between cursor-pointer hover:border-blue-300 transition-colors shadow-sm">
-                            <span class="text-base font-bold text-slate-700">1日に同一教科を分散させる（連続授業を除く）</span>
-                            <input type="checkbox" ${state.advancedRules.limitOneSubjectPerDay?'checked':''} onchange="state.advancedRules.limitOneSubjectPerDay=this.checked;save()" class="w-8 h-8 text-blue-600 rounded-lg shrink-0">
+        let timeOpts = '<option value="">曜日・時間</option>';
+        DAYS.forEach(d => PERIODS.forEach(p => { timeOpts += `<option value="${d}曜${p}限">${d}${p}</option>`; }));
+
+        el.innerHTML = `<div class="mb-3 shrink-0"><h2 class="text-lg font-black">9. 配置ルールと点検</h2></div>
+        <div class="flex flex-col lg:flex-row gap-4 flex-1 overflow-hidden">
+            <div class="w-full lg:w-1/2 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2 shrink-0">
+                <!-- 高 -->
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm shrink-0">
+                    <span class="text-xs font-black text-rose-600 mb-2 block">1. 必須ルール</span>
+                    <div class="space-y-3">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] font-bold w-full">最終コマ固定（たまいち等）</span>
+                            ${state.subjects.map(s => {
+                                const isChecked = state.advancedRules.lastPeriodSubjects?.includes(s.name);
+                                return `<label class="cursor-pointer select-none text-[10px] px-2 py-1 rounded border ${isChecked?'bg-rose-100 border-rose-300 text-rose-700 font-bold':'bg-slate-50 border-slate-200 text-slate-500'}"><input type="checkbox" class="hidden" ${isChecked?'checked':''} onchange="actions.toggleLastPeriod('${s.name}')">${s.name.substring(0,2)}</label>`;
+                            }).join('')}
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] font-bold w-full">連続（ニコイチ）</span>
+                            <select id="adv-grade" class="m3-input !p-1 !text-xs w-20"><option value="全学年">全</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}年生">${g}年</option>`).join('')}</select>
+                            <select id="adv-sub" class="m3-input !p-1 !text-xs w-20">${state.subjects.map(s=>`<option value="${s.name}">${s.name.substring(0,2)}</option>`).join('')}</select>
+                            <button onclick="actions.addCont()" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">+</button>
+                            <div class="w-full flex flex-wrap gap-1">${state.advancedRules.continuousClasses.map((c,i)=>`<span class="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border flex items-center gap-1">${c.grade.replace('年生','年')}${c.subject.substring(0,2)} <b onclick="state.advancedRules.continuousClasses.splice(${i},1);render()" class="text-red-400 cursor-pointer">✕</b></span>`).join('')}</div>
+                        </div>
+                        <label class="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-1.5 rounded border border-transparent hover:border-slate-200">
+                            <span class="text-[10px] font-bold text-slate-700">ニコイチを「1-2, 3-4, 5-6限」に限定</span>
+                            <input type="checkbox" ${state.advancedRules.limitContinuousToSpecificPeriods?'checked':''} onchange="state.advancedRules.limitContinuousToSpecificPeriods=this.checked;save()" class="w-4 h-4 text-blue-600">
                         </label>
-                        
-                        <div class="bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-sm">
-                            <span class="text-base font-bold text-slate-600 block mb-2">専科をできるだけ入れない枠</span>
-                            <p class="text-sm text-slate-400 mb-4 font-bold">行事などでカットされやすい枠（例：水曜5限など）</p>
-                            <div class="flex flex-wrap gap-3 mb-4">
-                                <select id="adv-sp-time" class="m3-input flex-[2] min-w-[180px]">${timeOpts}</select>
-                                <button onclick="actions.addAvoidSpecialist()" class="bg-blue-600 text-white hover:bg-blue-700 transition-colors px-6 rounded-2xl text-2xl font-black shadow-md">+</button>
-                            </div>
-                            <div class="space-y-2">
-                                ${state.advancedRules.avoidSpecialistTimes.map((c,i)=>`<div class="text-base flex justify-between items-center bg-slate-50 p-4 rounded-2xl border-2 border-slate-200"><span class="font-bold text-slate-700">${c}</span><button onclick="state.advancedRules.avoidSpecialistTimes.splice(${i},1);render()" class="text-rose-400 font-black hover:bg-rose-50 px-4 py-2 rounded-xl transition-colors">✕</button></div>`).join('')}
-                            </div>
-                        </div>
                     </div>
                 </div>
 
-                <!-- 優先度: 低 -->
-                <div class="pt-4">
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="bg-emerald-100 text-emerald-700 px-4 py-1.5 rounded-xl text-sm font-black tracking-widest border-2 border-emerald-200 whitespace-nowrap">優先度: 低</span>
-                        <h3 class="font-black text-xl md:text-2xl text-slate-800">3. 回避・分散設定（ソフト制約）</h3>
+                <!-- 中 -->
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm shrink-0">
+                    <span class="text-xs font-black text-amber-600 mb-2 block">2. バランス</span>
+                    <label class="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-1.5 rounded border border-transparent hover:border-slate-200 mb-2">
+                        <span class="text-[10px] font-bold text-slate-700">1日に同一教科を分散（ニコイチ除く）</span>
+                        <input type="checkbox" ${state.advancedRules.limitOneSubjectPerDay?'checked':''} onchange="state.advancedRules.limitOneSubjectPerDay=this.checked;save()" class="w-4 h-4 text-blue-600">
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-bold">専科を避ける</span>
+                        <select id="adv-sp-time" class="m3-input !p-1 !text-xs w-24">${timeOpts}</select>
+                        <button onclick="actions.addAvoidSpecialist()" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">+</button>
                     </div>
-                    <div class="space-y-6">
-                        <div class="bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-sm">
-                            <span class="text-base font-bold text-slate-600 block mb-2">実施日をできるだけ離す教科（等間隔配置）</span>
-                            <p class="text-sm text-slate-400 mb-4 font-bold">週に複数回ある場合、連続した曜日にしない（例：音楽を月・火にしない）</p>
-                            <div class="flex flex-wrap gap-3">
-                                ${state.subjects.map(s => {
-                                    const isChecked = state.advancedRules.maxIntervalSubjects?.includes(s.name);
-                                    return `<label class="cursor-pointer select-none">
-                                        <input type="checkbox" class="hidden peer" ${isChecked ? 'checked' : ''} onchange="actions.toggleMaxInterval('${s.name}')">
-                                        <div class="px-5 py-3 rounded-2xl border-2 border-slate-200 text-slate-500 font-black peer-checked:bg-emerald-100 peer-checked:text-emerald-700 peer-checked:border-emerald-300 transition-all text-base shadow-sm bg-slate-50">${s.name}</div>
-                                    </label>`;
-                                }).join('')}
-                            </div>
-                        </div>
+                    <div class="flex flex-wrap gap-1 mt-1">${state.advancedRules.avoidSpecialistTimes.map((c,i)=>`<span class="text-[9px] bg-amber-50 px-1.5 py-0.5 rounded border flex items-center gap-1">${c} <b onclick="state.advancedRules.avoidSpecialistTimes.splice(${i},1);render()" class="text-red-400 cursor-pointer">✕</b></span>`).join('')}</div>
+                </div>
 
-                        <div class="bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-sm">
-                            <span class="text-base font-bold text-slate-600 block mb-4">体育をできるだけ避ける時間</span>
-                            <div class="flex flex-wrap gap-3 mb-4">
-                                <select id="adv-pe-grade" class="m3-input flex-1 min-w-[120px]"><option value="">学年</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}年生">${g}年生</option>`).join('')}</select>
-                                <select id="adv-pe-period" class="m3-input flex-1 min-w-[120px]">
-                                    <option value="">時間</option><option value="1限">1限</option><option value="5限">5限</option><option value="6限">6限</option>
-                                </select>
-                                <button onclick="actions.addAvoidPe()" class="bg-blue-600 text-white hover:bg-blue-700 transition-colors px-6 rounded-2xl text-2xl font-black shadow-md">+</button>
-                            </div>
-                            <div class="space-y-2">
-                                ${state.advancedRules.avoidPeTimes.map((c,i)=>`<div class="text-base flex justify-between items-center bg-slate-50 p-4 rounded-2xl border-2 border-slate-200"><span class="font-bold text-slate-700">${c.grade} の <span class="text-rose-500">${c.period}</span></span><button onclick="state.advancedRules.avoidPeTimes.splice(${i},1);render()" class="text-rose-400 font-black hover:bg-rose-50 px-4 py-2 rounded-xl transition-colors">✕</button></div>`).join('')}
-                            </div>
+                <!-- 低 -->
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm shrink-0">
+                    <span class="text-xs font-black text-emerald-600 mb-2 block">3. ソフト制約</span>
+                    <div class="space-y-3">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] font-bold w-full">実施日を離す（等間隔）</span>
+                            ${state.subjects.map(s => {
+                                const isChecked = state.advancedRules.maxIntervalSubjects?.includes(s.name);
+                                return `<label class="cursor-pointer select-none text-[10px] px-2 py-1 rounded border ${isChecked?'bg-emerald-100 border-emerald-300 text-emerald-700 font-bold':'bg-slate-50 border-slate-200 text-slate-500'}"><input type="checkbox" class="hidden" ${isChecked?'checked':''} onchange="actions.toggleMaxInterval('${s.name}')">${s.name.substring(0,2)}</label>`;
+                            }).join('')}
                         </div>
-
-                        <div class="bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-sm">
-                            <span class="text-base font-bold text-slate-600 block mb-4">午前中に優先的に配置する教科</span>
-                            <div class="flex flex-wrap gap-3">
-                                ${state.subjects.map(s => {
-                                    const isChecked = state.advancedRules.amPrioritySubjects.includes(s.name);
-                                    return `<label class="cursor-pointer select-none">
-                                        <input type="checkbox" class="hidden peer" ${isChecked ? 'checked' : ''} onchange="actions.toggleAmPriority('${s.name}')">
-                                        <div class="px-5 py-3 rounded-2xl border-2 border-slate-200 text-slate-500 font-black peer-checked:bg-blue-100 peer-checked:text-blue-700 peer-checked:border-blue-300 transition-all text-base shadow-sm bg-slate-50">${s.name}</div>
-                                    </label>`;
-                                }).join('')}
-                            </div>
-                        </div>
-                        
-                        <div class="bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-sm">
-                            <span class="text-base font-bold text-slate-600 block mb-2">学年内で連続して配置する教科</span>
-                            <p class="text-sm text-slate-400 mb-4 font-bold">準備や片付けのため、曜日を跨いでも同じ学年を続ける（例：1組の次は2組）</p>
-                            <div class="flex flex-wrap gap-3">
-                                ${state.subjects.map(s => {
-                                    const isChecked = state.advancedRules.consecutiveGradeSubjects.includes(s.name);
-                                    return `<label class="cursor-pointer select-none">
-                                        <input type="checkbox" class="hidden peer" ${isChecked ? 'checked' : ''} onchange="actions.toggleConsecutive('${s.name}')">
-                                        <div class="px-5 py-3 rounded-2xl border-2 border-slate-200 text-slate-500 font-black peer-checked:bg-blue-100 peer-checked:text-blue-700 peer-checked:border-blue-300 transition-all text-base shadow-sm bg-slate-50">${s.name}</div>
-                                    </label>`;
-                                }).join('')}
-                            </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] font-bold w-full">午前優先</span>
+                            ${state.subjects.map(s => {
+                                const isChecked = state.advancedRules.amPrioritySubjects.includes(s.name);
+                                return `<label class="cursor-pointer select-none text-[10px] px-2 py-1 rounded border ${isChecked?'bg-blue-100 border-blue-300 text-blue-700 font-bold':'bg-slate-50 border-slate-200 text-slate-500'}"><input type="checkbox" class="hidden" ${isChecked?'checked':''} onchange="actions.toggleAmPriority('${s.name}')">${s.name.substring(0,2)}</label>`;
+                            }).join('')}
                         </div>
                     </div>
                 </div>
             </div>
             
-            <div class="w-full xl:flex-1 bg-slate-900 rounded-[40px] p-8 md:p-10 flex flex-col overflow-hidden shadow-2xl relative border-4 border-slate-800 shrink-0 min-h-[500px]">
-                <div class="flex-1 bg-white rounded-3xl border-4 border-slate-700 p-8 flex flex-col items-center justify-center text-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3" class="mb-6 animate-pulse"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                    <h4 class="text-3xl font-black text-slate-800">全項目の整合性チェック済み</h4>
-                    <p class="text-slate-500 font-bold mt-4 text-lg">すべてのルールが保存されました。<br>「AI自動生成を開始」を押してください。</p>
+            <div class="flex-1 bg-slate-900 rounded-xl p-4 flex flex-col overflow-hidden shadow-inner">
+                <div class="flex items-center justify-between mb-2 shrink-0">
+                    <div class="flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full ${pass?'bg-emerald-500':'bg-rose-500'} animate-pulse"></div>
+                        <span class="text-xs font-black text-white">プレフライト・マトリックス</span>
+                    </div>
                 </div>
+                <div class="flex-1 overflow-auto custom-scrollbar bg-white rounded-lg border-2 border-slate-700 p-1">
+                    ${matrixHtml}
+                </div>
+                ${!pass ? `<div class="mt-2 p-2 bg-rose-500/20 border border-rose-500/50 rounded-lg text-[9px] text-rose-300 font-bold max-h-[60px] overflow-y-auto">
+                    ${errors.map((e,i)=>`<p key=${i}>${e}</p>`).join('')}
+                </div>` : `<div class="mt-2 text-center text-emerald-400 font-bold text-[10px]">All Checks Passed.</div>`}
             </div>
         </div>`;
     }
 
     function viewStep10(el) {
-        if(!state.generatedSchedule) { el.innerHTML = `<div class="flex items-center justify-center h-full text-slate-400 font-black text-2xl">自動生成を実行してください</div>`; return; }
+        if(!state.generatedSchedule) { el.innerHTML = `<div class="flex items-center justify-center h-full text-slate-400 font-black text-sm">自動生成を実行してください</div>`; return; }
         actions.validateConflicts();
 
         let filterOpts = "";
-        if(state.dashboardView === 'class') {
-            Object.entries(state.grades).forEach(([g, n]) => { for(let i=1; i<=n; i++) filterOpts += `<option value="${g}-${i}">${g}年${i}組</option>`; });
-        } else if(state.dashboardView === 'teacher') {
-            state.teachers.forEach(t => { filterOpts += `<option value="${t.id}">${t.name} 先生</option>`; });
-        }
+        if(state.dashboardView === 'class') { Object.entries(state.grades).forEach(([g, n]) => { for(let i=1; i<=n; i++) filterOpts += `<option value="${g}-${i}">${g}年${i}組</option>`; }); } 
+        else if(state.dashboardView === 'teacher') { state.teachers.forEach(t => { filterOpts += `<option value="${t.id}">${t.name} 先生</option>`; }); }
 
         const isUndoDisabled = state.undoStack.length === 0;
 
         el.innerHTML = `
-        <div class="flex flex-col h-full overflow-hidden animate-in fade-in duration-500">
-            <div class="flex flex-wrap items-center justify-between gap-6 mb-6 bg-white border-2 border-slate-200 p-6 rounded-3xl shadow-sm shrink-0">
-                <div class="flex items-center gap-2">
-                    <button onclick="actions.setDashView('class')" class="px-6 py-3 rounded-xl font-black text-sm transition-all ${state.dashboardView==='class'?'bg-blue-600 text-white shadow-md':'bg-slate-50 text-slate-500 hover:bg-slate-100'}">学級別</button>
-                    <button onclick="actions.setDashView('teacher')" class="px-6 py-3 rounded-xl font-black text-sm transition-all ${state.dashboardView==='teacher'?'bg-blue-600 text-white shadow-md':'bg-slate-50 text-slate-500 hover:bg-slate-100'}">教員別</button>
+        <div class="flex flex-col h-full overflow-hidden animate-in fade-in duration-300">
+            <div class="flex items-center justify-between gap-4 mb-3 bg-white border border-slate-200 p-2 rounded-xl shadow-sm shrink-0">
+                <div class="flex items-center gap-1">
+                    <button onclick="actions.setDashView('class')" class="px-3 py-1.5 rounded-lg font-black text-xs transition-all ${state.dashboardView==='class'?'bg-blue-600 text-white':'bg-slate-50 text-slate-500 hover:bg-slate-100'}">学級別</button>
+                    <button onclick="actions.setDashView('teacher')" class="px-3 py-1.5 rounded-lg font-black text-xs transition-all ${state.dashboardView==='teacher'?'bg-blue-600 text-white':'bg-slate-50 text-slate-500 hover:bg-slate-100'}">教員別</button>
                 </div>
                 
-                <div class="relative flex items-center">
-                    <select onchange="state.dashboardFilter=this.value;render()" class="appearance-none p-3 pr-10 bg-slate-50 text-slate-800 rounded-xl border-2 border-slate-200 font-black min-w-[220px] outline-none hover:border-blue-300 transition-colors cursor-pointer">
-                        ${filterOpts.replace(`value="${state.dashboardFilter}"`, `value="${state.dashboardFilter}" selected`)}
-                    </select>
-                    <div class="absolute right-4 pointer-events-none text-slate-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </div>
-                </div>
+                <select onchange="state.dashboardFilter=this.value;render()" class="m3-input !p-1.5 !text-xs !bg-slate-50 font-black w-32 border-none cursor-pointer">
+                    ${filterOpts.replace(`value="${state.dashboardFilter}"`, `value="${state.dashboardFilter}" selected`)}
+                </select>
                 
-                <div class="flex items-center gap-4 ml-auto">
-                    <button onclick="actions.undo()" class="flex items-center gap-2 px-5 py-3 rounded-xl font-black text-sm transition-all shadow-sm ${isUndoDisabled ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed' : 'bg-white text-slate-700 border-2 border-slate-200 hover:bg-slate-50 hover:border-blue-300 active:scale-95'}">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path></svg>
-                        1つ戻す
+                <div class="flex items-center gap-2 ml-auto">
+                    <button onclick="actions.undo()" class="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${isUndoDisabled ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}">
+                        戻す
                     </button>
-                    <div class="h-10 w-px bg-slate-200"></div>
-                    <button onclick="actions.exportToSpreadsheet()" class="m3-btn-primary !text-sm !py-3 !px-6 !gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> スプシに出力</button>
                 </div>
             </div>
 
-            <div class="flex-1 overflow-auto bg-white border-4 border-slate-200 rounded-[40px] shadow-inner custom-scrollbar p-2">
-                <div class="grid grid-cols-[80px_repeat(5,1fr)] min-w-[1000px] h-full gap-px bg-slate-100">
-                    <div class="bg-slate-50 h-16 flex items-center justify-center font-black text-slate-400 text-xs tracking-widest uppercase">Time</div>
-                    ${DAYS.map(d => `<div class="bg-slate-50 h-16 flex items-center justify-center font-black text-slate-700 text-xl">${d}曜</div>`).join('')}
+            <div class="flex-1 overflow-auto bg-white border border-slate-200 rounded-xl shadow-sm custom-scrollbar p-1">
+                <div class="grid grid-cols-[40px_repeat(5,1fr)] min-w-[600px] h-full gap-px bg-slate-200">
+                    <div class="bg-slate-50 flex items-center justify-center font-black text-slate-400 text-[9px] uppercase">Time</div>
+                    ${DAYS.map(d => `<div class="bg-slate-50 flex items-center justify-center font-black text-slate-700 text-xs py-2">${d}曜</div>`).join('')}
                     ${PERIODS.map(p => `
-                        <div class="bg-slate-50 flex items-center justify-center font-black text-slate-400 text-lg">${p}限</div>
+                        <div class="bg-slate-50 flex items-center justify-center font-black text-slate-400 text-[10px]">${p}限</div>
                         ${DAYS.map(d => {
                             const lessons = state.generatedSchedule[d][p] || [];
                             const targetLessons = lessons.filter(l => (state.dashboardView === 'class') ? l.targets.includes(state.dashboardFilter) : (String(l.teacherId) === String(state.dashboardFilter)));
                             const isSelected = state.selectedDashCell && state.selectedDashCell.day === d && state.selectedDashCell.period === p;
                             const isConflict = state.conflicts.some(c => c.day === d && c.period === p);
-                            return `<div onclick="actions.clickDashCell('${d}', ${p})" class="dash-cell border-b border-slate-100 ${isSelected?'selected':''} ${isConflict?'conflict':''}">
-                                ${targetLessons.map(l => `<div class="text-center w-full px-2"><div class="sub-chip ${getSubColorClass(l.subject)} mb-2 mx-auto w-fit">${l.subject}</div><div class="text-sm font-black text-slate-800 tracking-tighter leading-tight">${state.dashboardView==='teacher' ? l.targets.join(', ') : l.teacherName}</div></div>`).join('')}
-                                ${isConflict ? `<div class="absolute top-1 right-1 text-rose-500"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>` : ''}
+                            return `<div onclick="actions.clickDashCell('${d}', ${p})" class="dash-cell ${isSelected?'selected':''} ${isConflict?'conflict':''}">
+                                ${targetLessons.map(l => `<div class="text-center w-full px-1"><div class="sub-chip ${getSubColorClass(l.subject)} mb-0.5 mx-auto w-fit leading-none">${l.subject}</div><div class="text-[9px] font-black text-slate-800 leading-tight truncate">${state.dashboardView==='teacher' ? l.targets.join(', ') : l.teacherName}</div></div>`).join('')}
                             </div>`;
                         }).join('')}
                     `).join('')}
@@ -842,83 +700,40 @@
     window.actions = {
         async startGeneration() {
             document.getElementById('loading-overlay').classList.replace('hidden', 'flex');
-            
             try {
-                // GitHub PagesからGASへ通信
-                const response = await fetch(GAS_URL, {
-                    method: 'POST',
-                    body: JSON.stringify({ action: 'generate', state: state })
-                });
+                const response = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'generate', state: state }) });
                 const res = await response.json();
-
-                if (res.success) {
-                    state.generatedSchedule = res.schedule;
-                    currentStep = 10; render();
-                    showToast("自動生成に成功しました！");
-                } else {
-                    showToast("生成エラー: " + res.message);
-                }
-            } catch (e) {
-                showToast("通信エラーが発生しました。GASのURLを確認してください。");
-                console.error(e);
-            } finally {
-                document.getElementById('loading-overlay').classList.replace('flex', 'hidden');
-            }
+                if (res.success) { state.generatedSchedule = res.schedule; currentStep = 10; render(); showToast("自動生成成功！"); } 
+                else { showToast("生成エラー: " + res.message); }
+            } catch (e) { showToast("通信エラーが発生しました。"); console.error(e); } 
+            finally { document.getElementById('loading-overlay').classList.replace('flex', 'hidden'); }
         },
-
         async exportToSpreadsheet() {
-            showToast("スプレッドシートへ出力中...");
+            showToast("スプシへ出力中...");
             try {
-                const response = await fetch(GAS_URL, {
-                    method: 'POST',
-                    body: JSON.stringify({ 
-                        action: 'export', 
-                        schedule: state.generatedSchedule, 
-                        state: state 
-                    })
-                });
+                const response = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'export', schedule: state.generatedSchedule, state: state }) });
                 const res = await response.json();
-                if(res.success) {
-                    showToast("スプレッドシートに出力しました！");
-                } else {
-                    showToast("出力エラー: " + res.message);
-                }
-            } catch (e) {
-                showToast("通信エラーが発生しました。");
-                console.error(e);
-            }
+                if(res.success) showToast("スプレッドシートに出力しました！"); else showToast("出力エラー: " + res.message);
+            } catch (e) { showToast("通信エラーが発生しました。"); console.error(e); }
         },
 
         setDashView(v) { state.dashboardView = v; state.dashboardFilter = (v==='class')?'1-1':(state.teachers[0]?.id||''); render(); },
-        
         clickDashCell(day, period) {
-            if(!state.selectedDashCell) { 
-                playBeep('select');
-                state.selectedDashCell = { day, period }; 
-                render(); 
-            } else { 
+            if(!state.selectedDashCell) { playBeep('select'); state.selectedDashCell = { day, period }; render(); } 
+            else { 
                 const c1 = state.selectedDashCell; const c2 = { day, period }; 
-                if(c1.day!==c2.day || c1.period!==c2.period) { 
-                    playBeep('swap');
-                    this.pushUndo(); 
-                    this.swapLessons(c1, c2); 
-                } else {
-                    playBeep('select');
-                }
-                state.selectedDashCell = null; 
-                render(); 
+                if(c1.day!==c2.day || c1.period!==c2.period) { playBeep('swap'); this.pushUndo(); this.swapLessons(c1, c2); } 
+                else { playBeep('select'); }
+                state.selectedDashCell = null; render(); 
             }
         },
-        
         swapLessons(c1, c2) {
-            const lessons1 = state.generatedSchedule[c1.day][c1.period];
-            const lessons2 = state.generatedSchedule[c2.day][c2.period];
+            const lessons1 = state.generatedSchedule[c1.day][c1.period]; const lessons2 = state.generatedSchedule[c2.day][c2.period];
             const finder = (l) => (state.dashboardView==='class')?l.targets.includes(state.dashboardFilter):(String(l.teacherId)===String(state.dashboardFilter));
             const idx1 = lessons1.findIndex(finder); const idx2 = lessons2.findIndex(finder);
             const l1 = idx1!==-1?lessons1.splice(idx1, 1)[0]:null; const l2 = idx2!==-1?lessons2.splice(idx2, 1)[0]:null;
             if(l1) lessons2.push(l1); if(l2) lessons1.push(l2);
         },
-        
         validateConflicts() {
             state.conflicts = [];
             DAYS.forEach(d => { PERIODS.forEach(p => {
@@ -926,7 +741,6 @@
                 state.generatedSchedule[d][p].forEach(l => { if(teachers.has(l.teacherId)) state.conflicts.push({day: d, period: p}); teachers.add(l.teacherId); });
             }); });
         },
-        
         pushUndo() { state.undoStack.push(JSON.stringify(state.generatedSchedule)); if(state.undoStack.length>10) state.undoStack.shift(); },
         undo() { if(state.undoStack.length) { state.generatedSchedule = JSON.parse(state.undoStack.pop()); render(); showToast("1つ戻しました"); } },
         
@@ -934,7 +748,7 @@
         updateRoom(id, k, v) { state.rooms.find(r=>r.id===id)[k] = v; render(); },
         toggleRoomNG(id, k) { const r = state.rooms.find(x=>x.id===id); if(!r.ngTimes)r.ngTimes={}; r.ngTimes[k]=!r.ngTimes[k]; render(); },
         addSubject() { state.subjects.push({name:'新規科目', stdHours:{1:0,2:0,3:0,4:0,5:0,6:0}}); render(); },
-        addTeacher() { state.teachers.push({id:Date.now(), name:'新規教員', maxHours:24, homeroom:'', ngTimes:{}, assignments:[]}); render(); },
+        addTeacher() { state.teachers.push({id:Date.now(), name:'教員名', maxHours:24, homeroom:'', ngTimes:{}, assignments:[]}); render(); },
         updateTeacher(id, k, v) { state.teachers.find(t=>t.id===id)[k]=v; render(); },
         toggleTeacherNG(id, k) { const t=state.teachers.find(x=>x.id===id); if(!t.ngTimes)t.ngTimes={}; t.ngTimes[k]=!t.ngTimes[k]; render(); },
         addAssignment(id) { state.teachers.find(t=>t.id===id).assignments.push({subject:state.subjects[0]?.name||'', target:'自分のクラス', hours:1, room:'通常教室', isJoint:false, isTT:false, fixedTime:''}); render(); },
@@ -952,23 +766,17 @@
 
         getTargetOptions(current) {
             let html = `<option value="自分のクラス" ${current==='自分のクラス'?'selected':''}>自クラス</option>`;
-            [1,2,3,4,5,6].forEach(g => {
-                html += `<option value="${g}年全体" ${current===g+'年全体'?'selected':''}>${g}年全体</option>`;
-                for(let c=1; c<=state.grades[g]; c++) { const v = `${g}年${c}組`; html += `<option value="${v}" ${current===v?'selected':''}>${v}</option>`; }
-            });
+            [1,2,3,4,5,6].forEach(g => { html += `<option value="${g}年全体" ${current===g+'年全体'?'selected':''}>${g}年全体</option>`; for(let c=1; c<=state.grades[g]; c++) { const v = `${g}年${c}組`; html += `<option value="${v}" ${current===v?'selected':''}>${v}</option>`; } });
             return html;
         },
         openBulk(type) {
             const ov = document.getElementById('modal-overlay'); const bd = document.getElementById('modal-body'); ov.classList.remove('hidden');
             let t = type==='rooms'?"教室":type==='subjects'?"科目":"教員";
-            bd.innerHTML = `<h3 class="text-3xl font-black mb-6">${t}の一括貼り付け</h3><p class="text-lg text-slate-500 mb-6 font-bold">1行目を飛ばして2行目から${t}名を改行区切りで貼り付けてください。</p><textarea id="bulk-txt" class="w-full h-80 p-6 bg-slate-50 rounded-3xl outline-none text-xl border-2 border-slate-200 focus:border-blue-500 mb-8 font-bold leading-relaxed"></textarea><div class="flex gap-6"><button onclick="actions.closeModal()" class="flex-1 p-6 font-bold text-slate-500 bg-slate-100 rounded-3xl hover:bg-slate-200 text-xl transition-colors">閉じる</button><button onclick="actions.processBulk('${type}')" class="flex-1 bg-blue-600 text-white font-black rounded-3xl hover:bg-blue-700 shadow-xl text-xl transition-all">一括追加する</button></div>`;
+            bd.innerHTML = `<h3 class="text-xl font-black mb-2">${t}の一括貼り付け</h3><p class="text-xs text-slate-500 mb-4">1行目を飛ばして2行目から${t}名を改行区切りで貼り付けてください。</p><textarea id="bulk-txt" class="w-full h-40 p-4 bg-slate-50 rounded-xl outline-none text-sm border border-slate-200 focus:border-blue-500 mb-4 font-bold"></textarea><div class="flex gap-4"><button onclick="actions.closeModal()" class="flex-1 p-3 font-bold text-slate-500 bg-slate-100 rounded-xl hover:bg-slate-200 text-sm transition-colors">閉じる</button><button onclick="actions.processBulk('${type}')" class="flex-1 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 shadow-sm text-sm transition-all">追加する</button></div>`;
         },
         processBulk(type) {
-            const r = document.getElementById('bulk-txt').value.split('\n').filter(x=>x.trim()!=='');
-            let addedCount = 0;
-            r.forEach((n, idx) => {
-                let name = n.split('\t')[0].trim();
-                if (idx === 0 && (name.includes('名') || name === '教室' || name === '科目' || name === '教員')) return;
+            const r = document.getElementById('bulk-txt').value.split('\n').filter(x=>x.trim()!==''); let addedCount = 0;
+            r.forEach((n, idx) => { let name = n.split('\t')[0].trim(); if (idx === 0 && (name.includes('名') || name === '教室' || name === '科目' || name === '教員')) return;
                 if(name) {
                     if(type==='rooms') state.rooms.push({id:Date.now()+Math.random(), name, capacity:1, ngTimes:{}});
                     if(type==='subjects'&&!state.subjects.find(s=>s.name===name)) state.subjects.push({name, stdHours:{1:0,2:0,3:0,4:0,5:0,6:0}});
@@ -982,17 +790,33 @@
         closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); },
         exportData() { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_config.json"; a.click(); },
         importData() { const i=document.createElement('input'); i.type='file'; i.onchange=e=>{ const r=new FileReader(); r.readAsText(e.target.files[0]); r.onload=e=>{ Object.assign(state, JSON.parse(e.target.result)); currentStep=1; render(); } }; i.click(); },
-        resetData() { if(confirm("初期化しますか？")) { localStorage.removeItem('tt_v98_data'); location.reload(); } },
-        addMathGroup() { state.mathGroups.push({id:Date.now(), grade:document.getElementById('mg-grade').value||'1', groupCount:document.getElementById('mg-count').value||'4'}); render(); }
+        resetData() { if(confirm("初期化しますか？")) { localStorage.removeItem('tt_v99_data'); location.reload(); } },
+        addMathGroup() { state.mathGroups.push({id:Date.now(), grade:document.getElementById('mg-grade').value||'1', groupCount:document.getElementById('mg-count').value||'4'}); render(); },
+        copyTeacherSettings(targetId) {
+            const srcId = document.getElementById('copy-src').value; if(!srcId) return;
+            const src = state.teachers.find(x => x.id === parseInt(srcId)); const tgt = state.teachers.find(x => x.id === targetId);
+            tgt.maxHours = src.maxHours; tgt.ngTimes = JSON.parse(JSON.stringify(src.ngTimes || {})); tgt.assignments = JSON.parse(JSON.stringify(src.assignments || []));
+            showToast("設定をコピーしました"); render();
+        },
+        openCustomTargetModal(tId, aIdx) {
+            const ov = document.getElementById('modal-overlay'); const bd = document.getElementById('modal-body'); ov.classList.remove('hidden');
+            const t = state.teachers.find(x=>x.id===tId); const selected = t.assignments[aIdx].target.split(',').map(s=>s.trim());
+            let html = `<h3 class="text-xl font-black mb-2">対象クラス複数選択</h3><div class="grid grid-cols-3 gap-2 mb-4 max-h-[40vh] overflow-y-auto custom-scrollbar pr-2">`;
+            [1,2,3,4,5,6].forEach(g => { for(let c=1; c<=state.grades[g]; c++) { const v = `${g}年${c}組`; html += `<label class="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border cursor-pointer hover:bg-blue-50"><input type="checkbox" value="${v}" class="custom-target-chk w-4 h-4" ${selected.includes(v)?'checked':''}><span class="text-xs font-bold">${v}</span></label>`; } });
+            html += `</div><div class="flex gap-4"><button onclick="actions.closeModal(); render()" class="flex-1 p-3 font-bold text-slate-500 bg-slate-100 rounded-xl hover:bg-slate-200 text-sm">キャンセル</button><button onclick="actions.saveCustomTarget(${tId}, ${aIdx})" class="flex-1 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 text-sm shadow-sm">決定</button></div>`;
+            bd.innerHTML = html;
+        },
+        saveCustomTarget(tId, aIdx) {
+            const chks = document.querySelectorAll('.custom-target-chk:checked'); const vals = Array.from(chks).map(c => c.value);
+            state.teachers.find(t=>t.id===tId).assignments[aIdx].target = vals.length > 0 ? vals.join(', ') : '自分のクラス';
+            this.closeModal(); render();
+        }
     };
 
-    document.getElementById('btn-next').onclick = () => { if(currentStep===9) actions.startGeneration(); else if(currentStep<MAX_STEPS) { currentStep++; render(); } };
+    document.getElementById('btn-next').onclick = () => { if(currentStep===9) actions.startGeneration(); else if(currentStep<MAX_STEPS) { currentStep++; render(); } else { actions.exportToSpreadsheet(); } };
     document.getElementById('btn-prev').onclick = () => { if(currentStep>1) { currentStep--; render(); } };
 
-    document.addEventListener('DOMContentLoaded', () => { 
-        load(); 
-        render(); 
-    });
+    document.addEventListener('DOMContentLoaded', () => { load(); render(); });
 </script>
 </body>
 </html>
