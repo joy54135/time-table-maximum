@@ -1,24 +1,23 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 10.4 (GitHub Pages + High-Density UI Edition)
+  Version: 10.5 (GitHub Pages + High-Density UI Edition)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: ボタン連打時のダブルタップズーム防止機能を追加
+  Description: ダブルタップ拡大完全防止・全入力欄に説明ツールチップを追加
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 10.4</title>
+    <title>Smart TimeTable - Ver 10.5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
         /* 画面外スクロールを完全に防ぎ、100%の高さに固定する */
-        html, body { height: 100%; height: 100dvh; overflow: hidden; margin: 0; padding: 0; font-family: 'Noto Sans JP', sans-serif; background-color: #f1f5f9; color: #0f172a; -webkit-tap-highlight-color: transparent; }
+        html, body { height: 100%; height: 100dvh; overflow: hidden; margin: 0; padding: 0; font-family: 'Noto Sans JP', sans-serif; background-color: #f1f5f9; color: #0f172a; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
         
         #app-container { height: 100%; height: 100dvh; display: flex; flex-direction: column; padding: 12px; padding-bottom: max(24px, env(safe-area-inset-bottom)); max-width: 1800px; margin: 0 auto; width: 100%; box-sizing: border-box; overflow: hidden; }
 
-        /* min-h-0 を付与してカードが中身のサイズ以上に伸びないように固定 */
         .m3-card { @apply bg-white rounded-xl shadow-sm border border-slate-200 p-3 md:p-5 flex flex-col overflow-hidden min-h-0; }
         
         .m3-btn-primary { @apply bg-blue-600 text-white px-6 py-2.5 rounded-lg font-black hover:bg-blue-700 active:scale-95 transition-all shadow-sm flex flex-row flex-nowrap items-center justify-center gap-2 disabled:opacity-30 disabled:pointer-events-none text-sm whitespace-nowrap; }
@@ -38,9 +37,6 @@
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
         
         .select-none { user-select: none; -webkit-user-select: none; }
-        
-        /* ★ ボタン等の連続タップによる画面拡大（ダブルタップズーム）を防止 ★ */
-        button, input, select, textarea, label, .dash-cell, .time-cell, [onclick] { touch-action: manipulation; }
         
         /* ダッシュボード用セルスタイル */
         .dash-cell { @apply min-h-[50px] p-1 border-r border-b border-slate-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer relative overflow-hidden bg-white; }
@@ -85,28 +81,23 @@
             </div>
             <div class="min-w-0 flex items-baseline gap-2">
                 <h1 class="text-xl font-black tracking-tighter text-slate-800 truncate leading-none">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate hidden sm:block">Ver 10.4 High-Density Edition</p>
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate hidden sm:block">Ver 10.5 Full Tooltips</p>
             </div>
         </div>
         <div class="flex flex-row items-center gap-2 shrink-0">
             <div id="step-title" class="hidden md:block text-xs font-black text-blue-700 bg-white border border-blue-200 px-3 py-1 rounded-md shadow-sm"></div>
-            <button onclick="actions.exportData()" class="text-xs font-bold text-slate-500 hover:text-blue-600 transition-colors px-2">Export</button>
-            <button onclick="actions.importData()" class="text-xs font-bold text-slate-500 hover:text-blue-600 transition-colors px-2 border-l border-slate-300">Import</button>
-            <button onclick="actions.resetData()" class="text-xs font-bold text-slate-500 hover:text-rose-500 transition-colors px-2 border-l border-slate-300">Reset</button>
+            <button onclick="actions.exportData()" title="現在の設定データをパソコンに保存します" class="text-xs font-bold text-slate-500 hover:text-blue-600 transition-colors px-2">Export</button>
+            <button onclick="actions.importData()" title="保存した設定データを読み込みます" class="text-xs font-bold text-slate-500 hover:text-blue-600 transition-colors px-2 border-l border-slate-300">Import</button>
+            <button onclick="actions.resetData()" title="すべての設定を初期状態に戻します" class="text-xs font-bold text-slate-500 hover:text-rose-500 transition-colors px-2 border-l border-slate-300">Reset</button>
         </div>
     </header>
 
-    <!-- min-h-0を追加し、Flexコンテナのオーバーフローを防止 -->
     <div id="wizard-card" class="m3-card flex-1 flex flex-col min-h-0">
         <div id="progress-dots" class="flex justify-center gap-1.5 mb-3 shrink-0"></div>
-        
-        <!-- コンテンツエリア：min-h-0を追加して、親枠を押し広げないようにする -->
         <div id="step-content" class="fade-in flex-1 overflow-hidden flex flex-col relative min-h-0"></div>
-        
-        <!-- フッター：shrink-0で常に下部に固定し、左右と下部に余白を追加して押しやすくする -->
         <div id="navigation-bar" class="flex justify-between items-center mt-3 pt-3 pb-2 px-4 md:px-8 border-t border-slate-200 shrink-0">
-            <button id="btn-prev" class="m3-btn-secondary w-[120px] md:w-[160px]">戻る</button>
-            <button id="btn-next" class="m3-btn-primary w-[160px] md:w-[240px]"><span id="btn-next-text">次へ進む</span></button>
+            <button id="btn-prev" class="m3-btn-secondary w-[120px] md:w-[160px]" title="1つ前の画面に戻る">戻る</button>
+            <button id="btn-next" class="m3-btn-primary w-[160px] md:w-[240px]" title="次の設定画面へ進む"><span id="btn-next-text">次へ進む</span></button>
         </div>
     </div>
 </div>
@@ -124,7 +115,21 @@
 </div>
 
 <script>
-    // 指定のGAS URLを組み込み
+    // iOS Safariでのボタン連打時のダブルタップズームを強制防止する
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', function (event) {
+        const now = (new Date()).getTime();
+        if (now - lastTouchEnd <= 300) {
+            const tagName = event.target.tagName.toLowerCase();
+            // 文字入力が必要なタグ以外はズーム防止（ボタン等は連打しても拡大しない）
+            if (tagName !== 'input' && tagName !== 'textarea' && tagName !== 'select') {
+                event.preventDefault();
+            }
+        }
+        lastTouchEnd = now;
+    }, { passive: false });
+
+    // GAS URL
     const GAS_URL = "https://script.google.com/macros/s/AKfycbwQS-riVqzIoMJykIbT0eWtJwAGsJMV1VcaTqPJDZjpb2q7bcoE35b_nXRrGWUcn5-K/exec";
 
     const DAYS = ['月', '火', '水', '木', '金'];
@@ -194,10 +199,10 @@
         } catch(e) {}
     };
 
-    function save() { try { localStorage.setItem('tt_v104_data', JSON.stringify(state)); } catch(e) {} }
+    function save() { try { localStorage.setItem('tt_v105_data', JSON.stringify(state)); } catch(e) {} }
     function load() {
         try {
-            const s = localStorage.getItem('tt_v104_data');
+            const s = localStorage.getItem('tt_v105_data');
             if(s) { 
                 const p = JSON.parse(s);
                 if(!p.subjects || p.subjects.length < 10) return false;
@@ -237,16 +242,26 @@
             DAYS.forEach(d => {
                 const k = `${d}-${p}`; const gl = globalBlocksMap?.[k];
                 let cls = 'w-7 h-7 md:w-9 md:h-9 border-2 rounded-md flex items-center justify-center cursor-pointer text-[10px] font-bold transition-colors mx-auto ', icon = '', click = '';
+                
+                let tooltipText = "タップして状態を変更";
                 if(cellType === 'global') {
                     cls += gl ? 'bg-rose-50 border-rose-300 text-rose-500 hover:bg-rose-100' : 'bg-white border-slate-200 text-slate-200 hover:bg-blue-50';
                     icon = gl ? '✕' : ''; click = `onclick="${actionStr.replace('__KEY__', k)}"`;
-                } else {
+                    tooltipText = "全校で授業を入れない時間を設定";
+                } else if(cellType === 'room') {
+                    tooltipText = "この教室が使えない時間を設定";
                     const ng = ngMap?.[k];
-                    if (gl) { cls += 'bg-slate-100 border-slate-200 cursor-not-allowed text-slate-300'; icon = '■'; }
+                    if (gl) { cls += 'bg-slate-100 border-slate-200 cursor-not-allowed text-slate-300'; icon = '■'; tooltipText = "全校ブロック時間です"; }
+                    else if (ng) { cls += 'bg-rose-50 border-rose-300 text-rose-500 hover:bg-rose-100'; icon = '✕'; click = `onclick="${actionStr.replace('__KEY__', k)}"`; }
+                    else { cls += 'bg-white border-slate-200 text-slate-200 hover:bg-blue-50'; icon = ''; click = `onclick="${actionStr.replace('__KEY__', k)}"`; }
+                } else {
+                    tooltipText = "この教員の勤務不可時間を設定";
+                    const ng = ngMap?.[k];
+                    if (gl) { cls += 'bg-slate-100 border-slate-200 cursor-not-allowed text-slate-300'; icon = '■'; tooltipText = "全校ブロック時間です"; }
                     else if (ng) { cls += 'bg-rose-50 border-rose-300 text-rose-500 hover:bg-rose-100'; icon = '✕'; click = `onclick="${actionStr.replace('__KEY__', k)}"`; }
                     else { cls += 'bg-white border-slate-200 text-slate-200 hover:bg-blue-50'; icon = ''; click = `onclick="${actionStr.replace('__KEY__', k)}"`; }
                 }
-                html += `<td class="p-0"><div ${click} class="${cls}">${icon}</div></td>`;
+                html += `<td class="p-0"><div title="${tooltipText}" ${click} class="${cls}">${icon}</div></td>`;
             });
             html += `</tr>`;
         });
@@ -288,7 +303,7 @@
         [1,2,3,4,5,6].forEach(g => {
             h += `<tr class="border-b border-slate-100"><td class="p-2 bg-slate-50 font-bold border-r border-slate-200">${g}年</td>`;
             DAYS.forEach(d => {
-                h += `<td class="p-1 border-r border-slate-100"><input type="number" min="0" max="6" value="${state.periods[g][d]}" onchange="state.periods[${g}]['${d}']=parseInt(this.value)||0;render()" class="w-12 p-1 bg-blue-50/50 rounded text-center font-black text-blue-600 outline-none focus:ring-2 ring-blue-400"></td>`;
+                h += `<td class="p-1 border-r border-slate-100"><input type="number" min="0" max="6" value="${state.periods[g][d]}" title="この曜日の最大授業コマ数を入力" onchange="state.periods[${g}]['${d}']=parseInt(this.value)||0;render()" class="w-12 p-1 bg-blue-50/50 rounded text-center font-black text-blue-600 outline-none focus:ring-2 ring-blue-400"></td>`;
             });
             h += `</tr>`;
         });
@@ -302,9 +317,9 @@
                 <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center shrink-0">
                     <span class="text-slate-500 font-bold text-xs mb-2">${g}年生</span>
                     <div class="flex items-center gap-2">
-                        <button onclick="state.grades[${g}]=Math.max(1, state.grades[${g}]-1);render()" class="w-6 h-6 rounded-md border border-slate-200 flex items-center justify-center font-bold text-slate-400 hover:bg-slate-50">-</button>
+                        <button onclick="state.grades[${g}]=Math.max(1, state.grades[${g}]-1);render()" title="クラス数を減らす" class="w-6 h-6 rounded-md border border-slate-200 flex items-center justify-center font-bold text-slate-400 hover:bg-slate-50">-</button>
                         <span class="text-2xl font-black text-blue-600 w-8 text-center">${state.grades[g]}</span>
-                        <button onclick="state.grades[${g}]=Math.min(6, state.grades[${g}]+1);render()" class="w-6 h-6 rounded-md border border-slate-200 flex items-center justify-center font-bold text-slate-400 hover:bg-slate-50">+</button>
+                        <button onclick="state.grades[${g}]=Math.min(6, state.grades[${g}]+1);render()" title="クラス数を増やす" class="w-6 h-6 rounded-md border border-slate-200 flex items-center justify-center font-bold text-slate-400 hover:bg-slate-50">+</button>
                     </div>
                 </div>
             `).join('')}
@@ -317,7 +332,7 @@
 
         el.innerHTML = `<div class="mb-3 flex flex-wrap justify-between items-end gap-2 shrink-0">
             <div><h2 class="text-lg font-black">3. 特別教室の不可枠設定</h2><p class="text-[10px] text-slate-500">同時に使えるクラス数と不可時間を設定します。</p></div>
-            <div class="flex gap-2"><button onclick="actions.openBulk('rooms')" class="m3-btn-action">一括貼付</button><button onclick="actions.addRoom()" class="m3-btn-action">+追加</button></div>
+            <div class="flex gap-2"><button onclick="actions.openBulk('rooms')" title="スプレッドシートから教室名を一括で貼り付けます" class="m3-btn-action">一括貼付</button><button onclick="actions.addRoom()" title="新しい特別教室を追加します" class="m3-btn-action">+追加</button></div>
         </div>
         <div class="flex flex-col md:flex-row flex-1 gap-3 overflow-hidden min-h-0">
             <div class="w-full md:w-1/4 min-w-[150px] flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm h-1/3 md:h-full shrink-0">
@@ -326,7 +341,7 @@
                     ${state.rooms.map((r, idx)=>`
                         <div class="flex items-center justify-between p-2 rounded-lg cursor-pointer font-bold text-xs transition-all border overflow-hidden shrink-0 ${state.selectedRoomId===r.id?'bg-blue-600 border-blue-600 text-white':'text-slate-600 border-slate-100 hover:bg-slate-50'}">
                             <span onclick="state.selectedRoomId=${r.id};render()" class="flex-1 truncate">${r.name}</span>
-                            <button onclick="state.rooms.splice(${idx},1);render()" class="${state.selectedRoomId===r.id?'text-white hover:text-rose-200':'text-slate-300 hover:text-rose-500'} px-2 shrink-0">✕</button>
+                            <button onclick="state.rooms.splice(${idx},1);render()" title="この教室を削除する" class="${state.selectedRoomId===r.id?'text-white hover:text-rose-200':'text-slate-300 hover:text-rose-500'} px-2 shrink-0">✕</button>
                         </div>
                     `).join('')}
                 </div>
@@ -334,8 +349,8 @@
             <div class="flex-1 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm min-h-0">
                 ${room?`
                     <div class="p-3 bg-blue-50 border-b border-blue-100 flex flex-wrap justify-between items-center gap-2 shrink-0">
-                        <input type="text" value="${room.name}" onchange="actions.updateRoom(${room.id},'name',this.value)" class="bg-white px-3 py-1.5 rounded-lg text-sm font-black text-blue-900 border border-blue-200 outline-none flex-1">
-                        <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200 shrink-0">
+                        <input type="text" value="${room.name}" title="特別教室の名前を入力" onchange="actions.updateRoom(${room.id},'name',this.value)" class="bg-white px-3 py-1.5 rounded-lg text-sm font-black text-blue-900 border border-blue-200 outline-none flex-1">
+                        <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200 shrink-0" title="この教室で同時に授業ができるクラス数">
                             <span class="text-[10px] font-bold text-slate-500">同時使用数</span>
                             <input type="number" value="${room.capacity||1}" min="1" onchange="actions.updateRoom(${room.id},'capacity',parseInt(this.value)||1)" class="w-10 p-1 text-center font-black text-blue-700 text-sm outline-none bg-blue-50 rounded">
                         </div>
@@ -352,7 +367,7 @@
     function viewStep4(el) {
         el.innerHTML = `<div class="mb-3 flex flex-wrap justify-between items-end gap-2 shrink-0">
             <div><h2 class="text-lg font-black">4. 科目と標準時数</h2><p class="text-[10px] text-slate-500">週の授業数を設定します。</p></div>
-            <div class="flex gap-2"><button onclick="actions.openBulk('subjects')" class="m3-btn-action">一括貼付</button><button onclick="actions.addSubject()" class="m3-btn-action">+追加</button></div>
+            <div class="flex gap-2"><button onclick="actions.openBulk('subjects')" title="スプレッドシートから科目名を一括で貼り付け" class="m3-btn-action">一括貼付</button><button onclick="actions.addSubject()" title="新しい科目を追加" class="m3-btn-action">+追加</button></div>
         </div>
         <div class="flex-1 overflow-auto bg-white border border-slate-200 rounded-xl shadow-sm custom-scrollbar min-h-0">
             <table class="w-full text-xs text-center border-collapse min-w-[600px]">
@@ -362,9 +377,9 @@
                 <tbody>
                     ${state.subjects.map((s, sIdx)=>`
                         <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                            <td class="p-1.5 border-r border-slate-100"><input type="text" value="${s.name}" onchange="state.subjects[${sIdx}].name=this.value" class="w-full p-1 bg-transparent text-xs font-bold outline-none border border-transparent focus:border-blue-200 rounded"></td>
-                            ${[1,2,3,4,5,6].map(g=>`<td class="p-1 border-r border-slate-100"><input type="number" value="${s.stdHours[g]||0}" onchange="state.subjects[${sIdx}].stdHours[${g}]=parseInt(this.value)||0" class="w-10 p-1 text-center font-black text-blue-600 outline-none bg-white border border-slate-200 rounded focus:border-blue-500 mx-auto"></td>`).join('')}
-                            <td><button onclick="state.subjects.splice(${sIdx},1);render()" class="text-slate-300 hover:text-rose-500 text-xs font-bold">✕</button></td>
+                            <td class="p-1.5 border-r border-slate-100"><input type="text" value="${s.name}" title="科目の名前を入力" onchange="state.subjects[${sIdx}].name=this.value" class="w-full p-1 bg-transparent text-xs font-bold outline-none border border-transparent focus:border-blue-200 rounded"></td>
+                            ${[1,2,3,4,5,6].map(g=>`<td class="p-1 border-r border-slate-100"><input type="number" value="${s.stdHours[g]||0}" title="${g}年生のこの科目の週のコマ数" onchange="state.subjects[${sIdx}].stdHours[${g}]=parseInt(this.value)||0" class="w-10 p-1 text-center font-black text-blue-600 outline-none bg-white border border-slate-200 rounded focus:border-blue-500 mx-auto"></td>`).join('')}
+                            <td><button onclick="state.subjects.splice(${sIdx},1);render()" title="この科目を削除" class="text-slate-300 hover:text-rose-500 text-xs font-bold">✕</button></td>
                         </tr>
                     `).join('')}
                 </tbody>
@@ -391,9 +406,9 @@
                                 ${DAYS.map(d=>PERIODS.map(p=>{
                                     const key = `grade-${g}-${d}-${p}`;
                                     if(!state.globalBlocks[key]) return '';
-                                    return `<span onclick="actions.toggleBlock('${key}')" class="text-[10px] font-bold bg-rose-50 border border-rose-200 text-rose-600 px-2 py-1 rounded cursor-pointer hover:bg-rose-100 flex items-center gap-1">${d}${p} ✕</span>`;
+                                    return `<span onclick="actions.toggleBlock('${key}')" title="タップしてこのブロックを解除" class="text-[10px] font-bold bg-rose-50 border border-rose-200 text-rose-600 px-2 py-1 rounded cursor-pointer hover:bg-rose-100 flex items-center gap-1">${d}${p} ✕</span>`;
                                 }).join('')).join('')}
-                                <button onclick="actions.openGradeBlockModal(${g})" class="text-[10px] text-blue-700 font-bold px-2 py-1 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100">+ 追加</button>
+                                <button onclick="actions.openGradeBlockModal(${g})" title="${g}年生だけで授業を入れない時間を追加" class="text-[10px] text-blue-700 font-bold px-2 py-1 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100">+ 追加</button>
                             </div>
                         </div>
                     `).join('')}
@@ -405,14 +420,14 @@
     function viewStep6(el) {
         el.innerHTML = `<div class="mb-3 flex flex-wrap justify-between items-end gap-2 shrink-0">
             <div><h2 class="text-lg font-black">6. 教員名簿登録</h2></div>
-            <div class="flex gap-2"><button onclick="actions.openBulk('teachers')" class="m3-btn-action">一括貼付</button><button onclick="actions.addTeacher()" class="m3-btn-action">+追加</button></div>
+            <div class="flex gap-2"><button onclick="actions.openBulk('teachers')" title="スプレッドシートから教員名を一括で貼り付け" class="m3-btn-action">一括貼付</button><button onclick="actions.addTeacher()" title="新しい教員を追加" class="m3-btn-action">+追加</button></div>
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-2 min-h-0">
             <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3 content-start">
                 ${state.teachers.map((t,idx)=>`
                     <div class="bg-white p-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2 group overflow-hidden shrink-0">
-                        <input type="text" value="${t.name}" onchange="state.teachers[${idx}].name=this.value" class="flex-1 min-w-0 w-full p-1.5 bg-slate-50 font-bold text-xs border-none rounded outline-none">
-                        <button onclick="state.teachers.splice(${idx},1);render()" class="text-slate-300 hover:text-rose-500 px-1 text-xs shrink-0 font-bold">✕</button>
+                        <input type="text" value="${t.name}" title="教員の名前を入力" onchange="state.teachers[${idx}].name=this.value" class="flex-1 min-w-0 w-full p-1.5 bg-slate-50 font-bold text-xs border-none rounded outline-none">
+                        <button onclick="state.teachers.splice(${idx},1);render()" title="この教員を削除" class="text-slate-300 hover:text-rose-500 px-1 text-xs shrink-0 font-bold">✕</button>
                     </div>
                 `).join('')}
             </div>
@@ -454,16 +469,16 @@
                     <div class="p-3 bg-blue-50 border-b border-blue-100 flex flex-wrap items-center justify-between gap-2 shrink-0">
                         <div class="flex items-center gap-2 min-w-0">
                             <h3 class="text-base font-black text-blue-900 truncate max-w-[120px]">${teacher.name}</h3>
-                            <div class="flex items-center gap-1 border-l border-blue-200 pl-2 shrink-0">
+                            <div class="flex items-center gap-1 border-l border-blue-200 pl-2 shrink-0" title="他の教員の設定を丸ごとコピーします">
                                 <select id="copy-src" class="p-1 text-[10px] rounded border border-blue-200 outline-none text-slate-600 bg-white w-20">${copyOpts}</select>
                                 <button onclick="actions.copyTeacherSettings(${teacher.id})" class="text-[10px] bg-white border border-blue-200 text-blue-700 px-2 py-1 rounded font-bold hover:bg-blue-100">上書き</button>
                             </div>
                         </div>
                         <div class="flex items-center gap-3 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shrink-0">
-                            <span class="text-[10px] font-bold text-slate-500">担任</span>
+                            <span class="text-[10px] font-bold text-slate-500" title="担任しているクラスを選択">担任</span>
                             <select onchange="actions.updateTeacher(${teacher.id},'homeroom',this.value)" class="p-1 text-xs font-bold rounded border border-slate-200 outline-none bg-slate-50">${hrOptions.replace(`value="${teacher.homeroom||''}"`, `value="${teacher.homeroom||''}" selected`)}</select>
                             <div class="w-px h-4 bg-slate-200"></div>
-                            <span class="text-[10px] font-bold text-slate-500">上限</span>
+                            <span class="text-[10px] font-bold text-slate-500" title="1週間に持てる最大の授業コマ数">上限</span>
                             <input type="number" value="${teacher.maxHours||24}" onchange="actions.updateTeacher(${teacher.id},'maxHours',parseInt(this.value)||0)" class="w-10 p-1 text-xs text-center font-bold rounded border border-slate-200 outline-none bg-slate-50">
                         </div>
                     </div>
@@ -477,30 +492,36 @@
                         <div class="flex-1 flex flex-col overflow-hidden min-h-0">
                             <div class="flex justify-between items-center mb-2 shrink-0">
                                 <span class="text-[10px] font-bold text-slate-400">担当授業</span>
-                                <button onclick="actions.addAssignment(${teacher.id})" class="m3-btn-action !text-[10px] !py-1 !px-2 bg-blue-50">+追加</button>
+                                <button onclick="actions.addAssignment(${teacher.id})" title="この教員の担当授業を新しく追加" class="m3-btn-action !text-[10px] !py-1 !px-2 bg-blue-50">+追加</button>
                             </div>
                             <div class="space-y-2 overflow-y-auto custom-scrollbar pr-1 pb-4 flex-1 min-h-0">
                                 ${teacher.assignments?.length?teacher.assignments.map((as, aIdx)=>`
                                     <div class="bg-slate-50 border border-slate-200 p-2 rounded-lg flex flex-wrap items-center gap-1.5 relative group hover:border-blue-300 shrink-0">
-                                        <button onclick="actions.removeAssignment(${teacher.id},${aIdx})" class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 text-[10px]">✕</button>
+                                        <button onclick="actions.removeAssignment(${teacher.id},${aIdx})" title="この授業を削除" class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 text-[10px]">✕</button>
                                         
-                                        <select onchange="actions.updateAssignment(${teacher.id},${aIdx},'subject',this.value)" class="m3-input !p-1 !text-xs flex-1 min-w-[60px]">${subOptions.replace(`value="${as.subject}"`, `value="${as.subject}" selected`)}</select>
-                                        <select onchange="if(this.value==='custom') actions.openCustomTargetModal(${teacher.id},${aIdx}); else actions.updateAssignment(${teacher.id},${aIdx},'target',this.value)" class="m3-input !p-1 !text-xs flex-[1.5] min-w-[70px]">${actions.getTargetOptions(as.target)}</select>
+                                        <select title="担当する科目を選択" onchange="actions.updateAssignment(${teacher.id},${aIdx},'subject',this.value)" class="m3-input !p-1 !text-xs flex-1 min-w-[60px]">
+                                            ${state.subjects.filter(s => s.name === as.subject || !teacher.assignments.map(a=>a.subject).includes(s.name)).map(s=>`<option value="${s.name}" ${s.name===as.subject?'selected':''}>${s.name}</option>`).join('')}
+                                        </select>
                                         
-                                        <div class="flex items-center bg-white border border-slate-200 rounded px-1 py-0.5 shrink-0">
+                                        <div class="flex items-center gap-1 flex-[1.5] min-w-[100px]" title="授業を行う対象クラスを選択">
+                                            <select onchange="if(this.value==='custom') actions.openCustomTargetModal(${teacher.id},${aIdx}); else actions.updateAssignment(${teacher.id},${aIdx},'target',this.value)" class="m3-input !p-1 !text-xs w-full">${actions.getTargetOptions(as.target)}</select>
+                                            <button onclick="actions.openCustomTargetModal(${teacher.id},${aIdx})" class="text-[9px] bg-white border border-blue-300 text-blue-600 px-1.5 py-1 rounded hover:bg-blue-50 shadow-sm" title="複数クラス選択">＋</button>
+                                        </div>
+                                        
+                                        <div class="flex items-center bg-white border border-slate-200 rounded px-1 py-0.5 shrink-0" title="この授業を週に何コマ行うか設定">
                                             <input type="number" value="${as.hours}" min="1" onchange="actions.updateAssignment(${teacher.id},${aIdx},'hours',parseInt(this.value)||1)" class="w-8 p-0.5 text-center font-black text-blue-600 outline-none text-sm">
                                             <span class="text-[8px] font-bold text-slate-400">コマ</span>
                                         </div>
                                         
                                         <div class="flex items-center gap-1.5 bg-white border border-slate-200 rounded px-1.5 py-1 shrink-0">
-                                            <label class="flex items-center gap-0.5 cursor-pointer"><input type="checkbox" ${as.isJoint?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isJoint',this.checked)" class="w-3 h-3 text-blue-600"><span class="text-[9px] font-bold text-slate-500">同</span></label>
-                                            <label class="flex items-center gap-0.5 cursor-pointer border-l border-slate-200 pl-1.5"><input type="checkbox" ${as.isTT?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isTT',this.checked)" class="w-3 h-3 text-blue-600"><span class="text-[9px] font-bold text-slate-500">TT</span></label>
+                                            <label class="flex items-center gap-0.5 cursor-pointer" title="複数クラスを合同で教える場合はチェック"><input type="checkbox" ${as.isJoint?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isJoint',this.checked)" class="w-3 h-3 text-blue-600"><span class="text-[9px] font-bold text-slate-500">同</span></label>
+                                            <label class="flex items-center gap-0.5 cursor-pointer border-l border-slate-200 pl-1.5" title="副担当(TT)として入る場合はチェック(持ち時数にはカウントされません)"><input type="checkbox" ${as.isTT?'checked':''} onchange="actions.updateAssignment(${teacher.id},${aIdx},'isTT',this.checked)" class="w-3 h-3 text-blue-600"><span class="text-[9px] font-bold text-slate-500">TT</span></label>
                                         </div>
                                         
                                         <div class="w-full h-0 border-t-4 border-dashed border-slate-200 my-2 hidden lg:block"></div>
                                         
-                                        <select onchange="actions.updateAssignment(${teacher.id},${aIdx},'room',this.value)" class="m3-input !p-1 !text-[10px] flex-1 min-w-[70px]">${roomOptions.replace(`value="${as.room}"`, `value="${as.room}" selected`)}</select>
-                                        <select onchange="actions.updateAssignment(${teacher.id},${aIdx},'fixedTime',this.value)" class="m3-input !p-1 !text-[10px] flex-[1.2] min-w-[70px] ${as.fixedTime==='am-priority'?'!bg-blue-50 !text-blue-700':(as.fixedTime?'!bg-amber-50 !text-amber-700':'')}">${timeOptions.replace(`value="${as.fixedTime||''}"`, `value="${as.fixedTime||''}" selected`)}</select>
+                                        <select title="授業を行う教室を選択" onchange="actions.updateAssignment(${teacher.id},${aIdx},'room',this.value)" class="m3-input !p-1 !text-[10px] flex-1 min-w-[70px]">${roomOptions.replace(`value="${as.room}"`, `value="${as.room}" selected`)}</select>
+                                        <select title="この授業を特定の曜時限や午前に固定したい場合に選択" onchange="actions.updateAssignment(${teacher.id},${aIdx},'fixedTime',this.value)" class="m3-input !p-1 !text-[10px] flex-[1.2] min-w-[70px] ${as.fixedTime==='am-priority'?'!bg-blue-50 !text-blue-700':(as.fixedTime?'!bg-amber-50 !text-amber-700':'')}">${timeOptions.replace(`value="${as.fixedTime||''}"`, `value="${as.fixedTime||''}" selected`)}</select>
                                     </div>
                                 `).join(''):`<div class="text-center py-6 text-slate-300 text-[10px] font-bold">授業なし</div>`}
                             </div>
@@ -512,13 +533,15 @@
     }
 
     function viewStep8(el) {
+        let subOptions = state.subjects.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
         el.innerHTML = `<div class="mb-3 shrink-0"><h2 class="text-lg font-black">8. 少人数指導の設定</h2><p class="text-[10px] text-slate-500">学年全体や複数クラスを解体してのグループ展開設定</p></div>
         <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4 flex flex-wrap items-center gap-3 shrink-0 shadow-sm">
-            <select id="mg-grade" class="m3-input !w-auto !py-1.5 !px-2"><option value="">学年</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}">${g}年</option>`).join('')}</select>
-            <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200"><span class="text-[10px] font-bold text-slate-400">同時展開数</span><input id="mg-groups" type="number" value="4" class="w-10 p-1 font-bold text-blue-600 text-center bg-blue-50 rounded outline-none" onchange="document.getElementById('mg-teachers').value=this.value; document.getElementById('mg-total-teachers').value=this.value;"></div>
+            <select id="mg-grade" title="対象の学年を選択" class="m3-input !w-auto !py-1.5 !px-2"><option value="">学年</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}">${g}年</option>`).join('')}</select>
+            <select id="mg-sub" title="対象の科目を選択" class="m3-input !w-auto !py-1.5 !px-2">${subOptions.replace('value="算数"', 'value="算数" selected')}</select>
+            <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200" title="同時に分かれるグループ(教室)の数"><span class="text-[10px] font-bold text-slate-400">同時展開数</span><input id="mg-groups" type="number" value="4" class="w-10 p-1 font-bold text-blue-600 text-center bg-blue-50 rounded outline-none" onchange="document.getElementById('mg-teachers').value=this.value; document.getElementById('mg-total-teachers').value=this.value;"></div>
             <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200" title="1回の授業で同時に指導に入る教員の数"><span class="text-[10px] font-bold text-slate-400">同時教員数</span><input id="mg-teachers" type="number" value="4" class="w-10 p-1 font-bold text-blue-600 text-center bg-blue-50 rounded outline-none"></div>
             <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200" title="週の途中で担当が変わる場合など、関わる全教員数"><span class="text-[10px] font-bold text-slate-400">関わる全教員数</span><input id="mg-total-teachers" type="number" value="4" class="w-10 p-1 font-bold text-blue-600 text-center bg-blue-50 rounded outline-none"></div>
-            <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200"><span class="text-[10px] font-bold text-slate-400">週時数</span><input id="mg-hours" type="number" value="4" class="w-10 p-1 font-bold text-blue-600 text-center bg-blue-50 rounded outline-none"></div>
+            <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200" title="週の授業コマ数"><span class="text-[10px] font-bold text-slate-400">週時数</span><input id="mg-hours" type="number" value="4" class="w-10 p-1 font-bold text-blue-600 text-center bg-blue-50 rounded outline-none"></div>
             <button onclick="actions.addMathGroup()" class="m3-btn-primary !text-xs !py-1.5 !px-4 ml-auto">追加</button>
         </div>
         <div class="space-y-2 flex-1 overflow-y-auto custom-scrollbar pr-2 min-h-0">
@@ -526,7 +549,7 @@
             ${state.mathGroups.map((m, idx) => `
                 <div class="bg-white border border-slate-200 p-3 rounded-lg shadow-sm flex justify-between items-center shrink-0">
                     <div class="flex items-center gap-4">
-                        <span class="bg-blue-100 text-blue-800 font-black text-xs px-2 py-1 rounded">${m.grade}年 算数</span>
+                        <span class="bg-blue-100 text-blue-800 font-black text-xs px-2 py-1 rounded">${m.grade}年 ${m.subject || '算数'}</span>
                         <span class="text-xs font-bold text-slate-700">${m.groupCount}展開 / 同時${m.teacherCount}名 / 全${m.totalTeacherCount || m.teacherCount}名関与</span>
                         <span class="text-[10px] font-bold text-slate-500 border px-2 py-0.5 rounded bg-slate-50">週${m.hours}コマ</span>
                     </div>
@@ -603,28 +626,28 @@
                 <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm shrink-0">
                     <span class="text-xs font-black text-rose-600 mb-2 block">1. 必須ルール</span>
                     <div class="space-y-3">
-                        <div class="flex flex-wrap items-center gap-1.5">
+                        <div class="flex flex-wrap items-center gap-1.5" title="チェックした科目はその日の最終コマに配置されます">
                             <span class="text-[10px] font-bold w-full text-slate-600">最終コマ固定（たまいち等）</span>
                             ${state.subjects.map(s => {
                                 const isChecked = state.advancedRules.lastPeriodSubjects?.includes(s.name);
                                 return `<label class="cursor-pointer select-none text-[10px] px-2 py-1 rounded border ${isChecked?'bg-rose-100 border-rose-300 text-rose-700 font-bold':'bg-slate-50 border-slate-200 text-slate-500'}"><input type="checkbox" class="hidden" ${isChecked?'checked':''} onchange="actions.toggleLastPeriod('${s.name}')">${s.name.substring(0,2)}</label>`;
                             }).join('')}
                         </div>
-                        <div class="flex flex-wrap items-center gap-1.5">
+                        <div class="flex flex-wrap items-center gap-1.5" title="指定した時間に学年全クラスで担任の授業を配置します">
                             <span class="text-[10px] font-bold w-full text-slate-600">学年全クラスを担任授業にする固定枠</span>
                             <select id="adv-hr-grade" class="m3-input !p-1 !text-xs w-20"><option value="">学年</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}年生">${g}年</option>`).join('')}</select>
                             <select id="adv-hr-time" class="m3-input !p-1 !text-xs flex-1">${timeOpts}</select>
                             <button onclick="actions.addHomeroomTime()" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">+</button>
                             <div class="w-full flex flex-wrap gap-1">${state.advancedRules.homeroomOnlyTimes.map((c,i)=>`<span class="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border flex items-center gap-1">${c.grade.replace('年生','年')} ${c.time} <b onclick="state.advancedRules.homeroomOnlyTimes.splice(${i},1);render()" class="text-red-400 cursor-pointer">✕</b></span>`).join('')}</div>
                         </div>
-                        <div class="flex flex-wrap items-center gap-1.5">
+                        <div class="flex flex-wrap items-center gap-1.5" title="チェックした科目を連続した2コマの授業にします">
                             <span class="text-[10px] font-bold w-full text-slate-600">連続（ニコイチ）</span>
                             <select id="adv-grade" class="m3-input !p-1 !text-xs w-20"><option value="全学年">全</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}年生">${g}年</option>`).join('')}</select>
                             <select id="adv-sub" class="m3-input !p-1 !text-xs w-20">${state.subjects.map(s=>`<option value="${s.name}">${s.name.substring(0,2)}</option>`).join('')}</select>
                             <button onclick="actions.addCont()" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">+</button>
                             <div class="w-full flex flex-wrap gap-1">${state.advancedRules.continuousClasses.map((c,i)=>`<span class="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border flex items-center gap-1">${c.grade.replace('年生','年')}${c.subject.substring(0,2)} <b onclick="state.advancedRules.continuousClasses.splice(${i},1);render()" class="text-red-400 cursor-pointer">✕</b></span>`).join('')}</div>
                         </div>
-                        <label class="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-1.5 rounded border border-transparent hover:border-slate-200">
+                        <label class="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-1.5 rounded border border-transparent hover:border-slate-200" title="連続授業を1-2限などの区切りに合わせる">
                             <span class="text-[10px] font-bold text-slate-700">ニコイチを「1-2, 3-4, 5-6限」に限定</span>
                             <input type="checkbox" ${state.advancedRules.limitContinuousToSpecificPeriods?'checked':''} onchange="state.advancedRules.limitContinuousToSpecificPeriods=this.checked;save()" class="w-4 h-4 text-blue-600">
                         </label>
@@ -634,11 +657,11 @@
                 <!-- 中 -->
                 <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm shrink-0">
                     <span class="text-xs font-black text-amber-600 mb-2 block">2. バランス</span>
-                    <label class="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-1.5 rounded border border-transparent hover:border-slate-200 mb-2">
+                    <label class="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-1.5 rounded border border-transparent hover:border-slate-200 mb-2" title="同じ科目が1日に2回以上入らないようにする">
                         <span class="text-[10px] font-bold text-slate-700">1日に同一教科を分散（ニコイチ除く）</span>
                         <input type="checkbox" ${state.advancedRules.limitOneSubjectPerDay?'checked':''} onchange="state.advancedRules.limitOneSubjectPerDay=this.checked;save()" class="w-4 h-4 text-blue-600">
                     </label>
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2" title="指定した時間に専科教員の授業を極力入れないようにします">
                         <span class="text-[10px] font-bold">専科を避ける</span>
                         <select id="adv-sp-time" class="m3-input !p-1 !text-xs w-24">${timeOpts}</select>
                         <button onclick="actions.addAvoidSpecialist()" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">+</button>
@@ -650,28 +673,28 @@
                 <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm shrink-0">
                     <span class="text-xs font-black text-emerald-600 mb-2 block">3. ソフト制約</span>
                     <div class="space-y-3">
-                        <div class="flex flex-wrap items-center gap-1.5">
+                        <div class="flex flex-wrap items-center gap-1.5" title="週に複数回ある場合、連続した曜日にしない">
                             <span class="text-[10px] font-bold w-full text-slate-600">実施日を離す（等間隔）</span>
                             ${state.subjects.map(s => {
                                 const isChecked = state.advancedRules.maxIntervalSubjects?.includes(s.name);
                                 return `<label class="cursor-pointer select-none text-[10px] px-2 py-1 rounded border ${isChecked?'bg-emerald-100 border-emerald-300 text-emerald-700 font-bold':'bg-slate-50 border-slate-200 text-slate-500'}"><input type="checkbox" class="hidden" ${isChecked?'checked':''} onchange="actions.toggleMaxInterval('${s.name}')">${s.name.substring(0,2)}</label>`;
                             }).join('')}
                         </div>
-                        <div class="flex flex-wrap items-center gap-1.5">
+                        <div class="flex flex-wrap items-center gap-1.5" title="チェックした科目を極力午前中に配置します">
                             <span class="text-[10px] font-bold w-full text-slate-600">午前優先</span>
                             ${state.subjects.map(s => {
                                 const isChecked = state.advancedRules.amPrioritySubjects.includes(s.name);
                                 return `<label class="cursor-pointer select-none text-[10px] px-2 py-1 rounded border ${isChecked?'bg-blue-100 border-blue-300 text-blue-700 font-bold':'bg-slate-50 border-slate-200 text-slate-500'}"><input type="checkbox" class="hidden" ${isChecked?'checked':''} onchange="actions.toggleAmPriority('${s.name}')">${s.name.substring(0,2)}</label>`;
                             }).join('')}
                         </div>
-                        <div class="flex flex-wrap items-center gap-1.5">
+                        <div class="flex flex-wrap items-center gap-1.5" title="準備や片付けのため、曜日を跨いでも同じ学年を続ける">
                             <span class="text-[10px] font-bold w-full text-slate-600">学年内で連続して配置</span>
                             ${state.subjects.map(s => {
                                 const isChecked = state.advancedRules.consecutiveGradeSubjects.includes(s.name);
                                 return `<label class="cursor-pointer select-none text-[10px] px-2 py-1 rounded border ${isChecked?'bg-indigo-100 border-indigo-300 text-indigo-700 font-bold':'bg-slate-50 border-slate-200 text-slate-500'}"><input type="checkbox" class="hidden" ${isChecked?'checked':''} onchange="actions.toggleConsecutive('${s.name}')">${s.name.substring(0,2)}</label>`;
                             }).join('')}
                         </div>
-                        <div class="flex flex-wrap items-center gap-1.5">
+                        <div class="flex flex-wrap items-center gap-1.5" title="指定した学年の指定した時間に体育を極力入れないようにします">
                             <span class="text-[10px] font-bold w-full text-slate-600">体育を避ける時間</span>
                             <select id="adv-pe-grade" class="m3-input !p-1 !text-xs w-20"><option value="">学年</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}年生">${g}年</option>`).join('')}</select>
                             <select id="adv-pe-period" class="m3-input !p-1 !text-xs w-20">
@@ -721,16 +744,16 @@
         <div class="flex flex-col flex-1 overflow-hidden animate-in fade-in duration-300 min-h-0">
             <div class="flex items-center justify-between gap-4 mb-3 bg-white border border-slate-200 p-2 rounded-xl shadow-sm shrink-0">
                 <div class="flex items-center gap-1">
-                    <button onclick="actions.setDashView('class')" class="px-3 py-1.5 rounded-lg font-black text-xs transition-all ${state.dashboardView==='class'?'bg-blue-600 text-white':'bg-slate-50 text-slate-500 hover:bg-slate-100'}">学級別</button>
-                    <button onclick="actions.setDashView('teacher')" class="px-3 py-1.5 rounded-lg font-black text-xs transition-all ${state.dashboardView==='teacher'?'bg-blue-600 text-white':'bg-slate-50 text-slate-500 hover:bg-slate-100'}">教員別</button>
+                    <button onclick="actions.setDashView('class')" title="学級別の時間割を表示" class="px-3 py-1.5 rounded-lg font-black text-xs transition-all ${state.dashboardView==='class'?'bg-blue-600 text-white':'bg-slate-50 text-slate-500 hover:bg-slate-100'}">学級別</button>
+                    <button onclick="actions.setDashView('teacher')" title="教員別の時間割を表示" class="px-3 py-1.5 rounded-lg font-black text-xs transition-all ${state.dashboardView==='teacher'?'bg-blue-600 text-white':'bg-slate-50 text-slate-500 hover:bg-slate-100'}">教員別</button>
                 </div>
                 
-                <select onchange="state.dashboardFilter=this.value;render()" class="m3-input !p-1.5 !text-xs !bg-slate-50 font-black w-32 border-none cursor-pointer">
+                <select onchange="state.dashboardFilter=this.value;render()" title="表示する対象を選択" class="m3-input !p-1.5 !text-xs !bg-slate-50 font-black w-32 border-none cursor-pointer">
                     ${filterOpts.replace(`value="${state.dashboardFilter}"`, `value="${state.dashboardFilter}" selected`)}
                 </select>
                 
                 <div class="flex items-center gap-2 ml-auto">
-                    <button onclick="actions.undo()" class="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${isUndoDisabled ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}">
+                    <button onclick="actions.undo()" title="1つ前の状態に戻す" class="flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${isUndoDisabled ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}">
                         戻す
                     </button>
                 </div>
@@ -812,7 +835,13 @@
         addTeacher() { state.teachers.push({id:Date.now(), name:'教員名', maxHours:24, homeroom:'', ngTimes:{}, assignments:[]}); render(); },
         updateTeacher(id, k, v) { state.teachers.find(t=>t.id===id)[k]=v; render(); },
         toggleTeacherNG(id, k) { const t=state.teachers.find(x=>x.id===id); if(!t.ngTimes)t.ngTimes={}; t.ngTimes[k]=!t.ngTimes[k]; render(); },
-        addAssignment(id) { state.teachers.find(t=>t.id===id).assignments.push({subject:state.subjects[0]?.name||'', target:'自分のクラス', hours:1, room:'通常教室', isJoint:false, isTT:false, fixedTime:''}); render(); },
+        addAssignment(id) { 
+            const t = state.teachers.find(t=>t.id===id);
+            const existingSubs = t.assignments.map(a => a.subject);
+            const availableSub = state.subjects.find(s => !existingSubs.includes(s.name))?.name || state.subjects[0]?.name || '';
+            t.assignments.unshift({subject:availableSub, target:'自分のクラス', hours:1, room:'通常教室', isJoint:false, isTT:false, fixedTime:''}); 
+            render(); 
+        },
         updateAssignment(tId, idx, k, v) { state.teachers.find(t=>t.id===tId).assignments[idx][k]=v; render(); },
         removeAssignment(tId, idx) { state.teachers.find(t=>t.id===tId).assignments.splice(idx,1); render(); },
         toggleBlock(k) { state.globalBlocks[k] = !state.globalBlocks[k]; render(); },
@@ -851,8 +880,8 @@
         closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); },
         exportData() { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_config.json"; a.click(); },
         importData() { const i=document.createElement('input'); i.type='file'; i.onchange=e=>{ const r=new FileReader(); r.readAsText(e.target.files[0]); r.onload=e=>{ Object.assign(state, JSON.parse(e.target.result)); currentStep=1; render(); } }; i.click(); },
-        resetData() { if(confirm("初期化しますか？")) { localStorage.removeItem('tt_v104_data'); location.reload(); } },
-        addMathGroup() { state.mathGroups.push({id:Date.now(), grade:document.getElementById('mg-grade').value||'1', groupCount:document.getElementById('mg-groups').value||'4', teacherCount:document.getElementById('mg-teachers').value||'4', totalTeacherCount:document.getElementById('mg-total-teachers').value||'4', hours:document.getElementById('mg-hours').value||'4'}); render(); },
+        resetData() { if(confirm("初期化しますか？")) { localStorage.removeItem('tt_v105_data'); location.reload(); } },
+        addMathGroup() { state.mathGroups.push({id:Date.now(), grade:document.getElementById('mg-grade').value||'1', subject:document.getElementById('mg-sub').value||'算数', groupCount:document.getElementById('mg-groups').value||'4', teacherCount:document.getElementById('mg-teachers').value||'4', totalTeacherCount:document.getElementById('mg-total-teachers').value||'4', hours:document.getElementById('mg-hours').value||'4'}); render(); },
         copyTeacherSettings(targetId) {
             const srcId = document.getElementById('copy-src').value; if(!srcId) return;
             const src = state.teachers.find(x => x.id === parseInt(srcId)); const tgt = state.teachers.find(x => x.id === targetId);
