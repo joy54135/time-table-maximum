@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 11.3 (GitHub Pages + High-Density UI Edition)
+  Version: 11.4 (GitHub Pages + High-Density UI Edition)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: 旧データID修復パッチ・削除時のDOM再利用バグ完全修正・長文コード最適化
+  Description: SafariのDOM再利用バグ(他要素消失)完全修正・SortableJS安定化
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 11.3</title>
+    <title>Smart TimeTable - Ver 11.4</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
@@ -138,20 +138,23 @@
     }, { passive: false });
 
     function showToast(msg) { const t = document.getElementById('toast'); document.getElementById('toast-msg').innerText = msg; t.classList.replace('opacity-0', 'opacity-100'); setTimeout(() => t.classList.replace('opacity-100', 'opacity-0'), 2500); }
-    function save() { try { localStorage.setItem('tt_v113_data', JSON.stringify(state)); } catch(e) {} }
+    function save() { try { localStorage.setItem('tt_v114_data', JSON.stringify(state)); } catch(e) {} }
     
     function load() {
         try {
-            const s = localStorage.getItem('tt_v113_data') || localStorage.getItem('tt_v112_data') || localStorage.getItem('tt_v111_data') || localStorage.getItem('tt_v109_data');
+            const s = localStorage.getItem('tt_v114_data') || localStorage.getItem('tt_v113_data') || localStorage.getItem('tt_v112_data') || localStorage.getItem('tt_v111_data') || localStorage.getItem('tt_v109_data');
             if(s) { 
                 const p = JSON.parse(s); 
                 if(p.subjects) { state.subjects.forEach(d => { if(!p.subjects.find(x => x.name === d.name)) p.subjects.push(d); }); } 
                 
-                // ★バグ修正：古いデータで授業にIDがない場合、自動修復して新しいIDを割り振る
+                // バグ修正：古いデータのID修復＆isNewフラグのゴミ除去
                 if(p.teachers) {
                     p.teachers.forEach(t => {
                         if(t.assignments) {
-                            t.assignments.forEach(a => { if(!a.id) a.id = Date.now() + Math.random(); });
+                            t.assignments.forEach(a => { 
+                                if(!a.id) a.id = Date.now() + Math.random(); 
+                                a.isNew = false; // ゴミデータを確実にクリア
+                            });
                         }
                     });
                 }
@@ -224,9 +227,12 @@
             
             setTimeout(() => {
                 Object.keys(scrollMap).forEach(id => { const el = document.getElementById(id); if(el) { el.scrollTop = scrollMap[id].top; el.scrollLeft = scrollMap[id].left; } });
+                
+                // SortableJSのクリーンな再初期化（メモリリーク・バグ防止）
                 const listEl = document.getElementById('assignment-list');
-                if (listEl && !listEl.sortableInst) {
-                    listEl.sortableInst = Sortable.create(listEl, { 
+                if (listEl) {
+                    if (window.currentSortable) window.currentSortable.destroy();
+                    window.currentSortable = Sortable.create(listEl, { 
                         animation: 150, delay: 250, delayOnTouchOnly: true, ghostClass: 'sortable-ghost',
                         scroll: true, forceFallback: true, fallbackTolerance: 3,
                         onEnd: (evt) => actions.reorderAssignment(state.selectedTeacherId, evt.oldIndex, evt.newIndex) 
@@ -498,7 +504,7 @@
         updateTeacher(id, k, v) { state.teachers.find(t=>t.id===id)[k]=v; save(); this.updateTeacherLoadDisplay(id); },
         toggleTeacherNG(id, k) { const t=state.teachers.find(x=>x.id===id); if(!t.ngTimes)t.ngTimes={}; t.ngTimes[k]=!t.ngTimes[k]; render(); },
         
-        // ★修正ポイント：addAssignment 時に一意なID（Date.now() + Math.random()）を付与する
+        // 追加時に新しい一意なIDを付与する
         addAssignment(id) { 
             const t = state.teachers.find(t=>t.id===id); 
             const exSubs = t.assignments.map(a => a.subject); 
@@ -511,12 +517,15 @@
         updateAssignment(tId, aId, k, v, skipR=false) { const t = state.teachers.find(x=>x.id===tId); t.assignments.find(a=>a.id===aId)[k]=v; save(); if(!skipR) render(); else { this.updateTeacherLoadDisplay(tId); } },
         updateTeacherLoadDisplay(tId) { const t = state.teachers.find(x=>x.id===tId); if(!t) return; const cur = t.assignments?.reduce((s,a)=>s+(a.isTT?0:(a.target.includes('年全体')?a.hours*state.grades[a.target.charAt(0)]:(a.target==='自分のクラス'?a.hours:a.target.split(',').length * a.hours))),0)||0; const max = t.maxHours || 24; const el = document.getElementById('teacher-load-display'); if(el) { el.innerText = `持ち時数： ${cur} / ${max}`; if(cur > max) { el.classList.add('text-rose-600', 'bg-rose-50', 'border-rose-200'); el.classList.remove('text-blue-800', 'bg-blue-50', 'border-blue-200'); } else { el.classList.remove('text-rose-600', 'bg-rose-50', 'border-rose-200'); el.classList.add('text-blue-800', 'bg-blue-50', 'border-blue-200'); } } const leftEl = document.getElementById(`left-load-${tId}`); if(leftEl) { leftEl.innerText = `${cur}/${max}`; if(cur > max) leftEl.className = 'text-[9px] px-1.5 py-0.5 rounded shrink-0 text-rose-500 font-black bg-rose-100'; else leftEl.className = `text-[9px] px-1.5 py-0.5 rounded shrink-0 ${state.selectedTeacherId === tId ? 'text-blue-200 bg-black/10' : 'text-slate-400 bg-black/10'}`; } },
         
-        // ★修正ポイント：削除アニメーションをCSSクラスに任せてDOMを再構築する
+        // ★バグ修正：削除アニメーションを安全に行う（el.remove()でDOM再利用バグを防止）
         removeAssignmentWithAnim(tId, aId, elId) { 
             const el = document.getElementById(elId); 
             if(el) { 
                 el.classList.add('removing-item');
-                setTimeout(() => { this.removeAssignment(tId, aId); }, 300); 
+                setTimeout(() => { 
+                    el.remove(); // 確実にDOMから粉砕する
+                    this.removeAssignment(tId, aId); 
+                }, 300); 
             } else { 
                 this.removeAssignment(tId, aId); 
             } 
