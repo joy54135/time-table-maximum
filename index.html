@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 9.9 (GitHub Pages + High-Density UI Edition)
+  Version: 10.0 (GitHub Pages + High-Density UI Edition)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: 一覧性重視の超高密度UI・画面見切れの完全修正・全科目対応
+  Description: 一覧性重視の超高密度UI・欠落していた全配置ルールの復活・完全統合版
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 9.9</title>
+    <title>Smart TimeTable - Ver 10.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
@@ -81,7 +81,7 @@
             </div>
             <div class="min-w-0 flex items-baseline gap-2">
                 <h1 class="text-xl font-black tracking-tighter text-slate-800 truncate leading-none">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate hidden sm:block">Ver 9.9 High-Density Edition</p>
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none truncate hidden sm:block">Ver 10.0 High-Density Edition</p>
             </div>
         </div>
         <div class="flex flex-row items-center gap-2 shrink-0">
@@ -95,7 +95,7 @@
     <div id="wizard-card" class="m3-card flex-1">
         <div id="progress-dots" class="flex justify-center gap-1.5 mb-3 shrink-0"></div>
         
-        <!-- コンテンツエリア：ここがスクロールする -->
+        <!-- コンテンツエリア -->
         <div id="step-content" class="fade-in flex-1 overflow-hidden flex flex-col relative"></div>
         
         <!-- フッター -->
@@ -191,16 +191,37 @@
         } catch(e) {}
     };
 
-    function save() { try { localStorage.setItem('tt_v99_data', JSON.stringify(state)); } catch(e) {} }
+    function save() { try { localStorage.setItem('tt_v100_data', JSON.stringify(state)); } catch(e) {} }
     function load() {
         try {
-            const s = localStorage.getItem('tt_v99_data');
+            const s = localStorage.getItem('tt_v100_data');
             if(s) { 
                 const p = JSON.parse(s);
                 if(!p.subjects || p.subjects.length < 10) return false;
                 Object.assign(state, p); return true; 
             }
         } catch(e) { } return false;
+    }
+
+    function getSubColorClass(subName) {
+        if(!subName) return 'bg-sub-default';
+        if(subName.includes('国')) return 'bg-sub-ja';
+        if(subName.includes('算')) return 'bg-sub-ma';
+        if(subName.includes('理')) return 'bg-sub-sc';
+        if(subName.includes('社')) return 'bg-sub-so';
+        if(subName.includes('生')) return 'bg-sub-li';
+        if(subName.includes('体')) return 'bg-sub-pe';
+        if(subName.includes('中体育')) return 'bg-sub-pe-in';
+        if(subName.includes('外体育')) return 'bg-sub-pe-out';
+        if(subName.includes('図')) return 'bg-sub-ar';
+        if(subName.includes('音')) return 'bg-sub-mu';
+        if(subName.includes('家')) return 'bg-sub-ho';
+        if(subName.includes('道')) return 'bg-sub-mo';
+        if(subName.includes('外') && !subName.includes('体')) return 'bg-sub-en';
+        if(subName.includes('総')) return 'bg-sub-co';
+        if(subName.includes('活')) return 'bg-sub-hr';
+        if(subName.includes('たま')) return 'bg-sub-sp';
+        return 'bg-sub-default';
     }
 
     function getGridHtml(ngMap, globalBlocksMap, actionStr, cellType = 'teacher') {
@@ -571,15 +592,15 @@
                 <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm shrink-0">
                     <span class="text-xs font-black text-rose-600 mb-2 block">1. 必須ルール</span>
                     <div class="space-y-3">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="text-[10px] font-bold w-full">最終コマ固定（たまいち等）</span>
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <span class="text-[10px] font-bold w-full text-slate-600">最終コマ固定（たまいち等）</span>
                             ${state.subjects.map(s => {
                                 const isChecked = state.advancedRules.lastPeriodSubjects?.includes(s.name);
                                 return `<label class="cursor-pointer select-none text-[10px] px-2 py-1 rounded border ${isChecked?'bg-rose-100 border-rose-300 text-rose-700 font-bold':'bg-slate-50 border-slate-200 text-slate-500'}"><input type="checkbox" class="hidden" ${isChecked?'checked':''} onchange="actions.toggleLastPeriod('${s.name}')">${s.name.substring(0,2)}</label>`;
                             }).join('')}
                         </div>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="text-[10px] font-bold w-full">連続（ニコイチ）</span>
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <span class="text-[10px] font-bold w-full text-slate-600">連続授業（ニコイチ）</span>
                             <select id="adv-grade" class="m3-input !p-1 !text-xs w-20"><option value="全学年">全</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}年生">${g}年</option>`).join('')}</select>
                             <select id="adv-sub" class="m3-input !p-1 !text-xs w-20">${state.subjects.map(s=>`<option value="${s.name}">${s.name.substring(0,2)}</option>`).join('')}</select>
                             <button onclick="actions.addCont()" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">+</button>
@@ -589,6 +610,13 @@
                             <span class="text-[10px] font-bold text-slate-700">ニコイチを「1-2, 3-4, 5-6限」に限定</span>
                             <input type="checkbox" ${state.advancedRules.limitContinuousToSpecificPeriods?'checked':''} onchange="state.advancedRules.limitContinuousToSpecificPeriods=this.checked;save()" class="w-4 h-4 text-blue-600">
                         </label>
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <span class="text-[10px] font-bold w-full text-slate-600">学年全クラスを担任授業にする固定枠</span>
+                            <select id="adv-hr-grade" class="m3-input !p-1 !text-xs w-20"><option value="">学年</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}年生">${g}年</option>`).join('')}</select>
+                            <select id="adv-hr-time" class="m3-input !p-1 !text-xs flex-1">${timeOpts}</select>
+                            <button onclick="actions.addHomeroomTime()" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">+</button>
+                            <div class="w-full flex flex-wrap gap-1">${state.advancedRules.homeroomOnlyTimes.map((c,i)=>`<span class="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border flex items-center gap-1">${c.grade.replace('年生','年')} ${c.time} <b onclick="state.advancedRules.homeroomOnlyTimes.splice(${i},1);render()" class="text-red-400 cursor-pointer">✕</b></span>`).join('')}</div>
+                        </div>
                     </div>
                 </div>
 
@@ -600,7 +628,7 @@
                         <input type="checkbox" ${state.advancedRules.limitOneSubjectPerDay?'checked':''} onchange="state.advancedRules.limitOneSubjectPerDay=this.checked;save()" class="w-4 h-4 text-blue-600">
                     </label>
                     <div class="flex items-center gap-2">
-                        <span class="text-[10px] font-bold">専科を避ける</span>
+                        <span class="text-[10px] font-bold text-slate-600">専科を避ける</span>
                         <select id="adv-sp-time" class="m3-input !p-1 !text-xs w-24">${timeOpts}</select>
                         <button onclick="actions.addAvoidSpecialist()" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">+</button>
                     </div>
@@ -611,19 +639,35 @@
                 <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm shrink-0">
                     <span class="text-xs font-black text-emerald-600 mb-2 block">3. ソフト制約</span>
                     <div class="space-y-3">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="text-[10px] font-bold w-full">実施日を離す（等間隔）</span>
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <span class="text-[10px] font-bold w-full text-slate-600">実施日を離す（等間隔）</span>
                             ${state.subjects.map(s => {
                                 const isChecked = state.advancedRules.maxIntervalSubjects?.includes(s.name);
                                 return `<label class="cursor-pointer select-none text-[10px] px-2 py-1 rounded border ${isChecked?'bg-emerald-100 border-emerald-300 text-emerald-700 font-bold':'bg-slate-50 border-slate-200 text-slate-500'}"><input type="checkbox" class="hidden" ${isChecked?'checked':''} onchange="actions.toggleMaxInterval('${s.name}')">${s.name.substring(0,2)}</label>`;
                             }).join('')}
                         </div>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="text-[10px] font-bold w-full">午前優先</span>
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <span class="text-[10px] font-bold w-full text-slate-600">午前優先</span>
                             ${state.subjects.map(s => {
                                 const isChecked = state.advancedRules.amPrioritySubjects.includes(s.name);
                                 return `<label class="cursor-pointer select-none text-[10px] px-2 py-1 rounded border ${isChecked?'bg-blue-100 border-blue-300 text-blue-700 font-bold':'bg-slate-50 border-slate-200 text-slate-500'}"><input type="checkbox" class="hidden" ${isChecked?'checked':''} onchange="actions.toggleAmPriority('${s.name}')">${s.name.substring(0,2)}</label>`;
                             }).join('')}
+                        </div>
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <span class="text-[10px] font-bold w-full text-slate-600">学年内で連続して配置</span>
+                            ${state.subjects.map(s => {
+                                const isChecked = state.advancedRules.consecutiveGradeSubjects.includes(s.name);
+                                return `<label class="cursor-pointer select-none text-[10px] px-2 py-1 rounded border ${isChecked?'bg-indigo-100 border-indigo-300 text-indigo-700 font-bold':'bg-slate-50 border-slate-200 text-slate-500'}"><input type="checkbox" class="hidden" ${isChecked?'checked':''} onchange="actions.toggleConsecutive('${s.name}')">${s.name.substring(0,2)}</label>`;
+                            }).join('')}
+                        </div>
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <span class="text-[10px] font-bold w-full text-slate-600">体育を避ける時間</span>
+                            <select id="adv-pe-grade" class="m3-input !p-1 !text-xs w-20"><option value="">学年</option>${[1,2,3,4,5,6].map(g=>`<option value="${g}年生">${g}年</option>`).join('')}</select>
+                            <select id="adv-pe-period" class="m3-input !p-1 !text-xs w-20">
+                                <option value="">時間</option><option value="1限">1限</option><option value="5限">5限</option><option value="6限">6限</option>
+                            </select>
+                            <button onclick="actions.addAvoidPe()" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">+</button>
+                            <div class="w-full flex flex-wrap gap-1">${state.advancedRules.avoidPeTimes.map((c,i)=>`<span class="text-[9px] bg-emerald-50 px-1.5 py-0.5 rounded border flex items-center gap-1">${c.grade.replace('年生','年')} ${c.period} <b onclick="state.advancedRules.avoidPeTimes.splice(${i},1);render()" class="text-red-400 cursor-pointer">✕</b></span>`).join('')}</div>
                         </div>
                     </div>
                 </div>
@@ -790,7 +834,7 @@
         closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); },
         exportData() { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_config.json"; a.click(); },
         importData() { const i=document.createElement('input'); i.type='file'; i.onchange=e=>{ const r=new FileReader(); r.readAsText(e.target.files[0]); r.onload=e=>{ Object.assign(state, JSON.parse(e.target.result)); currentStep=1; render(); } }; i.click(); },
-        resetData() { if(confirm("初期化しますか？")) { localStorage.removeItem('tt_v99_data'); location.reload(); } },
+        resetData() { if(confirm("初期化しますか？")) { localStorage.removeItem('tt_v100_data'); location.reload(); } },
         addMathGroup() { state.mathGroups.push({id:Date.now(), grade:document.getElementById('mg-grade').value||'1', groupCount:document.getElementById('mg-count').value||'4'}); render(); },
         copyTeacherSettings(targetId) {
             const srcId = document.getElementById('copy-src').value; if(!srcId) return;
