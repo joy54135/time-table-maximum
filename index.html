@@ -147,6 +147,11 @@
         if (!p) return;
         
         if (p.subjects && Array.isArray(p.subjects)) {
+            initialSubjects.forEach(initSub => {
+                if (!p.subjects.find(s => s.name === initSub.name)) {
+                    p.subjects.push(JSON.parse(JSON.stringify(initSub)));
+                }
+            });
             p.subjects.forEach(s => { if(!s.id) s.id = 's_' + Date.now() + Math.random(); });
             state.subjects = p.subjects;
         } else {
@@ -154,6 +159,11 @@
         }
         
         if (p.rooms && Array.isArray(p.rooms)) {
+            initialRooms.forEach(initRoom => {
+                if (!p.rooms.find(r => r.name === initRoom.name)) {
+                    p.rooms.push(JSON.parse(JSON.stringify(initRoom)));
+                }
+            });
             p.rooms.forEach(r => { if(!r.id) r.id = 'r_' + Date.now() + Math.random(); });
             state.rooms = p.rooms;
         } else {
