@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 13.40 (Absolute Stable + Advanced Rules)
+  Version: 13.41 (Absolute Stable + All Rules)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: 13.38ベース。ステップ8の全項目復活＋新ルール追加、ステップ6のUI改善。
+  Description: 13.40ベース。ステップ8に「学年内で連続して配置する教科」を追加。
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 13.40</title>
+    <title>Smart TimeTable - Ver 13.41</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style type="text/tailwindcss">
@@ -44,7 +44,7 @@
             </div>
             <div>
                 <h1 class="text-xl font-black tracking-tight leading-none text-slate-800">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.40 Absolute Stable)</p>
+                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.41 Absolute Stable)</p>
             </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -146,7 +146,8 @@
             maxIntervalSubjects: [], 
             considerSpecialistTimes: true, 
             avoidPeTimes: [], 
-            amPrioritySubjects: []
+            amPrioritySubjects: [],
+            consecutiveGradeSubjects: []
         },
         generatedSchedule: null, 
         dashView: 'class', 
@@ -207,17 +208,17 @@
         if(!state.teachers) state.teachers = [];
         if(!state.subjects) state.subjects = [];
         
-        // 13.40の新ルール対応初期化
         if(!state.advancedRules) {
             state.advancedRules = {
                 lastPeriodSubjects: [], continuousClasses: [], limitContinuousToSpecificPeriods: true,
                 homeroomOnlyTimes: [], pairHomeroomSubjects: [], limitOneSubjectPerDay: true, 
-                maxIntervalSubjects: [], considerSpecialistTimes: true, avoidPeTimes: [], amPrioritySubjects: []
+                maxIntervalSubjects: [], considerSpecialistTimes: true, avoidPeTimes: [], amPrioritySubjects: [], consecutiveGradeSubjects: []
             };
         } else {
             if(!state.advancedRules.pairHomeroomSubjects) state.advancedRules.pairHomeroomSubjects = [];
             if(!state.advancedRules.maxIntervalSubjects) state.advancedRules.maxIntervalSubjects = [];
             if(!state.advancedRules.amPrioritySubjects) state.advancedRules.amPrioritySubjects = [];
+            if(!state.advancedRules.consecutiveGradeSubjects) state.advancedRules.consecutiveGradeSubjects = [];
             if(state.advancedRules.considerSpecialistTimes === undefined) state.advancedRules.considerSpecialistTimes = true;
         }
     }
@@ -1090,7 +1091,7 @@
         return html;
     }
 
-    // ★ ステップ8 (全9項目＋新ルール)
+    // ★ ステップ8 (全9項目＋新ルール＋連続配置追加)
     function viewStep8() {
         var html = '<div class="flex flex-col h-full overflow-hidden"><div class="mb-4 shrink-0"><h2 class="text-xl font-black">8. 配置ルール設定</h2></div><div class="flex-1 overflow-y-auto custom-scrollbar pr-4 space-y-6 pb-10">';
         
@@ -1174,7 +1175,7 @@
         html += '</div></div>';
 
         // --- 優先：低 ---
-        html += '<div><div class="flex items-center gap-3 mb-4"><span class="bg-emerald-100 text-emerald-700 font-black text-[10px] px-3 py-1 rounded-full">優先：低</span><h3 class="text-lg font-black">3. 時間帯の最適化</h3></div>';
+        html += '<div><div class="flex items-center gap-3 mb-4"><span class="bg-emerald-100 text-emerald-700 font-black text-[10px] px-3 py-1 rounded-full">優先：低</span><h3 class="text-lg font-black">3. 時間帯の最適化（ソフト制約）</h3></div>';
         html += '<div class="bg-white border border-slate-200 rounded-[24px] p-5 shadow-sm">';
         
         // ⑧ 体育の回避
@@ -1186,6 +1187,15 @@
             var s = state.subjects[i];
             var isChk = (state.advancedRules.amPrioritySubjects && state.advancedRules.amPrioritySubjects.indexOf(s.name) !== -1);
             html += '<label class="cursor-pointer text-xs px-4 py-2 rounded-full border ' + (isChk?'bg-emerald-100 border-emerald-400 text-emerald-800 font-black shadow-sm':'bg-white text-slate-500 hover:bg-slate-50 border-slate-200') + '"><input type="checkbox" class="hidden" ' + (isChk?'checked':'') + ' onchange="actions.toggleRule(\'amPrioritySubjects\',\'' + s.name + '\')">' + s.name + '</label>';
+        }
+        html += '</div></div>';
+
+        // ⑩ 学年内で連続して配置する教科
+        html += '<div class="mt-6"><div class="text-sm font-bold mb-1">学年内で連続して配置する教科</div><p class="text-[10px] font-bold text-slate-500 mb-3">準備や片付けのため、曜日を跨いでも同じ学年を続ける（例：1組の次は2組）</p><div class="flex flex-wrap gap-2">';
+        for(var i=0; i<state.subjects.length; i++){
+            var s = state.subjects[i];
+            var isChk = (state.advancedRules.consecutiveGradeSubjects && state.advancedRules.consecutiveGradeSubjects.indexOf(s.name) !== -1);
+            html += '<label class="cursor-pointer text-xs px-4 py-2 rounded-full border ' + (isChk?'bg-emerald-100 border-emerald-400 text-emerald-800 font-black shadow-sm':'bg-white text-slate-500 hover:bg-slate-50 border-slate-200') + '"><input type="checkbox" class="hidden" ' + (isChk?'checked':'') + ' onchange="actions.toggleRule(\'consecutiveGradeSubjects\',\'' + s.name + '\')">' + s.name + '</label>';
         }
         html += '</div></div>';
 
