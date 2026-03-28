@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 13.35 (Ultimate Stable + Allocation)
+  Version: 13.36 (Ultimate Stable + Allocation Fixed)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: 13.22ベース。真っ白エラー（SyntaxError）を完全排除した非圧縮コード。分配機能付き。
+  Description: 関数の重複定義（SyntaxError）を完全削除。13.22ベース＋教員分配モーダル。
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 13.35</title>
+    <title>Smart TimeTable - Ver 13.36</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style type="text/tailwindcss">
@@ -44,7 +44,7 @@
             </div>
             <div>
                 <h1 class="text-xl font-black tracking-tight leading-none text-slate-800">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.35 Stable)</p>
+                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.36 Stable)</p>
             </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -68,13 +68,12 @@
 </div>
 
 <!-- ==========================================
-  DOMコンテナ群 (絶対に消さない)
+  DOMコンテナ群
 ========================================== -->
 <div id="modal-overlay" class="fixed inset-0 z-[150] flex items-center justify-center hidden p-4 bg-slate-900/60 backdrop-blur-sm">
     <div class="bg-white rounded-2xl p-6 max-w-2xl w-full shadow-2xl flex flex-col" id="modal-body"></div>
 </div>
 <div id="allocation-modal-container"></div>
-
 <div id="loading-overlay" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] hidden items-center justify-center flex-col gap-4 transition-all">
     <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
     <div class="text-white text-center">
@@ -85,7 +84,7 @@
 
 <script>
     // ==========================================
-    // 1. 材料（初期データ）を定義（最優先！）
+    // 1. 定数と初期データ
     // ==========================================
     const GAS_URL = "https://script.google.com/macros/s/AKfycbzk7FOx-EuX906szB8GmGsrMLxlESbc0bn2hFWq0XFFyHECZCDWLZzRbrmoi5vlBvVoHA/exec";
     const GRADES = [1, 2, 3, 4, 5, 6];
@@ -206,7 +205,6 @@
             state.advancedRules = { ...JSON.parse(JSON.stringify(defaultAdvancedRules)), ...p.advancedRules };
         }
         
-        // 未定義をガード
         if(!state.specialBlocks) state.specialBlocks = [];
         if(!state.classAssignments) state.classAssignments = {};
         if(!state.teachers) state.teachers = [];
@@ -269,7 +267,6 @@
         }
     };
 
-    // ★ 教員負荷計算 (allocations対応)
     const getTeacherLoads = () => { 
         const loads = {}; 
         (state.teachers || []).forEach(t => { loads[t.id] = 0; }); 
@@ -384,7 +381,7 @@
     };
 
     // ==========================================
-    // 4. 描画 (View Functions) - 圧縮排除版
+    // 4. 描画 (View Functions)
     // ==========================================
 
     const buildGrid = (ngMap, globalBlocksMap, actionStr, cellType = 'teacher') => { 
@@ -437,7 +434,6 @@
         return html;
     };
 
-    // ★ 教員分配モーダルの描画
     const renderAllocationModal = () => {
         if (!state.allocationModal) return '';
         const m = state.allocationModal;
@@ -558,7 +554,6 @@
         }
         if(content) content.innerHTML = html;
         
-        // ★ 教員分配モーダルの描画を差し込む
         const modalContainer = document.getElementById('allocation-modal-container');
         if(modalContainer) modalContainer.innerHTML = renderAllocationModal();
         
@@ -573,7 +568,7 @@
         }, 0);
     };
 
-    // --- 各ステップのHTML生成 ---
+    // --- HTML生成（重複排除版） ---
     const viewStep1 = () => {
         let html = `
         <div class="flex flex-col gap-6 h-full overflow-y-auto custom-scrollbar pr-2" id="step1-scroll">
@@ -935,7 +930,6 @@
         return html;
     };
 
-    // ★ 教員分配に対応した Step 6
     const viewStep6 = () => {
         const classes = Object.keys(state.classAssignments || {}); 
         if (classes.length === 0) return `<div class="p-4 text-center">クラスデータがありません。</div>`;
@@ -1387,7 +1381,7 @@
         exportData: () => { 
             const a = document.createElement('a'); 
             a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state)); 
-            a.download = "timetable_v13_35.json"; 
+            a.download = "timetable_v13_36.json"; 
             a.click(); 
         },
         importData: () => { 
