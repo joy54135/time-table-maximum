@@ -1,14 +1,14 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 13.52 (Latest URL & Strict Engine)
-  Description: 最新GAS URL適用。Step 8の「優先:高(厳守)」対応。診断詳細ポップアップ実装。
+  Version: 13.53 (Absolute Safe & Auto Relay)
+  Description: 最新GAS URL適用。初期化エラーの完全排除。コード途切れを防止した究極安定版。
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 13.52</title>
+    <title>Smart TimeTable - Ver 13.53</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style type="text/tailwindcss">
@@ -44,7 +44,7 @@
             </div>
             <div>
                 <h1 class="text-xl font-black tracking-tight leading-none text-slate-800">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.52 Strict Engine & Latest URL)</p>
+                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.53 Absolute Safe)</p>
             </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -80,33 +80,94 @@
 </div>
 
 <script>
-    // URLの統合（最新のURL）
+    // ==========================================
+    // 1. 初期化・定数
+    // ==========================================
+    // ★ 最新URL
     var GAS_URL = "https://script.google.com/macros/s/AKfycbz1d_X8kVtu4MixEE4EkyOI7-r3uoHNBg0-47HnQrUOY9St6s7ltTohwNdd03s8yaV18A/exec";
     var GRADES = [1, 2, 3, 4, 5, 6];
     var DAYS = ['月', '火', '水', '木', '金'];
     var PERIODS = [1, 2, 3, 4, 5, 6];
-    var stepTitles = ["1. 基本設定", "2. 行事・不可枠", "3. 教科と教室", "4. 教員名簿", "5. 特殊授業", "6. クラス別担当", "7. 教員別確認", "8. 配置ルール", "9. 最終点検", "10. ダッシュボード"];
+    var MAX_STEPS = 10;
+    var stepTitles = [
+        "1. 基本設定", "2. 行事・不可枠", "3. 教科と教室", "4. 教員名簿", "5. 特殊授業", 
+        "6. クラス別担当", "7. 教員別確認", "8. 配置ルール", "9. 最終点検", "10. ダッシュボード"
+    ];
 
     var state = {
-        currentStep: 1, grades: {1:3, 2:3, 3:3, 4:3, 5:3, 6:3}, periods: {}, rooms: [], subjects: [], teachers: [], globalBlocks: {}, specialBlocks: [], classAssignments: {},
-        advancedRules: { lastPeriodSubjects: [], continuousClasses: [], limitContinuousToSpecificPeriods: true, considerSpecialistTimes: true, avoidSpecificTimes: [], amPrioritySubjects: [], consecutiveGradeSubjects: [] },
-        generatedSchedule: null, unassigned: [], reportDetails: {}, dashView: 'class', dashFilter: '1-1', relayCount: 0, maxRelayCount: 0,
-        subjectsUndoStack: [], undoStack: []
+        currentStep: 1, 
+        grades: {1:3, 2:3, 3:3, 4:3, 5:3, 6:3}, 
+        periods: {}, 
+        rooms: [], 
+        subjects: [], 
+        teachers: [], 
+        globalBlocks: {}, 
+        specialBlocks: [], 
+        classAssignments: {},
+        advancedRules: { 
+            lastPeriodSubjects: [], continuousClasses: [], limitContinuousToSpecificPeriods: true, 
+            considerSpecialistTimes: true, avoidSpecificTimes: [], amPrioritySubjects: [], consecutiveGradeSubjects: [],
+            limitOneSubjectPerDay: true, maxIntervalSubjects: []
+        },
+        generatedSchedule: null, unassigned: [], reportDetails: {}, 
+        dashView: 'class', dashFilter: '1-1', relayCount: 0, maxRelayCount: 0,
+        subjectsUndoStack: [], undoStack: [],
+        selectedTeacherId: null, editingTeacherNameId: null, allocationModal: null, selectedDashCell: null
     };
 
     var lastClickTime = 0;
     var lastClickId = null;
 
+    // ★ 安全装置：データが空でも必ずデフォルトの「箱」を作る
     function forceInitState() {
-        GRADES.forEach(g => { if (!state.periods[g]) state.periods[g] = {月:5,火:5,水:4,木:5,金:5}; });
-        if (!state.rooms || !state.rooms.length) state.rooms = [{id:'r1', name:'校庭', capacity:2, ngTimes:{}}, {id:'r2', name:'体育館', capacity:2, ngTimes:{}}, {id:'r3', name:'理科室', capacity:1, ngTimes:{}}];
-        if (!state.subjects || !state.subjects.length) state.subjects = [{id:'s1', name:'国語', stdHours:{1:9,2:9,3:7,4:7,5:5,6:5}, defaultRoom:'通常教室'}, {id:'s2', name:'算数', stdHours:{1:4,2:5,3:5,4:5,5:5,6:5}, defaultRoom:'通常教室'}];
+        if (!state.periods) state.periods = {};
+        GRADES.forEach(function(g) {
+            if (!state.periods[g]) state.periods[g] = {月:5,火:5,水:4,木:5,金:5};
+        });
+        
+        if (!state.rooms || state.rooms.length === 0) {
+            state.rooms = [
+                {id:'r1', name:'校庭', capacity:2, ngTimes:{}}, {id:'r2', name:'体育館', capacity:2, ngTimes:{}}, 
+                {id:'r3', name:'理科室', capacity:1, ngTimes:{}}, {id:'r4', name:'音楽室', capacity:1, ngTimes:{}},
+                {id:'r5', name:'図工室', capacity:1, ngTimes:{}}, {id:'r6', name:'家庭科室', capacity:1, ngTimes:{}},
+                {id:'r7', name:'外国語教室', capacity:1, ngTimes:{}}, {id:'r8', name:'図書室', capacity:1, ngTimes:{}}
+            ];
+        }
+        
+        if (!state.subjects || state.subjects.length === 0) {
+            state.subjects = [
+                { id:'s1', name:'国語', stdHours:{1:9,2:9,3:7,4:7,5:5,6:5}, defaultRoom:'通常教室' },
+                { id:'s2', name:'社会', stdHours:{1:0,2:0,3:2,4:2,5:3,6:3}, defaultRoom:'通常教室' },
+                { id:'s3', name:'算数', stdHours:{1:4,2:5,3:5,4:5,5:5,6:5}, defaultRoom:'通常教室' },
+                { id:'s4', name:'理科', stdHours:{1:0,2:0,3:3,4:3,5:3,6:3}, defaultRoom:'理科室' },
+                { id:'s5', name:'生活', stdHours:{1:3,2:3,3:0,4:0,5:0,6:0}, defaultRoom:'通常教室' },
+                { id:'s6', name:'音楽', stdHours:{1:2,2:2,3:2,4:2,5:2,6:2}, defaultRoom:'音楽室' },
+                { id:'s7', name:'図工', stdHours:{1:2,2:2,3:2,4:2,5:2,6:2}, defaultRoom:'図工室' },
+                { id:'s8', name:'家庭', stdHours:{1:0,2:0,3:0,4:0,5:2,6:2}, defaultRoom:'家庭科室' },
+                { id:'s9', name:'中体育', stdHours:{1:1,2:1,3:1,4:1,5:1,6:1}, defaultRoom:'体育館' },
+                { id:'s10', name:'外体育', stdHours:{1:2,2:2,3:2,4:2,5:2,6:2}, defaultRoom:'校庭' },
+                { id:'s11', name:'道徳', stdHours:{1:1,2:1,3:1,4:1,5:1,6:1}, defaultRoom:'通常教室' },
+                { id:'s12', name:'外国語', stdHours:{1:0,2:0,3:1,4:1,5:2,6:2}, defaultRoom:'外国語教室' },
+                { id:'s13', name:'総合', stdHours:{1:0,2:0,3:1,4:1,5:2,6:2}, defaultRoom:'通常教室' },
+                { id:'s14', name:'学活', stdHours:{1:1,2:1,3:1,4:1,5:1,6:1}, defaultRoom:'通常教室' }
+            ];
+        }
         initClassAssignments();
     }
 
     function initClassAssignments() {
         if (!state.classAssignments) state.classAssignments = {};
-        GRADES.forEach(g => { for(let i=1; i<=state.grades[g]; i++) { let c = `${g}-${i}`; if(!state.classAssignments[c]) state.classAssignments[c] = { homeroom:'', overrides:{} }; } });
+        if (!state.grades) state.grades = {1:3, 2:3, 3:3, 4:3, 5:3, 6:3};
+        
+        GRADES.forEach(function(g) {
+            var n = parseInt(state.grades[g]) || 1;
+            for(var i=1; i<=n; i++) {
+                var cls = g + '-' + i;
+                if(!state.classAssignments[cls]) {
+                    state.classAssignments[cls] = { homeroom:'', overrides:{} };
+                }
+            }
+        });
     }
 
     function sanitizeState(p) {
@@ -127,11 +188,10 @@
         if(!state.advancedRules) {
             state.advancedRules = {
                 lastPeriodSubjects: [], continuousClasses: [], limitContinuousToSpecificPeriods: true,
-                homeroomOnlyTimes: [], pairHomeroomSubjects: [], limitOneSubjectPerDay: true, 
-                maxIntervalSubjects: [], considerSpecialistTimes: true, avoidPeTimes: [], avoidSpecificTimes: [], amPrioritySubjects: [], consecutiveGradeSubjects: []
+                limitOneSubjectPerDay: true, maxIntervalSubjects: [],
+                considerSpecialistTimes: true, avoidSpecificTimes: [], amPrioritySubjects: [], consecutiveGradeSubjects: []
             };
         } else {
-            if(!state.advancedRules.pairHomeroomSubjects) state.advancedRules.pairHomeroomSubjects = [];
             if(!state.advancedRules.maxIntervalSubjects) state.advancedRules.maxIntervalSubjects = [];
             if(!state.advancedRules.amPrioritySubjects) state.advancedRules.amPrioritySubjects = [];
             if(!state.advancedRules.consecutiveGradeSubjects) state.advancedRules.consecutiveGradeSubjects = [];
@@ -147,12 +207,17 @@
                 var p = JSON.parse(d);
                 sanitizeState(p);
             }
-        } catch(e) {}
+        } catch(e) {
+            console.warn("Local storage parse error, proceeding with defaults.");
+        }
         
         forceInitState();
         render();
     }
 
+    // ==========================================
+    // 2. ユーティリティ
+    // ==========================================
     function showToast(msg, type) {
         if(!type) type = 'info';
         var t = document.getElementById('toast');
@@ -177,28 +242,37 @@
         if(l) l.classList.replace('flex', 'hidden');
     }
 
+    function save() { try { localStorage.setItem('tt_v13_stable', JSON.stringify(state)); } catch(e){} }
+
     function getTeacherLoads() {
         var loads = {};
-        state.teachers.forEach(function(t){ loads[t.id] = 0; });
-        Object.keys(state.classAssignments).forEach(function(cls){
-            var grade = cls.split('-')[0];
-            var data = state.classAssignments[cls];
-            state.subjects.forEach(function(sub){
-                var hours = parseInt(sub.stdHours[grade]) || 0; if(hours===0) return;
-                var isSp = false;
-                if(state.specialBlocks) {
-                    isSp = state.specialBlocks.some(function(b){ return b.subjectId===sub.id && b.targets && b.targets.indexOf(cls)!==-1; });
-                }
-                if(isSp) return;
-                var ovr = (data.overrides && data.overrides[sub.id]) ? data.overrides[sub.id] : {};
-                if(ovr.allocations && ovr.allocations.length > 0){
-                    ovr.allocations.forEach(function(a){ if(a.teacherId && loads[a.teacherId]!==undefined) loads[a.teacherId] += (parseInt(a.hours)||0); });
-                } else {
-                    var tId = ovr.teacherId || data.homeroom;
-                    if(tId && loads[tId]!==undefined) loads[tId] += hours;
+        if (state.teachers) state.teachers.forEach(function(t){ loads[t.id] = 0; });
+        
+        if (state.classAssignments) {
+            Object.keys(state.classAssignments).forEach(function(cls){
+                var grade = cls.split('-')[0];
+                var data = state.classAssignments[cls];
+                if (state.subjects) {
+                    state.subjects.forEach(function(sub){
+                        var hours = 0;
+                        if (sub.stdHours && sub.stdHours[grade]) hours = parseInt(sub.stdHours[grade]) || 0;
+                        if(hours===0) return;
+                        var isSp = false;
+                        if(state.specialBlocks) {
+                            isSp = state.specialBlocks.some(function(b){ return b.subjectId===sub.id && b.targets && b.targets.indexOf(cls)!==-1; });
+                        }
+                        if(isSp) return;
+                        var ovr = (data.overrides && data.overrides[sub.id]) ? data.overrides[sub.id] : {};
+                        if(ovr.allocations && ovr.allocations.length > 0){
+                            ovr.allocations.forEach(function(a){ if(a.teacherId && loads[a.teacherId]!==undefined) loads[a.teacherId] += (parseInt(a.hours)||0); });
+                        } else {
+                            var tId = ovr.teacherId || data.homeroom;
+                            if(tId && loads[tId]!==undefined) loads[tId] += hours;
+                        }
+                    });
                 }
             });
-        });
+        }
         if(state.specialBlocks) {
             state.specialBlocks.forEach(function(b){
                 if(b.teachers) {
@@ -211,29 +285,38 @@
 
     function getTeacherDetails() { 
         var details = {}; 
-        state.teachers.forEach(function(t){ details[t.id] = { load: 0, items: [] }; });
-        var classes = Object.keys(state.classAssignments);
-        for(var i=0; i<classes.length; i++){
-            var cls = classes[i]; var grade = cls.split('-')[0]; var data = state.classAssignments[cls]; 
-            for(var j=0; j<state.subjects.length; j++){
-                var sub = state.subjects[j]; var hours = parseInt(sub.stdHours[grade]) || 0; if (hours === 0) continue;
-                var isSp = false;
-                if(state.specialBlocks) {
-                    for(var k=0; k<state.specialBlocks.length; k++){
-                        if(state.specialBlocks[k].subjectId === sub.id && state.specialBlocks[k].targets && state.specialBlocks[k].targets.indexOf(cls) !== -1) isSp = true;
-                    }
-                }
-                if(isSp) continue;
-                var ovr = (data.overrides && data.overrides[sub.id]) ? data.overrides[sub.id] : {};
-                if (ovr.allocations && ovr.allocations.length > 0) {
-                    for(var k=0; k<ovr.allocations.length; k++){
-                        var a = ovr.allocations[k]; if (a.teacherId && details[a.teacherId]) { 
-                            details[a.teacherId].load += parseInt(a.hours); details[a.teacherId].items.push({ target: cls, subject: sub.name, hours: parseInt(a.hours), isSp: false }); 
+        if (state.teachers) state.teachers.forEach(function(t){ details[t.id] = { load: 0, items: [] }; });
+        
+        if (state.classAssignments) {
+            var classes = Object.keys(state.classAssignments);
+            for(var i=0; i<classes.length; i++){
+                var cls = classes[i]; var grade = cls.split('-')[0]; var data = state.classAssignments[cls]; 
+                if (state.subjects) {
+                    for(var j=0; j<state.subjects.length; j++){
+                        var sub = state.subjects[j]; 
+                        var hours = 0;
+                        if (sub.stdHours && sub.stdHours[grade]) hours = parseInt(sub.stdHours[grade]) || 0;
+                        if (hours === 0) continue;
+                        
+                        var isSp = false;
+                        if(state.specialBlocks) {
+                            for(var k=0; k<state.specialBlocks.length; k++){
+                                if(state.specialBlocks[k].subjectId === sub.id && state.specialBlocks[k].targets && state.specialBlocks[k].targets.indexOf(cls) !== -1) isSp = true;
+                            }
+                        }
+                        if(isSp) continue;
+                        var ovr = (data.overrides && data.overrides[sub.id]) ? data.overrides[sub.id] : {};
+                        if (ovr.allocations && ovr.allocations.length > 0) {
+                            for(var k=0; k<ovr.allocations.length; k++){
+                                var a = ovr.allocations[k]; if (a.teacherId && details[a.teacherId]) { 
+                                    details[a.teacherId].load += parseInt(a.hours); details[a.teacherId].items.push({ target: cls, subject: sub.name, hours: parseInt(a.hours), isSp: false }); 
+                                }
+                            }
+                        } else {
+                            var tId = ovr.teacherId || data.homeroom;
+                            if (tId && details[tId]) { details[tId].load += hours; details[tId].items.push({ target: cls, subject: sub.name, hours: hours, isSp: false }); } 
                         }
                     }
-                } else {
-                    var tId = ovr.teacherId || data.homeroom;
-                    if (tId && details[tId]) { details[tId].load += hours; details[tId].items.push({ target: cls, subject: sub.name, hours: hours, isSp: false }); } 
                 }
             }
         }
@@ -241,7 +324,9 @@
             for(var i=0; i<state.specialBlocks.length; i++){
                 var b = state.specialBlocks[i]; 
                 var subObj = null;
-                for(var j=0; j<state.subjects.length; j++){ if(state.subjects[j].id===b.subjectId) subObj = state.subjects[j]; }
+                if (state.subjects) {
+                    for(var j=0; j<state.subjects.length; j++){ if(state.subjects[j].id===b.subjectId) subObj = state.subjects[j]; }
+                }
                 var subName = subObj ? subObj.name : '特殊';
                 
                 if (b.teachers) {
@@ -265,32 +350,57 @@
         return 'bg-slate-100 text-slate-800 border-slate-200'; 
     }
 
+    // ==========================================
+    // 3. 描画
+    // ==========================================
     function render() {
-        localStorage.setItem('tt_v13_stable', JSON.stringify(state));
+        save();
         var scrollPos = {};
-        document.querySelectorAll('.custom-scrollbar').forEach(function(el){ if(el.id) scrollPos[el.id] = {t: el.scrollTop, l: el.scrollLeft}; });
-
-        document.getElementById('step-title').innerText = stepTitles[state.currentStep-1];
-        const nextBtn = document.getElementById('btn-next');
-        const nextText = document.getElementById('btn-next-text');
-        if(state.currentStep === 9) { nextText.innerText = "AI自動生成"; nextBtn.className = "m3-btn-primary w-[180px] bg-indigo-600"; }
-        else if(state.currentStep === 10) { nextText.innerText = "スプレッドシート出力"; nextBtn.className = "m3-btn-primary w-[180px] bg-emerald-600"; }
-        else { nextText.innerText = "次へ進む"; nextBtn.className = "m3-btn-primary w-[180px]"; }
-        document.getElementById('btn-prev').style.visibility = (state.currentStep === 1 ? 'hidden' : 'visible');
-
-        var dotsHtml = '';
-        for(var i=1; i<=MAX_STEPS-1; i++) { dotsHtml += `<div class="step-dot ${i<=state.currentStep?'active':''}"></div>`; }
-        document.getElementById('progress-dots').innerHTML = state.currentStep === 10 ? '' : dotsHtml;
-
-        const content = document.getElementById('step-content');
-        try {
-            content.innerHTML = eval(`viewStep${state.currentStep}()`);
-        } catch(e) { 
-            console.error(e);
-            content.innerHTML = '<div class="p-8 text-center"><p class="text-red-500 font-bold">描画エラーが発生しました</p><button onclick="actions.resetData()" class="mt-4 p-2 bg-red-100 text-red-600 rounded font-bold">初期化して修復</button><p class="text-xs mt-2 text-slate-400">' + e.message + '</p></div>';
+        var scrollElements = document.querySelectorAll('.custom-scrollbar');
+        if (scrollElements) {
+            scrollElements.forEach(function(el){ if(el.id) scrollPos[el.id] = {t: el.scrollTop, l: el.scrollLeft}; });
         }
 
-        document.getElementById('allocation-modal-container').innerHTML = renderAllocationModal();
+        var titleEl = document.getElementById('step-title');
+        if (titleEl) titleEl.innerText = stepTitles[state.currentStep-1] || '';
+        
+        var nextBtn = document.getElementById('btn-next');
+        var nextText = document.getElementById('btn-next-text');
+        if (nextBtn && nextText) {
+            if(state.currentStep === 9) { nextText.innerText = "AI自動生成"; nextBtn.className = "m3-btn-primary w-[180px] bg-indigo-600 hover:bg-indigo-700"; }
+            else if(state.currentStep === 10) { nextText.innerText = "スプレッドシート出力"; nextBtn.className = "m3-btn-primary w-[180px] bg-emerald-600 hover:bg-emerald-700"; }
+            else { nextText.innerText = "次へ進む"; nextBtn.className = "m3-btn-primary w-[180px]"; }
+        }
+        
+        var prevBtn = document.getElementById('btn-prev');
+        if (prevBtn) prevBtn.style.visibility = (state.currentStep === 1 ? 'hidden' : 'visible');
+
+        var dotsHtml = '';
+        for(var i=1; i<=MAX_STEPS-1; i++) { dotsHtml += '<div class="step-dot ' + (i<=state.currentStep?'active':'') + '"></div>'; }
+        var progressDots = document.getElementById('progress-dots');
+        if (progressDots) progressDots.innerHTML = state.currentStep === 10 ? '' : dotsHtml;
+
+        var content = document.getElementById('step-content');
+        if (content) {
+            try {
+                if(state.currentStep === 1) content.innerHTML = viewStep1();
+                else if(state.currentStep === 2) content.innerHTML = viewStep2();
+                else if(state.currentStep === 3) content.innerHTML = viewStep3();
+                else if(state.currentStep === 4) content.innerHTML = viewStep4();
+                else if(state.currentStep === 5) content.innerHTML = viewStep5();
+                else if(state.currentStep === 6) content.innerHTML = viewStep6();
+                else if(state.currentStep === 7) content.innerHTML = viewStep7();
+                else if(state.currentStep === 8) content.innerHTML = viewStep8();
+                else if(state.currentStep === 9) content.innerHTML = viewStep9();
+                else if(state.currentStep === 10) content.innerHTML = viewStep10();
+            } catch(e) { 
+                console.error(e);
+                content.innerHTML = '<div class="p-8 text-center"><p class="text-red-500 font-bold">描画エラーが発生しました</p><button onclick="actions.resetData()" class="mt-4 p-2 bg-red-100 text-red-600 rounded font-bold">初期化して修復</button><p class="text-xs mt-2 text-slate-400">' + e.message + '</p></div>';
+            }
+        }
+
+        var modalContainer = document.getElementById('allocation-modal-container');
+        if (modalContainer) modalContainer.innerHTML = renderAllocationModal();
 
         setTimeout(function(){
             Object.keys(scrollPos).forEach(function(id){
@@ -325,11 +435,16 @@
         if (!state.allocationModal) return '';
         var m = state.allocationModal; 
         var subObj = null;
-        for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id===m.subId) subObj = state.subjects[i]; }
+        if (state.subjects) {
+            for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id===m.subId) subObj = state.subjects[i]; }
+        }
         var subName = subObj ? subObj.name : '';
         
         var tOpts = '<option value="">-- 教員を選択 --</option>';
-        for(var i=0; i<state.teachers.length; i++){ tOpts += '<option value="' + state.teachers[i].id + '">' + state.teachers[i].name + '</option>'; }
+        if (state.teachers) {
+            for(var i=0; i<state.teachers.length; i++){ tOpts += '<option value="' + state.teachers[i].id + '">' + state.teachers[i].name + '</option>'; }
+        }
+        
         var rowsHtml = ''; var total = 0;
         for(var idx=0; idx<m.rows.length; idx++){
             var r = m.rows[idx]; total += parseInt(r.hours) || 0; var sel = tOpts.replace('value="' + r.teacherId + '"', 'value="' + r.teacherId + '" selected');
@@ -368,7 +483,7 @@
         GRADES.forEach(function(g){
             html += '<tr><td class="p-2 font-bold border-b text-slate-600">' + g + '年</td>';
             DAYS.forEach(function(d){
-                var val = state.periods[g][d] || 0;
+                var val = (state.periods[g] && state.periods[g][d]) ? state.periods[g][d] : 0;
                 html += '<td class="p-2 border-b"><div class="flex items-center justify-center gap-1">';
                 html += '<button onclick="actions.updatePeriod(' + g + ', \'' + d + '\', -1)" class="w-6 h-6 bg-white shadow-sm border border-slate-200 rounded-lg font-black text-slate-500 transition-colors">-</button>';
                 html += '<input type="number" value="' + val + '" onchange="actions.setPeriod(' + g + ', \'' + d + '\', this.value)" class="w-8 text-center font-black text-blue-600 outline-none bg-transparent">';
@@ -378,10 +493,14 @@
         });
         html += '</tbody></table></div><div class="mt-5 flex flex-wrap gap-3 justify-center">';
         GRADES.forEach(function(g){
-            var sum = 0; DAYS.forEach(function(d){ sum += parseInt(state.periods[g][d]) || 0; });
+            var sum = 0; 
+            DAYS.forEach(function(d){ 
+                sum += (state.periods[g] && state.periods[g][d]) ? parseInt(state.periods[g][d]) : 0; 
+            });
             html += '<div class="bg-white border border-slate-200 rounded-xl px-4 py-2 shadow-sm flex items-center gap-2"><span class="text-xs font-bold text-slate-500">' + g + '年 合計</span><span class="text-lg font-black text-blue-600">' + sum + '</span><span class="text-[10px] font-bold text-slate-400">コマ</span></div>';
         });
-        html += '</div></div></div>'; return html;
+        html += '</div></div></div>'; 
+        return html;
     }
 
     function viewStep2() {
@@ -398,72 +517,93 @@
         var html = '<div class="flex flex-col md:flex-row gap-4 h-full"><div class="w-full md:w-1/4 flex flex-col bg-slate-50 rounded-2xl border border-slate-200 p-3 h-1/3 md:h-full">';
         html += '<div class="flex justify-between items-center mb-3"><h3 class="font-black text-xs">特別教室</h3><button onclick="actions.addRoom()" class="text-[10px] bg-blue-50 text-blue-600 border px-2 py-1 rounded-md font-bold hover:bg-blue-100 transition-colors">+ 追加</button></div>';
         html += '<div class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1" id="sc-step3-l">';
-        state.rooms.forEach(function(r){
-            html += '<div class="flex items-center gap-1 bg-white p-1.5 rounded-lg border shadow-sm"><input type="text" value="' + r.name + '" onchange="actions.updateRoomName(\'' + r.id + '\', this.value)" class="flex-1 min-w-0 text-xs font-bold outline-none">';
-            html += '<div class="flex items-center gap-0.5 ml-1"><button onclick="actions.updateRoomCapacity(\'' + r.id + '\', Math.max(1, (r.capacity||1)-1))" class="w-4 h-4 bg-slate-100 rounded text-slate-500 font-black transition-colors">-</button>';
-            html += '<input type="number" value="' + (r.capacity||1) + '" onchange="actions.updateRoomCapacity(\'' + r.id + '\', this.value)" min="1" class="w-6 text-xs font-black text-center bg-transparent outline-none">';
-            html += '<button onclick="actions.updateRoomCapacity(\'' + r.id + '\', (r.capacity||1)+1)" class="w-4 h-4 bg-slate-100 rounded text-slate-500 font-black transition-colors">+</button></div>';
-            html += '<button onclick="actions.removeRoom(\'' + r.id + '\')" class="text-slate-300 hover:text-rose-500 font-bold px-1 ml-1 transition-colors">✕</button></div>';
-        });
+        
+        if (state.rooms) {
+            state.rooms.forEach(function(r){
+                html += '<div class="flex items-center gap-1 bg-white p-1.5 rounded-lg border shadow-sm"><input type="text" value="' + r.name + '" onchange="actions.updateRoomName(\'' + r.id + '\', this.value)" class="flex-1 min-w-0 text-xs font-bold outline-none">';
+                html += '<div class="flex items-center gap-0.5 ml-1"><button onclick="actions.updateRoomCapacity(\'' + r.id + '\', Math.max(1, (r.capacity||1)-1))" class="w-4 h-4 bg-slate-100 rounded text-slate-500 font-black transition-colors">-</button>';
+                html += '<input type="number" value="' + (r.capacity||1) + '" onchange="actions.updateRoomCapacity(\'' + r.id + '\', this.value)" min="1" class="w-6 text-xs font-black text-center bg-transparent outline-none">';
+                html += '<button onclick="actions.updateRoomCapacity(\'' + r.id + '\', (r.capacity||1)+1)" class="w-4 h-4 bg-slate-100 rounded text-slate-500 font-black transition-colors">+</button></div>';
+                html += '<button onclick="actions.removeRoom(\'' + r.id + '\')" class="text-slate-300 hover:text-rose-500 font-bold px-1 ml-1 transition-colors">✕</button></div>';
+            });
+        }
+        
         html += '</div></div><div class="flex-1 flex flex-col bg-slate-50 rounded-2xl border border-slate-200 p-3 h-2/3 md:h-full overflow-hidden">';
         html += '<div class="flex justify-between items-center mb-3"><h3 class="font-black text-xs">科目時数</h3><div class="flex items-center gap-2">';
-        html += '<button onclick="actions.undoSubjects()" class="text-[10px] px-3 py-1.5 rounded-md font-bold transition-colors ' + (state.subjectsUndoStack.length===0?'bg-slate-100 text-slate-400 cursor-not-allowed':'bg-white border text-slate-600 hover:bg-slate-50') + '" ' + (state.subjectsUndoStack.length===0?'disabled':'') + '>元に戻す</button>';
+        html += '<button onclick="actions.undoSubjects()" class="text-[10px] px-3 py-1.5 rounded-md font-bold transition-colors ' + (state.subjectsUndoStack && state.subjectsUndoStack.length===0?'bg-slate-100 text-slate-400 cursor-not-allowed':'bg-white border text-slate-600 hover:bg-slate-50') + '" ' + (state.subjectsUndoStack && state.subjectsUndoStack.length===0?'disabled':'') + '>元に戻す</button>';
         html += '<button onclick="actions.addSubject(\'新規教科\')" class="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded-md font-bold shadow-sm hover:bg-blue-700 transition-colors">+ 新規教科</button></div></div>';
         html += '<div class="flex-1 overflow-auto custom-scrollbar pr-1 border border-slate-200 rounded-xl bg-white" id="sc-step3-r"><table class="w-full text-xs text-center border-collapse min-w-[700px]"><thead class="sticky top-0 bg-slate-100 z-10 shadow-sm">';
         html += '<tr><th class="p-2 border-r text-left pl-3 w-28">科目名</th><th class="p-2 border-r w-24">教室</th>';
         GRADES.forEach(function(g){ html += '<th class="p-2 border-r">' + g + '年</th>'; });
         html += '<th class="w-12"></th></tr></thead><tbody>';
-        var rmOpts = '<option value="通常教室">通常教室</option>';
-        state.rooms.forEach(function(r){ rmOpts += '<option value="' + r.name + '">' + r.name + '</option>'; });
         
-        state.subjects.forEach(function(s){
-            var localRmOpts = rmOpts.replace('value="' + (s.defaultRoom||'通常教室') + '"', 'value="' + (s.defaultRoom||'通常教室') + '" selected');
-            html += '<tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors"><td class="p-1 border-r"><input type="text" value="' + s.name + '" onchange="actions.updateSubject(\'' + s.id + '\', \'name\', this.value)" class="m3-input !p-1.5 w-full font-bold bg-transparent border-transparent focus:bg-white shadow-none"></td>';
-            html += '<td class="p-1 border-r"><select onchange="actions.updateSubject(\'' + s.id + '\', \'defaultRoom\', this.value)" class="m3-input !p-1.5 text-[10px] w-full bg-transparent border-transparent cursor-pointer shadow-none">' + localRmOpts + '</select></td>';
-            GRADES.forEach(function(g){
-                var val = s.stdHours[g] || 0;
-                html += '<td class="p-1 border-r"><div class="flex items-center justify-center gap-1"><button onclick="actions.updateSubjectHour(\'' + s.id + '\', ' + g + ', -1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black transition-colors">-</button>';
-                html += '<input type="number" value="' + val + '" onchange="actions.setSubjectHour(\'' + s.id + '\', ' + g + ', this.value)" class="w-6 text-center font-black text-blue-600 bg-transparent outline-none">';
-                html += '<button onclick="actions.updateSubjectHour(\'' + s.id + '\', ' + g + ', 1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black transition-colors">+</button></div></td>';
+        var rmOpts = '<option value="通常教室">通常教室</option>';
+        if (state.rooms) {
+            state.rooms.forEach(function(r){ rmOpts += '<option value="' + r.name + '">' + r.name + '</option>'; });
+        }
+        
+        if (state.subjects) {
+            state.subjects.forEach(function(s){
+                var localRmOpts = rmOpts.replace('value="' + (s.defaultRoom||'通常教室') + '"', 'value="' + (s.defaultRoom||'通常教室') + '" selected');
+                html += '<tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors"><td class="p-1 border-r"><input type="text" value="' + s.name + '" onchange="actions.updateSubject(\'' + s.id + '\', \'name\', this.value)" class="m3-input !p-1.5 w-full font-bold bg-transparent border-transparent focus:bg-white shadow-none"></td>';
+                html += '<td class="p-1 border-r"><select onchange="actions.updateSubject(\'' + s.id + '\', \'defaultRoom\', this.value)" class="m3-input !p-1.5 text-[10px] w-full bg-transparent border-transparent cursor-pointer shadow-none">' + localRmOpts + '</select></td>';
+                GRADES.forEach(function(g){
+                    var val = (s.stdHours && s.stdHours[g]) ? s.stdHours[g] : 0;
+                    html += '<td class="p-1 border-r"><div class="flex items-center justify-center gap-1"><button onclick="actions.updateSubjectHour(\'' + s.id + '\', ' + g + ', -1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black transition-colors">-</button>';
+                    html += '<input type="number" value="' + val + '" onchange="actions.setSubjectHour(\'' + s.id + '\', ' + g + ', this.value)" class="w-6 text-center font-black text-blue-600 bg-transparent outline-none">';
+                    html += '<button onclick="actions.updateSubjectHour(\'' + s.id + '\', ' + g + ', 1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black transition-colors">+</button></div></td>';
+                });
+                html += '<td><div class="flex items-center justify-center gap-1"><button onclick="actions.cloneSubject(\'' + s.id + '\')" title="複製" class="text-blue-400 hover:bg-blue-50 p-1 rounded font-bold transition-colors">📋</button><button onclick="actions.removeSubject(\'' + s.id + '\')" class="text-slate-300 hover:text-rose-500 hover:bg-rose-50 p-1 rounded font-bold transition-colors">✕</button></div></td></tr>';
             });
-            html += '<td><div class="flex items-center justify-center gap-1"><button onclick="actions.cloneSubject(\'' + s.id + '\')" title="複製" class="text-blue-400 hover:bg-blue-50 p-1 rounded font-bold transition-colors">📋</button><button onclick="actions.removeSubject(\'' + s.id + '\')" class="text-slate-300 hover:text-rose-500 hover:bg-rose-50 p-1 rounded font-bold transition-colors">✕</button></div></td></tr>';
-        });
+        }
+        
         html += '</tbody><tfoot class="sticky bottom-0 bg-blue-50 border-t-2 border-blue-200 z-10"><tr><td colspan="2" class="p-2 border-r border-blue-100 font-black text-blue-800 text-right pr-4">合計時数</td>';
         GRADES.forEach(function(g){
-            var total = 0; state.subjects.forEach(function(s){ total += parseInt(s.stdHours[g]) || 0; });
+            var total = 0; 
+            if (state.subjects) {
+                state.subjects.forEach(function(s){ total += (s.stdHours && s.stdHours[g]) ? parseInt(s.stdHours[g]) : 0; });
+            }
             html += '<td class="p-2 border-r border-blue-100 font-black text-blue-700 text-sm">' + total + '</td>'; 
         });
-        html += '<td></td></tr></tfoot></table></div></div></div>'; return html;
+        html += '<td></td></tr></tfoot></table></div></div></div>'; 
+        return html;
     }
 
     function viewStep4() {
-        if(!state.selectedTeacherId && state.teachers.length > 0) state.selectedTeacherId = state.teachers[0].id;
+        if(!state.selectedTeacherId && state.teachers && state.teachers.length > 0) state.selectedTeacherId = state.teachers[0].id;
         var teacher = null;
-        for(var i=0; i<state.teachers.length; i++){ if(String(state.teachers[i].id) === String(state.selectedTeacherId)) teacher = state.teachers[i]; }
+        if (state.teachers) {
+            for(var i=0; i<state.teachers.length; i++){ if(String(state.teachers[i].id) === String(state.selectedTeacherId)) teacher = state.teachers[i]; }
+        }
         var hrOpts = '<option value="">専科等</option>';
         GRADES.forEach(function(g){
-            var n = parseInt(state.grades[g]) || 1;
+            var n = (state.grades && state.grades[g]) ? parseInt(state.grades[g]) : 1;
             for(var j=1; j<=n; j++){ hrOpts += '<option value="' + g + '-' + j + '">' + g + '年' + j + '組</option>'; }
         });
+        
         var html = '<div class="flex flex-col md:flex-row gap-4 h-full"><div class="w-full md:w-1/2 flex flex-col bg-slate-50 border p-3 h-1/2 md:h-full rounded-2xl">';
         html += '<div class="flex justify-between items-center mb-2"><h3 class="font-black text-xs">教員名簿</h3><div class="flex gap-1.5"><button onclick="actions.openBulk(\'teachers\')" class="text-[10px] bg-white border px-2 py-1 rounded font-bold hover:bg-slate-50 transition-colors">一括貼付</button><button onclick="actions.addTeacher()" class="text-[10px] bg-blue-600 text-white px-2 py-1 rounded font-bold hover:bg-blue-700 transition-colors">+ 追加</button></div></div>';
         html += '<div class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1" id="sc-step4-l">';
-        state.teachers.forEach(function(tc){
-            var isSel = String(tc.id) === String(state.selectedTeacherId);
-            var isEdit = String(tc.id) === String(state.editingTeacherNameId);
-            var hrSelected = tc.homeroom ? hrOpts.replace('value="' + tc.homeroom + '"', 'value="' + tc.homeroom + '" selected') : hrOpts;
-            var maxH = tc.maxHours || 24;
-            html += '<div onclick="actions.handleTeacherClick(\'' + tc.id + '\')" class="flex items-center gap-1.5 p-1.5 md:p-2 rounded-xl border shadow-sm cursor-pointer transition-all ' + (isSel?'bg-blue-50 border-blue-400':'bg-white border-slate-200 hover:bg-slate-50') + '">';
-            if (isEdit) {
-                html += '<input id="t-name-input-' + tc.id + '" type="text" value="' + tc.name + '" onblur="actions.saveTeacherName(\'' + tc.id + '\', this.value)" onclick="event.stopPropagation()" class="flex-1 text-xs font-bold outline-none bg-white px-1 border border-blue-400 rounded py-0.5">';
-            } else { html += '<span class="flex-1 text-xs font-bold px-1 truncate select-none">' + tc.name + '</span>'; }
-            html += '<select onchange="actions.updateTeacherHomeroom(\'' + tc.id + '\', this.value)" class="text-[9px] font-bold py-1 px-0.5 bg-white border rounded outline-none max-w-[70px]" onclick="event.stopPropagation()">' + hrSelected + '</select>';
-            html += '<div class="flex items-center gap-0.5 ml-1" onclick="event.stopPropagation()">';
-            html += '<button onclick="actions.updateTeacher(\'' + tc.id + '\',\'maxHours\',Math.max(0, ' + maxH + '-1))" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black flex items-center justify-center transition-colors">-</button>';
-            html += '<input type="number" value="' + maxH + '" onchange="actions.updateTeacher(\'' + tc.id + '\',\'maxHours\',parseInt(this.value)||0)" class="w-6 text-center text-xs font-black text-blue-600 bg-transparent outline-none">';
-            html += '<button onclick="actions.updateTeacher(\'' + tc.id + '\',\'maxHours\',' + maxH + '+1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black flex items-center justify-center transition-colors">+</button></div>';
-            html += '<button onclick="event.stopPropagation(); actions.removeTeacher(\'' + tc.id + '\')" class="text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded px-1 ml-1 transition-colors">✕</button></div>';
-        });
+        
+        if (state.teachers) {
+            state.teachers.forEach(function(tc){
+                var isSel = String(tc.id) === String(state.selectedTeacherId);
+                var isEdit = String(tc.id) === String(state.editingTeacherNameId);
+                var hrSelected = tc.homeroom ? hrOpts.replace('value="' + tc.homeroom + '"', 'value="' + tc.homeroom + '" selected') : hrOpts;
+                var maxH = tc.maxHours || 24;
+                html += '<div onclick="actions.handleTeacherClick(\'' + tc.id + '\')" class="flex items-center gap-1.5 p-1.5 md:p-2 rounded-xl border shadow-sm cursor-pointer transition-all ' + (isSel?'bg-blue-50 border-blue-400':'bg-white border-slate-200 hover:bg-slate-50') + '">';
+                if (isEdit) {
+                    html += '<input id="t-name-input-' + tc.id + '" type="text" value="' + tc.name + '" onblur="actions.saveTeacherName(\'' + tc.id + '\', this.value)" onclick="event.stopPropagation()" class="flex-1 text-xs font-bold outline-none bg-white px-1 border border-blue-400 rounded py-0.5">';
+                } else { html += '<span class="flex-1 text-xs font-bold px-1 truncate select-none">' + tc.name + '</span>'; }
+                html += '<select onchange="actions.updateTeacherHomeroom(\'' + tc.id + '\', this.value)" class="text-[9px] font-bold py-1 px-0.5 bg-white border rounded outline-none max-w-[70px]" onclick="event.stopPropagation()">' + hrSelected + '</select>';
+                html += '<div class="flex items-center gap-0.5 ml-1" onclick="event.stopPropagation()">';
+                html += '<button onclick="actions.updateTeacher(\'' + tc.id + '\',\'maxHours\',Math.max(0, ' + maxH + '-1))" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black flex items-center justify-center transition-colors">-</button>';
+                html += '<input type="number" value="' + maxH + '" onchange="actions.updateTeacher(\'' + tc.id + '\',\'maxHours\',parseInt(this.value)||0)" class="w-6 text-center text-xs font-black text-blue-600 bg-transparent outline-none">';
+                html += '<button onclick="actions.updateTeacher(\'' + tc.id + '\',\'maxHours\',' + maxH + '+1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black flex items-center justify-center transition-colors">+</button></div>';
+                html += '<button onclick="event.stopPropagation(); actions.removeTeacher(\'' + tc.id + '\')" class="text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded px-1 ml-1 transition-colors">✕</button></div>';
+            });
+        }
+        
         var gridHtml = teacher ? buildGrid(teacher.ngTimes, state.globalBlocks, "actions.toggleTeacherNG('" + teacher.id + "', '__KEY__')", 'teacher') : '';
         html += '</div></div><div class="flex-1 flex flex-col bg-slate-50 border p-4 h-1/2 md:h-full items-center rounded-2xl"><h3 class="font-black text-sm mb-1">個人の不可時間</h3>';
         if(teacher) { html += '<p class="text-[10px] text-slate-500 mb-4 text-center font-bold text-blue-600">' + teacher.name + '先生の不可枠(✕)</p>' + gridHtml; }
@@ -472,8 +612,10 @@
     }
 
     function viewStep5() {
-        var sOpts = ''; state.subjects.forEach(function(s){ sOpts += '<option value="' + s.id + '">' + s.name + '</option>'; });
-        var rOpts = '<option value="通常教室">通常教室</option>'; state.rooms.forEach(function(r){ rOpts += '<option value="' + r.name + '">' + r.name + '</option>'; });
+        var sOpts = ''; 
+        if (state.subjects) state.subjects.forEach(function(s){ sOpts += '<option value="' + s.id + '">' + s.name + '</option>'; });
+        var rOpts = '<option value="通常教室">通常教室</option>'; 
+        if (state.rooms) state.rooms.forEach(function(r){ rOpts += '<option value="' + r.name + '">' + r.name + '</option>'; });
         
         var html = '<div class="flex flex-col h-full gap-4"><div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 shrink-0 shadow-sm"><h3 class="font-black text-indigo-800 text-xs mb-2">特殊授業ブロック (合同・分割)</h3><div class="flex flex-wrap gap-2 items-center">';
         html += '<select id="sp-type" class="m3-input !w-auto !py-1"><option value="joint">🤝 合同</option><option value="split">✂️ 少人数</option></select>';
@@ -486,7 +628,8 @@
         } else {
             for(var i=0; i<state.specialBlocks.length; i++){
                 var b = state.specialBlocks[i]; 
-                var subObj = null; for(var j=0; j<state.subjects.length; j++){ if(state.subjects[j].id===b.subjectId) subObj = state.subjects[j]; }
+                var subObj = null; 
+                if (state.subjects) { for(var j=0; j<state.subjects.length; j++){ if(state.subjects[j].id===b.subjectId) subObj = state.subjects[j]; } }
                 var subName = subObj ? subObj.name : '特殊';
                 var rOptsSelected = rOpts; if (b.room && b.room !== '通常教室') rOptsSelected = rOpts.replace('value="' + b.room + '"', 'value="' + b.room + '" selected');
                 
@@ -500,23 +643,27 @@
                 html += '<div class="flex items-center gap-1"><span class="text-xs font-bold text-slate-500">📍</span><select onchange="actions.updateSpecialBlock(\'' + b.id + '\', \'room\', this.value)" class="text-xs font-bold text-slate-600 border border-slate-200 rounded p-1 outline-none bg-slate-50 hover:bg-white cursor-pointer shadow-sm transition-colors">' + rOptsSelected + '</select></div></div>';
                 html += '<div class="flex flex-wrap gap-4 bg-slate-50 p-2 rounded-lg border border-slate-100 mt-1"><div class="flex-1 min-w-[200px]"><div class="text-[9px] font-black text-slate-400 mb-1">対象クラス</div><div class="flex flex-wrap gap-1">';
                             
-                var clsKeys = Object.keys(state.classAssignments || {});
+                var clsKeys = state.classAssignments ? Object.keys(state.classAssignments) : [];
                 for(var j=0; j<clsKeys.length; j++){
                     var cls = clsKeys[j]; var isTgt = false; if (b.targets && b.targets.indexOf(cls) !== -1) isTgt = true;
                     html += '<label class="flex items-center gap-1 bg-white border ' + (isTgt?'border-indigo-400 bg-indigo-50':'border-slate-200') + ' px-1.5 py-0.5 rounded cursor-pointer transition-colors"><input type="checkbox" class="hidden" ' + (isTgt?'checked':'') + ' onchange="actions.toggleSpecialTarget(\'' + b.id + '\', \'' + cls + '\')"><span class="text-[10px] font-bold ' + (isTgt?'text-indigo-700':'text-slate-500') + '">' + cls + '</span></label>';
                 }
                 html += '</div></div><div class="flex-1 min-w-[200px]"><div class="text-[9px] font-black text-slate-400 mb-1">担当教員</div><div class="flex flex-wrap gap-1">';
-                for(var j=0; j<state.teachers.length; j++){
-                    var t = state.teachers[j]; var bt = null;
-                    if (b.teachers) { for(var k=0; k<b.teachers.length; k++){ if(b.teachers[k].id===t.id) bt = b.teachers[k]; } }
-                    html += '<label class="flex items-center gap-1 bg-white border ' + (bt?'border-indigo-400 bg-indigo-50':'border-slate-200') + ' px-1.5 py-0.5 rounded cursor-pointer transition-colors"><input type="checkbox" class="hidden" ' + (bt?'checked':'') + ' onchange="actions.toggleSpecialTeacher(\'' + b.id + '\', \'' + t.id + '\')"><span class="text-[10px] font-bold ' + (bt?'text-indigo-700':'text-slate-500') + '">' + t.name + '</span></label>';
+                
+                if (state.teachers) {
+                    for(var j=0; j<state.teachers.length; j++){
+                        var t = state.teachers[j]; var bt = null;
+                        if (b.teachers) { for(var k=0; k<b.teachers.length; k++){ if(b.teachers[k].id===t.id) bt = b.teachers[k]; } }
+                        html += '<label class="flex items-center gap-1 bg-white border ' + (bt?'border-indigo-400 bg-indigo-50':'border-slate-200') + ' px-1.5 py-0.5 rounded cursor-pointer transition-colors"><input type="checkbox" class="hidden" ' + (bt?'checked':'') + ' onchange="actions.toggleSpecialTeacher(\'' + b.id + '\', \'' + t.id + '\')"><span class="text-[10px] font-bold ' + (bt?'text-indigo-700':'text-slate-500') + '">' + t.name + '</span></label>';
+                    }
                 }
                 html += '</div>';
+                
                 if(b.teachers && b.teachers.length > 0) {
                     html += '<div class="mt-2 text-[9px] font-black text-slate-400 mb-1 border-t border-slate-200 pt-1">各教員の参加コマ数</div><div class="flex flex-wrap gap-1.5">';
                     for(var j=0; j<b.teachers.length; j++){
                         var bt = b.teachers[j]; var tName = '不明';
-                        for(var k=0; k<state.teachers.length; k++){ if(state.teachers[k].id===bt.id) tName = state.teachers[k].name; }
+                        if (state.teachers) { for(var k=0; k<state.teachers.length; k++){ if(state.teachers[k].id===bt.id) tName = state.teachers[k].name; } }
                         html += '<div class="flex items-center gap-1 bg-white border border-indigo-200 px-1 py-0.5 rounded shadow-sm"><span class="text-[9px] font-bold text-indigo-700 truncate max-w-[60px]">' + tName + '</span><div class="flex items-center gap-0.5">';
                         html += '<button onclick="actions.updateSpecialTeacherHours(\'' + b.id + '\', \'' + bt.id + '\', Math.max(0, ' + bt.hours + '-1))" class="w-4 h-4 bg-indigo-100 hover:bg-indigo-200 rounded text-indigo-700 font-black text-[10px] flex items-center justify-center transition-colors">-</button>';
                         html += '<input type="number" value="' + bt.hours + '" onchange="actions.updateSpecialTeacherHours(\'' + b.id + '\', \'' + bt.id + '\', this.value)" class="w-6 text-center text-[10px] font-black text-indigo-600 bg-transparent outline-none">';
@@ -527,118 +674,172 @@
                 html += '</div></div></div>';
             }
         }
-        html += '</div></div>'; return html;
+        html += '</div></div>'; 
+        return html;
     }
 
     function viewStep6() {
-        var classes = Object.keys(state.classAssignments || {}); if(classes.length===0) return '<div class="p-4 text-center font-bold text-slate-400">クラスデータなし</div>';
+        var classes = state.classAssignments ? Object.keys(state.classAssignments) : []; 
+        if(classes.length===0) return '<div class="p-4 text-center font-bold text-slate-400">クラスデータなし</div>';
+        
         var activeCls = state.dashFilter; 
         if(classes.indexOf(activeCls) === -1) activeCls = classes[0];
         
-        var cData = state.classAssignments[activeCls]; var grade = activeCls.split('-')[0];
+        var cData = state.classAssignments[activeCls]; 
+        var grade = activeCls.split('-')[0];
         var loads = getTeacherLoads();
+        
         var tOpts = '<option value="">-- 未設定 --</option>';
-        state.teachers.forEach(function(t){ tOpts += '<option value="' + t.id + '">' + t.name + '</option>'; });
-        var tOptsSelected = tOpts; if(cData.homeroom) tOptsSelected = tOpts.replace('value="' + cData.homeroom + '"', 'value="' + cData.homeroom + '" selected');
+        if (state.teachers) {
+            state.teachers.forEach(function(t){ tOpts += '<option value="' + t.id + '">' + t.name + '</option>'; });
+        }
+        var tOptsSelected = tOpts; 
+        if(cData && cData.homeroom) tOptsSelected = tOpts.replace('value="' + cData.homeroom + '"', 'value="' + cData.homeroom + '" selected');
 
         var html = '<div class="flex flex-col lg:flex-row h-full gap-3 md:gap-4 overflow-hidden"><div class="w-full lg:w-1/6 min-w-[120px] bg-slate-50 border border-slate-200 rounded-2xl flex flex-col overflow-hidden h-1/4 lg:h-full shadow-sm">';
         html += '<div class="p-2 border-b border-slate-200 font-black text-xs text-slate-500 bg-slate-100 flex justify-center items-center gap-1">クラス一覧</div><div class="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar flex flex-row lg:flex-col flex-wrap lg:flex-nowrap content-start" id="sc-step6-l">';
+        
         classes.forEach(function(c){
-            var isSel = (c===activeCls); var tId = state.classAssignments[c]?.homeroom; var tName = '(未定)';
-            if(tId) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===tId) tName = state.teachers[j].name; } }
+            var isSel = (c===activeCls); 
+            var tId = state.classAssignments[c]?.homeroom; 
+            var tName = '(未定)';
+            if(tId && state.teachers) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===tId) tName = state.teachers[j].name; } }
             html += '<div onclick="actions.setDashFilter(\'' + c + '\')" class="p-2 rounded-xl cursor-pointer transition-all border shadow-sm flex flex-col min-w-[80px] ' + (isSel?'bg-blue-600 text-white border-blue-700':'bg-white text-slate-700 border-slate-200 hover:bg-blue-50') + '"><span class="font-black text-sm">' + c + '</span><span class="text-[9px] truncate ' + (isSel?'text-blue-200':'text-slate-400') + '">' + tName + '</span></div>';
         });
+        
         html += '</div></div><div class="flex-1 bg-white border border-slate-200 rounded-2xl flex flex-col shadow-sm overflow-hidden min-h-0"><div class="p-3 md:p-4 bg-blue-50 border-b border-blue-100 flex justify-between items-center shrink-0 flex-wrap gap-2"><div class="flex items-center gap-3"><h3 class="text-xl font-black text-blue-900 tracking-tight flex items-center">' + activeCls + ' <span class="text-xs font-bold text-blue-600 ml-2">担当設定</span></h3><button onclick="actions.copyClassSettings(\'' + activeCls + '\')" class="text-[10px] bg-white border border-blue-200 text-blue-600 px-3 py-1.5 rounded-lg font-bold hover:bg-blue-100 shadow-sm transition-colors hidden sm:block">同学年にコピー</button></div><div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-blue-200 shadow-sm"><span class="text-xs font-bold text-slate-500">担任:</span><select onchange="actions.updateHomeroom(\'' + activeCls + '\', this.value)" class="m3-input !p-1 !text-sm border-none font-black text-blue-700 w-32 cursor-pointer">' + tOptsSelected + '</select></div></div><div class="flex-1 overflow-y-auto p-2 md:p-4 custom-scrollbar" id="sc-step6-m"><div class="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden"><div class="grid grid-cols-[1fr_50px_1.5fr_1fr] gap-2 p-2 bg-slate-100 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center"><div>教科</div><div>週時数</div><div>担当教員</div><div>教室</div></div>';
+        
         var hasSubject = false;
-        state.subjects.forEach(function(s){
-            var hours = parseInt(s.stdHours[grade]) || 0; if (hours <= 0) return;
-            hasSubject = true;
-            var spBlock = null;
-            if(state.specialBlocks) { for(var j=0; j<state.specialBlocks.length; j++){ if(state.specialBlocks[j].subjectId===s.id && state.specialBlocks[j].targets && state.specialBlocks[j].targets.indexOf(activeCls)!==-1) spBlock = state.specialBlocks[j]; } }
-            var ovr = (cData.overrides && cData.overrides[s.id]) ? cData.overrides[s.id] : {};
-            
-            if (spBlock) {
-                var spTNames = '未設定';
-                if(spBlock.teachers && spBlock.teachers.length>0) {
-                    var tArr = [];
-                    spBlock.teachers.forEach(function(bt){
-                        var tn = '?'; for(var k=0; k<state.teachers.length; k++){ if(state.teachers[k].id===bt.id) tn = state.teachers[k].name; }
-                        tArr.push(tn + '(' + bt.hours + ')');
-                    });
-                    spTNames = tArr.join(', ');
-                }
-                html += '<div class="grid grid-cols-[1fr_50px_1.5fr_1fr] gap-2 p-2 border-b border-slate-100 items-center bg-indigo-50/40 hover:bg-indigo-50 transition-colors"><div class="font-black text-sm pl-2 text-indigo-900">' + s.name + ' <span class="px-1.5 py-0.5 rounded text-[8px] bg-indigo-100 text-indigo-700 border border-indigo-200 ml-1">特殊</span></div><div class="text-center font-black text-indigo-600 text-xs">' + hours + '</div><div class="text-[10px] font-bold text-indigo-700 bg-white p-1.5 rounded-lg border border-indigo-200 truncate shadow-sm">🔒 ' + spTNames + '</div><div class="text-[10px] font-bold text-slate-500 bg-white p-1.5 rounded-lg border border-slate-200 truncate shadow-sm">📍 ' + (spBlock.room||s.defaultRoom) + '</div></div>';
-            } else {
-                var hrName = '未設定';
-                if(cData.homeroom) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===cData.homeroom) hrName = state.teachers[j].name; } }
-                var rmOptsStr = '<option value="">' + (s.defaultRoom || '通常教室') + '</option>';
-                state.rooms.forEach(function(r){ rmOptsStr += '<option value="' + r.name + '">' + r.name + '</option>'; });
-                if (ovr.room) rmOptsStr = rmOptsStr.replace('value="' + ovr.room + '"', 'value="' + ovr.room + '" selected');
-                var tOptsSub = '<option value="">担任 (' + hrName + ')</option>';
-                state.teachers.forEach(function(t){ tOptsSub += '<option value="' + t.id + '">' + t.name + '</option>'; });
-                if (ovr.teacherId) tOptsSub = tOptsSub.replace('value="' + ovr.teacherId + '"', 'value="' + ovr.teacherId + '" selected');
+        if (state.subjects && cData) {
+            state.subjects.forEach(function(s){
+                var hours = (s.stdHours && s.stdHours[grade]) ? parseInt(s.stdHours[grade]) : 0; 
+                if (hours <= 0) return;
+                hasSubject = true;
+                var spBlock = null;
+                if(state.specialBlocks) { for(var j=0; j<state.specialBlocks.length; j++){ if(state.specialBlocks[j].subjectId===s.id && state.specialBlocks[j].targets && state.specialBlocks[j].targets.indexOf(activeCls)!==-1) spBlock = state.specialBlocks[j]; } }
+                var ovr = (cData.overrides && cData.overrides[s.id]) ? cData.overrides[s.id] : {};
                 
-                var teacherArea = '';
-                if(ovr.allocations && ovr.allocations.length > 0) {
-                    var allocArr = [];
-                    ovr.allocations.forEach(function(a){
-                        var tn = '未設定'; for(var k=0; k<state.teachers.length; k++){ if(state.teachers[k].id===a.teacherId) tn = state.teachers[k].name; }
-                        allocArr.push(tn + '(' + a.hours + ')');
-                    });
-                    teacherArea = '<div class="flex items-center gap-1"><div onclick="actions.openAllocModal(\'' + activeCls + '\', \'' + s.id + '\', ' + hours + ')" class="text-[10px] bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg border border-blue-200 font-bold truncate flex-1 cursor-pointer hover:bg-blue-100 shadow-sm transition-colors" title="クリックで分配を編集">🔗 分配: ' + allocArr.join(', ') + '</div><button onclick="actions.clearAllocations(\'' + activeCls + '\', \'' + s.id + '\')" class="text-slate-300 hover:text-red-500 font-black px-2 py-1 text-xs transition-colors">✕</button></div>';
+                if (spBlock) {
+                    var spTNames = '未設定';
+                    if(spBlock.teachers && spBlock.teachers.length>0) {
+                        var tArr = [];
+                        spBlock.teachers.forEach(function(bt){
+                            var tn = '?'; 
+                            if(state.teachers) { for(var k=0; k<state.teachers.length; k++){ if(state.teachers[k].id===bt.id) tn = state.teachers[k].name; } }
+                            tArr.push(tn + '(' + bt.hours + ')');
+                        });
+                        spTNames = tArr.join(', ');
+                    }
+                    html += '<div class="grid grid-cols-[1fr_50px_1.5fr_1fr] gap-2 p-2 border-b border-slate-100 items-center bg-indigo-50/40 hover:bg-indigo-50 transition-colors"><div class="font-black text-sm pl-2 text-indigo-900">' + s.name + ' <span class="px-1.5 py-0.5 rounded text-[8px] bg-indigo-100 text-indigo-700 border border-indigo-200 ml-1">特殊</span></div><div class="text-center font-black text-indigo-600 text-xs">' + hours + '</div><div class="text-[10px] font-bold text-indigo-700 bg-white p-1.5 rounded-lg border border-indigo-200 truncate shadow-sm">🔒 ' + spTNames + '</div><div class="text-[10px] font-bold text-slate-500 bg-white p-1.5 rounded-lg border border-slate-200 truncate shadow-sm">📍 ' + (spBlock.room||s.defaultRoom) + '</div></div>';
                 } else {
-                    teacherArea = '<div class="flex items-center gap-1"><select onchange="actions.updateSubjectOverride(\'' + activeCls + '\', \'' + s.id + '\', \'teacherId\', this.value)" class="m3-input w-full min-w-[100px] !p-1.5 shadow-sm ' + (ovr.teacherId?'bg-amber-50 border-amber-300 text-amber-900':'') + '">' + tOptsSub + '</select><button title="複数教員で分配" onclick="actions.openAllocModal(\'' + activeCls + '\', \'' + s.id + '\', ' + hours + ')" class="bg-slate-100 hover:bg-slate-200 text-slate-500 px-2 py-1.5 rounded-lg font-bold text-[10px] shadow-sm transition-colors shrink-0">分配</button></div>';
+                    var hrName = '未設定';
+                    if(cData.homeroom && state.teachers) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===cData.homeroom) hrName = state.teachers[j].name; } }
+                    var rmOptsStr = '<option value="">' + (s.defaultRoom || '通常教室') + '</option>';
+                    if (state.rooms) { state.rooms.forEach(function(r){ rmOptsStr += '<option value="' + r.name + '">' + r.name + '</option>'; }); }
+                    if (ovr.room) rmOptsStr = rmOptsStr.replace('value="' + ovr.room + '"', 'value="' + ovr.room + '" selected');
+                    var tOptsSub = '<option value="">担任 (' + hrName + ')</option>';
+                    if (state.teachers) { state.teachers.forEach(function(t){ tOptsSub += '<option value="' + t.id + '">' + t.name + '</option>'; }); }
+                    if (ovr.teacherId) tOptsSub = tOptsSub.replace('value="' + ovr.teacherId + '"', 'value="' + ovr.teacherId + '" selected');
+                    
+                    var teacherArea = '';
+                    if(ovr.allocations && ovr.allocations.length > 0) {
+                        var allocArr = [];
+                        ovr.allocations.forEach(function(a){
+                            var tn = '未設定'; 
+                            if(state.teachers) { for(var k=0; k<state.teachers.length; k++){ if(state.teachers[k].id===a.teacherId) tn = state.teachers[k].name; } }
+                            allocArr.push(tn + '(' + a.hours + ')');
+                        });
+                        teacherArea = '<div class="flex items-center gap-1"><div onclick="actions.openAllocModal(\'' + activeCls + '\', \'' + s.id + '\', ' + hours + ')" class="text-[10px] bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg border border-blue-200 font-bold truncate flex-1 cursor-pointer hover:bg-blue-100 shadow-sm transition-colors" title="クリックで分配を編集">🔗 分配: ' + allocArr.join(', ') + '</div><button onclick="actions.clearAllocations(\'' + activeCls + '\', \'' + s.id + '\')" class="text-slate-300 hover:text-red-500 font-black px-2 py-1 text-xs transition-colors">✕</button></div>';
+                    } else {
+                        teacherArea = '<div class="flex items-center gap-1"><select onchange="actions.updateSubjectOverride(\'' + activeCls + '\', \'' + s.id + '\', \'teacherId\', this.value)" class="m3-input w-full min-w-[100px] !p-1.5 shadow-sm ' + (ovr.teacherId?'bg-amber-50 border-amber-300 text-amber-900':'') + '">' + tOptsSub + '</select><button title="複数教員で分配" onclick="actions.openAllocModal(\'' + activeCls + '\', \'' + s.id + '\', ' + hours + ')" class="bg-slate-100 hover:bg-slate-200 text-slate-500 px-2 py-1.5 rounded-lg font-bold text-[10px] shadow-sm transition-colors shrink-0">分配</button></div>';
+                    }
+                    html += '<div class="grid grid-cols-[1fr_50px_1.5fr_1fr] gap-2 p-1.5 border-b border-slate-100 items-center hover:bg-white transition-colors"><div class="font-black text-sm pl-2">' + s.name + '</div><div class="text-center font-black text-blue-600 text-xs">' + hours + '</div><div>' + teacherArea + '</div><div><select onchange="actions.updateSubjectOverride(\'' + activeCls + '\', \'' + s.id + '\', \'room\', this.value)" class="m3-input !p-1.5 w-full shadow-sm ' + (ovr.room?'bg-amber-50 border-amber-300 text-amber-900':'') + '">' + rmOptsStr + '</select></div></div>';
                 }
-                html += '<div class="grid grid-cols-[1fr_50px_1.5fr_1fr] gap-2 p-1.5 border-b border-slate-100 items-center hover:bg-white transition-colors"><div class="font-black text-sm pl-2">' + s.name + '</div><div class="text-center font-black text-blue-600 text-xs">' + hours + '</div><div>' + teacherArea + '</div><div><select onchange="actions.updateSubjectOverride(\'' + activeCls + '\', \'' + s.id + '\', \'room\', this.value)" class="m3-input !p-1.5 w-full shadow-sm ' + (ovr.room?'bg-amber-50 border-amber-300 text-amber-900':'') + '">' + rmOptsStr + '</select></div></div>';
-            }
-        });
+            });
+        }
+        
         if(!hasSubject) html += '<div class="p-4 text-center text-xs font-bold text-slate-400">標準時数が設定されている科目がありません</div>';
         html += '</div></div></div><div class="w-full lg:w-1/4 bg-slate-800 rounded-2xl flex flex-col overflow-hidden shrink-0 shadow-lg h-1/4 lg:h-full"><div class="p-3 border-b border-slate-700 bg-slate-900 text-xs text-white font-black flex items-center justify-between"><span class="flex items-center gap-1">教員 持ち時数</span><span class="text-[9px] text-slate-400 font-normal">超過で赤色</span></div><div class="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar" id="sc-step6-r">';
-        state.teachers.forEach(function(t){
-            var load = loads[t.id] || 0; var max = t.maxHours || 24; var isOver = load > max;
-            html += '<div><div class="flex justify-between text-[10px] font-bold mb-1 text-slate-200"><span class="truncate pr-2">' + t.name + '</span><span class="' + (isOver?'text-rose-400':'text-blue-300') + '">' + load + ' / ' + max + '</span></div><div class="w-full bg-slate-700 rounded-full h-1.5 overflow-hidden"><div class="h-full rounded-full transition-all duration-300 ' + (isOver?'bg-rose-500':'bg-blue-500') + '" style="width: ' + Math.min(100, (load/max)*100) + '%"></div></div></div>'; 
-        });
+        
+        if (state.teachers) {
+            state.teachers.forEach(function(t){
+                var load = loads[t.id] || 0; var max = t.maxHours || 24; var isOver = load > max;
+                html += '<div><div class="flex justify-between text-[10px] font-bold mb-1 text-slate-200"><span class="truncate pr-2">' + t.name + '</span><span class="' + (isOver?'text-rose-400':'text-blue-300') + '">' + load + ' / ' + max + '</span></div><div class="w-full bg-slate-700 rounded-full h-1.5 overflow-hidden"><div class="h-full rounded-full transition-all duration-300 ' + (isOver?'bg-rose-500':'bg-blue-500') + '" style="width: ' + Math.min(100, (load/max)*100) + '%"></div></div></div>'; 
+            });
+        }
         html += '</div></div></div>'; return html;
     }
 
     function viewStep7() {
         var details = getTeacherDetails();
         var html = '<div class="flex flex-col h-full overflow-hidden"><div class="mb-4 shrink-0 flex justify-between items-center"><h2 class="text-xl font-black">7. 教員別 担当確認</h2><span class="text-xs font-bold text-slate-500 hidden md:inline">※修正は「6. クラス別 担当割り当て」で行ってください</span></div><div class="flex-1 overflow-y-auto custom-scrollbar pr-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 content-start" id="sc-step7">';
-        state.teachers.forEach(function(t){
-            var d = details[t.id] || { load: 0, items: [] }; var max = t.maxHours || 24; var isOver = d.load > max; 
-            html += '<div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3"><div class="flex justify-between items-center"><span class="font-black text-sm text-blue-900">' + t.name + '</span><span class="text-xs font-black ' + (isOver?'text-rose-500':'text-slate-500') + '">' + d.load + ' / ' + max + ' コマ</span></div><div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden"><div class="h-full rounded-full transition-all duration-300 ' + (isOver?'bg-rose-500':'bg-blue-500') + '" style="width: ' + Math.min(100,(d.load/max)*100) + '%"></div></div><div class="flex flex-wrap gap-1.5 mt-1">';
-            if (!d.items || d.items.length === 0) { html += '<span class="text-xs text-slate-400 font-bold">担当なし</span>'; } 
-            else { d.items.forEach(function(item){ html += '<span class="px-2 py-1 rounded text-[10px] font-bold ' + (item.isSp?'bg-indigo-50 text-indigo-700 border border-indigo-200':'bg-slate-50 text-slate-600 border border-slate-200') + '">' + item.target + ' ' + item.subject + ' (' + item.hours + ')</span>'; }); }
-            html += '</div></div>'; 
-        });
+        if (state.teachers) {
+            state.teachers.forEach(function(t){
+                var d = details[t.id] || { load: 0, items: [] }; var max = t.maxHours || 24; var isOver = d.load > max; 
+                html += '<div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3"><div class="flex justify-between items-center"><span class="font-black text-sm text-blue-900">' + t.name + '</span><span class="text-xs font-black ' + (isOver?'text-rose-500':'text-slate-500') + '">' + d.load + ' / ' + max + ' コマ</span></div><div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden"><div class="h-full rounded-full transition-all duration-300 ' + (isOver?'bg-rose-500':'bg-blue-500') + '" style="width: ' + Math.min(100,(d.load/max)*100) + '%"></div></div><div class="flex flex-wrap gap-1.5 mt-1">';
+                if (!d.items || d.items.length === 0) { html += '<span class="text-xs text-slate-400 font-bold">担当なし</span>'; } 
+                else { d.items.forEach(function(item){ html += '<span class="px-2 py-1 rounded text-[10px] font-bold ' + (item.isSp?'bg-indigo-50 text-indigo-700 border border-indigo-200':'bg-slate-50 text-slate-600 border border-slate-200') + '">' + item.target + ' ' + item.subject + ' (' + item.hours + ')</span>'; }); }
+                html += '</div></div>'; 
+            });
+        }
         html += '</div></div>'; return html;
     }
 
     function viewStep8() {
-        let uniqueSubs = Array.from(new Set(state.subjects.map(s => s.name)));
-        let html = '<div class="flex flex-col h-full overflow-y-auto custom-scrollbar pr-4 space-y-6 pb-10" id="sc-step8">';
+        var uniqueSubs = [];
+        if (state.subjects) {
+            state.subjects.forEach(function(s){
+                if(uniqueSubs.indexOf(s.name) === -1) uniqueSubs.push(s.name);
+            });
+        }
+        
+        var html = '<div class="flex flex-col h-full overflow-y-auto custom-scrollbar pr-4 space-y-6 pb-10" id="sc-step8">';
         
         // 優先度：高（厳守）
         html += '<div><div class="flex items-center gap-3 mb-4"><span class="bg-rose-100 text-rose-700 font-black text-[10px] px-3 py-1 rounded-full">優先：高（厳守）</span><h3 class="text-lg font-black text-rose-900">1. 絶対に守らなければならない掟</h3></div>';
         html += '<div class="bg-rose-50/30 border border-rose-100 rounded-[24px] p-5 shadow-sm space-y-6">';
-        html += '<label class="flex items-center justify-between cursor-pointer p-4 bg-white rounded-xl border border-rose-200 hover:shadow-md transition-all"><div class="flex flex-col"><span class="text-sm font-black text-slate-800">専科等教員の勤務可能時間を厳密に考慮する</span><p class="text-[10px] font-bold text-rose-600">※Step 4で設定した教員の✕（不可枠）には絶対に授業を入れません</p></div><input type="checkbox" ' + (state.advancedRules.considerSpecialistTimes?'checked':'') + ' onchange="actions.setRule(\'considerSpecialistTimes\', this.checked)" class="w-6 h-6 rounded text-rose-600"></label>';
+        html += '<label class="flex items-center justify-between cursor-pointer p-4 bg-white rounded-xl border border-rose-200 hover:shadow-md transition-all"><div class="flex flex-col"><span class="text-sm font-black text-slate-800">専科等教員の勤務可能時間を厳密に考慮する</span><p class="text-[10px] font-bold text-rose-600">※Step 4で設定した教員の✕（不可枠）には絶対に授業を入れません</p></div><input type="checkbox" ' + (state.advancedRules && state.advancedRules.considerSpecialistTimes?'checked':'') + ' onchange="actions.setRule(\'considerSpecialistTimes\', this.checked)" class="w-6 h-6 rounded text-rose-600"></label>';
         html += '<div class="p-4 bg-white rounded-xl border border-rose-100"><div class="text-sm font-black mb-2">連続授業（ニコイチ）の登録</div>';
-        html += '<div class="flex gap-2 mb-3"><select id="rule-cont-g" class="m3-input !w-auto shadow-sm"><option value="全学年">全学年</option>' + GRADES.map(g=>'<option value="'+g+'年生">'+g+'年</option>').join('') + '</select>';
-        html += '<select id="rule-cont-s" class="m3-input !w-auto shadow-sm">' + uniqueSubs.map(s=>'<option value="'+s+'">'+s+'</option>').join('') + '</select>';
+        html += '<div class="flex gap-2 mb-3"><select id="rule-cont-g" class="m3-input !w-auto shadow-sm"><option value="全学年">全学年</option>' + GRADES.map(function(g){return '<option value="'+g+'年生">'+g+'年</option>';}).join('') + '</select>';
+        html += '<select id="rule-cont-s" class="m3-input !w-auto shadow-sm">' + uniqueSubs.map(function(s){return '<option value="'+s+'">'+s+'</option>';}).join('') + '</select>';
         html += '<button onclick="actions.addContinuousClass()" class="bg-rose-600 text-white px-4 py-1.5 rounded-lg text-xs font-black hover:bg-rose-700">+ 追加</button></div>';
-        html += '<div class="flex flex-wrap gap-2">' + ((state.advancedRules.continuousClasses||[]).map((cc,i)=>'<span class="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 font-black">'+cc.grade+' '+cc.subject+'<button onclick="actions.removeContinuousClass('+i+')" class="text-rose-400 hover:text-rose-600 transition-colors">✕</button></span>').join('') || '<span class="text-xs text-slate-400 font-bold">未登録</span>') + '</div></div>';
-        html += '<label class="flex items-center justify-between cursor-pointer p-4 bg-white rounded-xl border border-rose-100"><span class="text-sm font-bold text-slate-700">連続授業を「1-2限, 3-4限, 5-6限」のペア枠に限定する</span><input type="checkbox" ' + (state.advancedRules.limitContinuousToSpecificPeriods?'checked':'') + ' onchange="actions.setRule(\'limitContinuousToSpecificPeriods\', this.checked)" class="w-5 h-5 rounded text-rose-600"></label>';
+        
+        var contClasses = (state.advancedRules && state.advancedRules.continuousClasses) ? state.advancedRules.continuousClasses : [];
+        var contHtml = '';
+        if (contClasses.length > 0) {
+            for(var i=0; i<contClasses.length; i++){
+                var cc = contClasses[i];
+                contHtml += '<span class="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 font-black">' + cc.grade + ' ' + cc.subject + '<button onclick="actions.removeContinuousClass(' + i + ')" class="text-rose-400 hover:text-rose-600 transition-colors">✕</button></span>';
+            }
+        } else {
+            contHtml = '<span class="text-xs text-slate-400 font-bold">未登録</span>';
+        }
+        
+        html += '<div class="flex flex-wrap gap-2">' + contHtml + '</div></div>';
+        html += '<label class="flex items-center justify-between cursor-pointer p-4 bg-white rounded-xl border border-rose-100"><span class="text-sm font-bold text-slate-700">連続授業を「1-2限, 3-4限, 5-6限」のペア枠に限定する</span><input type="checkbox" ' + (state.advancedRules && state.advancedRules.limitContinuousToSpecificPeriods?'checked':'') + ' onchange="actions.setRule(\'limitContinuousToSpecificPeriods\', this.checked)" class="w-5 h-5 rounded text-rose-600"></label>';
         html += '</div></div>';
 
         // 優先度：低（努力義務）
         html += '<div><div class="flex items-center gap-3 mb-4"><span class="bg-emerald-100 text-emerald-700 font-black text-[10px] px-3 py-1 rounded-full">優先：低（努力義務）</span><h3 class="text-lg font-black text-emerald-900">2. 時間帯の最適化（ソフト制約）</h3></div>';
         html += '<div class="bg-white border border-slate-200 rounded-[24px] p-5 shadow-sm space-y-6">';
         html += '<div class="p-4 bg-emerald-50/30 border border-emerald-100 rounded-xl"><div class="text-sm font-black mb-1 text-emerald-900">特定の時間帯への配置を避ける教科</div><p class="text-[10px] font-bold text-emerald-700 mb-3">午後の体育などを指定すると、AIがその時間帯を極力避けて配置します。</p>';
-        html += '<div class="flex flex-wrap gap-2 mb-3 items-center"><select id="rule-avoid-g" class="m3-input !w-auto border-emerald-200"><option value="全学年">全学年</option>' + GRADES.map(g=>'<option value="'+g+'年生">'+g+'年</option>').join('') + '</select>';
-        html += '<select id="rule-avoid-s" class="m3-input !w-auto border-emerald-200">' + uniqueSubs.map(s=>'<option value="'+s+'">'+s+'</option>').join('') + '</select>';
-        html += '<select id="rule-avoid-p" class="m3-input !w-auto border-emerald-200">' + PERIODS.map(p=>'<option value="'+p+'">'+p+'限</option>').join('') + '</select>';
+        html += '<div class="flex flex-wrap gap-2 mb-3 items-center"><select id="rule-avoid-g" class="m3-input !w-auto border-emerald-200"><option value="全学年">全学年</option>' + GRADES.map(function(g){return '<option value="'+g+'年生">'+g+'年</option>';}).join('') + '</select>';
+        html += '<select id="rule-avoid-s" class="m3-input !w-auto border-emerald-200">' + uniqueSubs.map(function(s){return '<option value="'+s+'">'+s+'</option>';}).join('') + '</select>';
+        html += '<select id="rule-avoid-p" class="m3-input !w-auto border-emerald-200">' + PERIODS.map(function(p){return '<option value="'+p+'">'+p+'限</option>';}).join('') + '</select>';
         html += '<button onclick="actions.addAvoidTime()" class="bg-emerald-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors">+ 追加</button></div>';
-        html += '<div class="flex flex-wrap gap-2">' + ((state.advancedRules.avoidSpecificTimes||[]).map((av,i)=>'<span class="bg-white border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 font-black shadow-sm">'+av.grade+' '+av.subject+' ('+av.period+'限)<button onclick="actions.removeAvoidTime('+i+')" class="text-red-400 hover:text-red-600 ml-1 transition-colors">✕</button></span>').join('') || '<span class="text-xs text-emerald-400 font-bold">未登録</span>') + '</div></div>';
+        
+        var avoidTimes = (state.advancedRules && state.advancedRules.avoidSpecificTimes) ? state.advancedRules.avoidSpecificTimes : [];
+        var avoidHtml = '';
+        if (avoidTimes.length > 0) {
+            for(var i=0; i<avoidTimes.length; i++){
+                var av = avoidTimes[i];
+                avoidHtml += '<span class="bg-white border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 font-black shadow-sm">' + av.grade + ' ' + av.subject + ' (' + av.period + '限)<button onclick="actions.removeAvoidTime(' + i + ')" class="text-red-400 hover:text-red-600 ml-1 transition-colors">✕</button></span>';
+            }
+        } else {
+            avoidHtml = '<span class="text-xs text-emerald-400 font-bold">未登録</span>';
+        }
+        
+        html += '<div class="flex flex-wrap gap-2">' + avoidHtml + '</div></div>';
         html += '</div></div>';
 
         return html + '</div>';
@@ -646,24 +847,29 @@
 
     function viewStep9() {
         var errors = []; var loads = getTeacherLoads();
-        state.teachers.forEach(function(t){
-            var load = loads[t.id] || 0; var avail = 0; 
-            DAYS.forEach(function(d){ PERIODS.forEach(function(p){
-                var isNg = false; if (t.ngTimes && t.ngTimes[d+'-'+p]) isNg = true; if (state.globalBlocks && state.globalBlocks[d+'-'+p]) isNg = true;
-                if (!isNg) avail++; 
-            }); });
-            if(load > avail) errors.push('[教員限界] ' + t.name + ': 担当授業(' + load + 'コマ) が 勤務可能枠(' + avail + 'コマ) を超過しています。');
-        });
+        if (state.teachers) {
+            state.teachers.forEach(function(t){
+                var load = loads[t.id] || 0; var avail = 0; 
+                DAYS.forEach(function(d){ PERIODS.forEach(function(p){
+                    var isNg = false; if (t.ngTimes && t.ngTimes[d+'-'+p]) isNg = true; if (state.globalBlocks && state.globalBlocks[d+'-'+p]) isNg = true;
+                    if (!isNg) avail++; 
+                }); });
+                if(load > avail) errors.push('[教員限界] ' + t.name + ': 担当授業(' + load + 'コマ) が 勤務可能枠(' + avail + 'コマ) を超過しています。');
+            });
+        }
         
         var uniqueSubjectNames = [];
-        state.subjects.forEach(function(s) {
-            if (uniqueSubjectNames.indexOf(s.name) === -1) uniqueSubjectNames.push(s.name);
-        });
+        if (state.subjects) {
+            state.subjects.forEach(function(s) {
+                if (uniqueSubjectNames.indexOf(s.name) === -1) uniqueSubjectNames.push(s.name);
+            });
+        }
 
         var classNeeds = {};
         var classAssigned = {};
         var totalErr = 0;
-        var classes = Object.keys(state.classAssignments);
+        var classes = state.classAssignments ? Object.keys(state.classAssignments) : [];
+        
         classes.forEach(function(cls) {
             uniqueSubjectNames.forEach(function(sName) {
                 classNeeds[cls + '-' + sName] = 0;
@@ -676,35 +882,39 @@
             var grade = cls.split('-')[0];
             if(!cData.homeroom) errors.push('[担任未定] ' + cls + ' の担任が設定されていません'); 
             
-            state.subjects.forEach(function(s) {
-                var hours = parseInt(s.stdHours[grade]) || 0;
-                classNeeds[cls + '-' + s.name] += hours; 
-                
-                if (hours === 0) return;
-                var isSp = false;
-                if(state.specialBlocks) {
-                    for(var k=0; k<state.specialBlocks.length; k++){
-                        if(state.specialBlocks[k].subjectId === s.id && state.specialBlocks[k].targets && state.specialBlocks[k].targets.indexOf(cls) !== -1) isSp = true;
+            if (state.subjects) {
+                state.subjects.forEach(function(s) {
+                    var hours = (s.stdHours && s.stdHours[grade]) ? parseInt(s.stdHours[grade]) : 0;
+                    classNeeds[cls + '-' + s.name] += hours; 
+                    
+                    if (hours === 0) return;
+                    var isSp = false;
+                    if(state.specialBlocks) {
+                        for(var k=0; k<state.specialBlocks.length; k++){
+                            if(state.specialBlocks[k].subjectId === s.id && state.specialBlocks[k].targets && state.specialBlocks[k].targets.indexOf(cls) !== -1) isSp = true;
+                        }
                     }
-                }
-                if (isSp) return;
-                
-                var ovr = (cData.overrides && cData.overrides[s.id]) ? cData.overrides[s.id] : {};
-                if (ovr.allocations && ovr.allocations.length > 0) {
-                    var sumAlloc = 0;
-                    ovr.allocations.forEach(function(a) { sumAlloc += (parseInt(a.hours)||0); });
-                    classAssigned[cls + '-' + s.name] += sumAlloc; 
-                } else {
-                    var tId = ovr.teacherId || cData.homeroom;
-                    if (tId) classAssigned[cls + '-' + s.name] += hours; 
-                }
-            });
+                    if (isSp) return;
+                    
+                    var ovr = (cData.overrides && cData.overrides[s.id]) ? cData.overrides[s.id] : {};
+                    if (ovr.allocations && ovr.allocations.length > 0) {
+                        var sumAlloc = 0;
+                        ovr.allocations.forEach(function(a) { sumAlloc += (parseInt(a.hours)||0); });
+                        classAssigned[cls + '-' + s.name] += sumAlloc; 
+                    } else {
+                        var tId = ovr.teacherId || cData.homeroom;
+                        if (tId) classAssigned[cls + '-' + s.name] += hours; 
+                    }
+                });
+            }
         });
 
         if (state.specialBlocks) {
             state.specialBlocks.forEach(function(b) {
                 var subObj = null;
-                state.subjects.forEach(function(s){ if(s.id === b.subjectId) subObj = s; });
+                if (state.subjects) {
+                    state.subjects.forEach(function(s){ if(s.id === b.subjectId) subObj = s; });
+                }
                 if (subObj && b.targets) {
                     b.targets.forEach(function(cls) {
                         if (classAssigned[cls + '-' + subObj.name] !== undefined) {
@@ -759,29 +969,37 @@
     }
 
     function viewStep10() {
-        if(!state.generatedSchedule && !state.unassigned?.length) return '<div class="flex items-center justify-center h-full flex-col gap-4 text-slate-400 font-black">AI生成を開始してください</div>';
+        if(!state.generatedSchedule && (!state.unassigned || state.unassigned.length===0)) {
+            return '<div class="flex items-center justify-center h-full flex-col gap-4 text-slate-400 font-black">AI生成を開始してください</div>';
+        }
         
         var fOpts = '';
         if (state.dashView === 'class') { 
-            var clsKeys = Object.keys(state.classAssignments || {});
+            var clsKeys = state.classAssignments ? Object.keys(state.classAssignments) : [];
             clsKeys.forEach(function(c){ fOpts += '<option value="' + c + '" ' + (c === state.dashFilter ? 'selected' : '') + '>' + c + '</option>'; });
         } else { 
-            state.teachers.forEach(function(t){ fOpts += '<option value="' + t.id + '" ' + (t.id === state.dashFilter ? 'selected' : '') + '>' + t.name + '</option>'; });
+            if (state.teachers) {
+                state.teachers.forEach(function(t){ fOpts += '<option value="' + t.id + '" ' + (t.id === state.dashFilter ? 'selected' : '') + '>' + t.name + '</option>'; });
+            }
         }
         
-        let html = '<div class="flex flex-col flex-1 overflow-hidden min-h-0">';
-        if (state.unassigned?.length > 0) {
+        var html = '<div class="flex flex-col flex-1 overflow-hidden min-h-0">';
+        if (state.unassigned && state.unassigned.length > 0) {
             html += '<div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-3 shrink-0 shadow-sm flex flex-col gap-3"><div class="flex justify-between items-center"><span class="text-amber-600 font-black text-lg">⚠️ ' + state.unassigned.length + 'コマ未配置（AIの悩み中）</span>';
             html += '<div class="flex gap-2 items-center"><select id="relay-setting-dash" class="m3-input !py-1.5 !px-2 !text-[10px] font-bold text-blue-600 border-amber-200 cursor-pointer shadow-sm"><option value="1">1分追加</option><option value="2">2分追加</option></select><button onclick="actions.continueGeneration()" class="px-4 py-2 bg-amber-500 text-white rounded-xl text-xs font-black shadow-md animate-pulse">続きを計算する 🚀</button></div></div>';
-            html += '<div class="flex flex-wrap gap-2">' + state.unassigned.map(u => {
-                const key = u.targets.join(',') + '_' + u.subject;
-                return '<button onclick="actions.showDiagnostic(\'' + key + '\')" class="bg-white border border-amber-300 text-amber-700 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-amber-100 shadow-sm transition-all flex items-center gap-1">📍 ' + u.targets[0] + ' ' + u.subject + ' <span class="text-[8px] opacity-60">▶︎ 診断</span></button>';
-            }).join('') + '</div></div>';
+            
+            var unassignedHtml = '';
+            state.unassigned.forEach(function(u) {
+                var key = (u.targets ? u.targets.join(',') : '') + '_' + u.subject;
+                var targetStr = u.targets ? u.targets[0] : '';
+                unassignedHtml += '<button onclick="actions.showDiagnostic(\'' + key + '\')" class="bg-white border border-amber-300 text-amber-700 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-amber-100 shadow-sm transition-all flex items-center gap-1">📍 ' + targetStr + ' ' + u.subject + ' <span class="text-[8px] opacity-60">▶︎ 診断</span></button>';
+            });
+            html += '<div class="flex flex-wrap gap-2">' + unassignedHtml + '</div></div>';
         } else if (state.generatedSchedule) {
             html += '<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 mb-3 shrink-0 flex justify-between items-center shadow-sm"><span class="text-emerald-700 font-black text-sm">✅ すべてのコマが配置されました！</span><button onclick="actions.startGeneration()" class="px-3 py-1.5 bg-white text-slate-500 border border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors">最初からやり直す</button></div>';
         }
         
-        html += '<div class="flex justify-between items-center mb-3 bg-white border p-2 rounded-2xl shadow-sm shrink-0 gap-2"><div class="flex items-center gap-2 bg-slate-50 p-1 rounded-xl"><button onclick="actions.setDashView(\'class\')" class="px-4 py-2 rounded-lg font-black text-xs ' + (state.dashView==='class'?'bg-blue-600 text-white':'text-slate-500') + '">クラス別</button><button onclick="actions.setDashView(\'teacher\')" class="px-4 py-2 rounded-lg font-black text-xs ' + (state.dashView==='teacher'?'bg-blue-600 text-white':'text-slate-500') + '">教員別</button></div><select onchange="actions.setDashFilter(this.value)" class="m3-input !py-2 !text-sm !w-48">' + fOpts + '</select><button onclick="actions.undo()" class="text-xs px-4 py-2 border rounded-xl font-bold ' + (state.undoStack.length===0?'text-slate-300':'text-slate-700 hover:bg-slate-50') + '">操作を戻す</button></div><div id="sc-step10" class="flex-1 overflow-auto bg-white border rounded-2xl shadow-sm custom-scrollbar p-1 min-h-0"><div class="grid grid-cols-[40px_repeat(5,1fr)] min-w-[700px] h-full gap-px bg-slate-200 border border-slate-200"><div class="bg-slate-100 flex items-center justify-center font-black text-[10px] uppercase">Time</div>';
+        html += '<div class="flex justify-between items-center mb-3 bg-white border p-2 rounded-2xl shadow-sm shrink-0 gap-2"><div class="flex items-center gap-2 bg-slate-50 p-1 rounded-xl"><button onclick="actions.setDashView(\'class\')" class="px-4 py-2 rounded-lg font-black text-xs ' + (state.dashView==='class'?'bg-blue-600 text-white':'text-slate-500') + '">クラス別</button><button onclick="actions.setDashView(\'teacher\')" class="px-4 py-2 rounded-lg font-black text-xs ' + (state.dashView==='teacher'?'bg-blue-600 text-white':'text-slate-500') + '">教員別</button></div><select onchange="actions.setDashFilter(this.value)" class="m3-input !py-2 !text-sm !w-48">' + fOpts + '</select><button onclick="actions.undo()" class="text-xs px-4 py-2 border rounded-xl font-bold ' + (state.undoStack && state.undoStack.length===0?'text-slate-300':'text-slate-700 hover:bg-slate-50') + '">操作を戻す</button></div><div id="sc-step10" class="flex-1 overflow-auto bg-white border rounded-2xl shadow-sm custom-scrollbar p-1 min-h-0"><div class="grid grid-cols-[40px_repeat(5,1fr)] min-w-[700px] h-full gap-px bg-slate-200 border border-slate-200"><div class="bg-slate-100 flex items-center justify-center font-black text-[10px] uppercase">Time</div>';
         DAYS.forEach(function(d){ html += '<div class="bg-slate-100 flex items-center justify-center font-black text-[12px] py-2">' + d + '曜</div>'; });
         PERIODS.forEach(function(p){
             html += '<div class="bg-slate-50 flex items-center justify-center font-black text-xs border-r">' + p + '限</div>';
@@ -814,48 +1032,45 @@
     window.actions = {
         pushSubjectsUndo: function() { if (!state.subjectsUndoStack) state.subjectsUndoStack = []; state.subjectsUndoStack.push(JSON.stringify(state.subjects)); if(state.subjectsUndoStack.length > 20) state.subjectsUndoStack.shift(); },
         undoSubjects: function() { if(state.subjectsUndoStack.length > 0) { state.subjects = JSON.parse(state.subjectsUndoStack.pop()); render(); showToast("元に戻しました", "success"); } },
-        getSubjectRoom: function(subId) { for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id === subId) return state.subjects[i].defaultRoom || '通常教室'; } return '通常教室'; },
-        updateGrade: function(g, delta) { state.grades[g] = Math.max(1, Math.min(10, (state.grades[g]||1) + delta)); initClassAssignments(); render(); },
-        setGrade: function(g, val) { state.grades[g] = Math.max(1, Math.min(10, parseInt(val) || 1)); initClassAssignments(); render(); },
-        updatePeriod: function(g, d, delta) { state.periods[g][d] = Math.max(0, Math.min(6, (state.periods[g][d]||0)+delta)); render(); },
-        setPeriod: function(g, d, val) { state.periods[g][d] = Math.max(0, Math.min(6, parseInt(val) || 0)); render(); },
-        toggleBlock: function(k) { state.globalBlocks[k] = !state.globalBlocks[k]; render(); },
-        addRoom: function() { state.rooms.push({id:'r_'+Date.now(), name:'新規教室', capacity:1, ngTimes:{}}); render(); },
-        updateRoomName: function(id, v) { for(var i=0; i<state.rooms.length; i++){ if(state.rooms[i].id===id) state.rooms[i].name = v; } render(); },
-        updateRoomCapacity: function(id, v) { for(var i=0; i<state.rooms.length; i++){ if(state.rooms[i].id===id) state.rooms[i].capacity = Math.max(1, parseInt(v)||1); } render(); },
-        removeRoom: function(id) { state.rooms = state.rooms.filter(function(x){return x.id!==id;}); render(); },
-        addSubject: function(n) { actions.pushSubjectsUndo(); state.subjects.push({ id:'s_'+Date.now()+Math.random(), name:n, stdHours:{1:0,2:0,3:0,4:0,5:0,6:0}, defaultRoom:'通常教室' }); render(); },
-        updateSubject: function(id, k, v) { actions.pushSubjectsUndo(); for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id===id) state.subjects[i][k] = v; } render(); },
-        updateSubjectHour: function(id, g, delta) { actions.pushSubjectsUndo(); for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id===id) state.subjects[i].stdHours[g] = Math.max(0,(state.subjects[i].stdHours[g]||0)+delta); } render(); },
-        setSubjectHour: function(id, g, val) { actions.pushSubjectsUndo(); for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id===id) state.subjects[i].stdHours[g] = Math.max(0, parseInt(val) || 0); } render(); },
-        removeSubject: function(id) { actions.pushSubjectsUndo(); state.subjects = state.subjects.filter(function(x){return x.id!==id;}); render(); },
-        cloneSubject: function(id) { actions.pushSubjectsUndo(); for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id===id) { state.subjects.push(JSON.parse(JSON.stringify(state.subjects[i]))); state.subjects[state.subjects.length-1].id = 's_'+Date.now(); } } render(); },
+        getSubjectRoom: function(subId) { if(state.subjects) { for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id === subId) return state.subjects[i].defaultRoom || '通常教室'; } } return '通常教室'; },
+        updateGrade: function(g, delta) { if(!state.grades) state.grades={}; state.grades[g] = Math.max(1, Math.min(10, (state.grades[g]||1) + delta)); initClassAssignments(); render(); },
+        setGrade: function(g, val) { if(!state.grades) state.grades={}; state.grades[g] = Math.max(1, Math.min(10, parseInt(val) || 1)); initClassAssignments(); render(); },
+        updatePeriod: function(g, d, delta) { if(!state.periods) state.periods={}; if(!state.periods[g]) state.periods[g]={}; state.periods[g][d] = Math.max(0, Math.min(6, (state.periods[g][d]||0)+delta)); render(); },
+        setPeriod: function(g, d, val) { if(!state.periods) state.periods={}; if(!state.periods[g]) state.periods[g]={}; state.periods[g][d] = Math.max(0, Math.min(6, parseInt(val) || 0)); render(); },
+        toggleBlock: function(k) { if(!state.globalBlocks) state.globalBlocks={}; state.globalBlocks[k] = !state.globalBlocks[k]; render(); },
+        addRoom: function() { if(!state.rooms) state.rooms=[]; state.rooms.push({id:'r_'+Date.now(), name:'新規教室', capacity:1, ngTimes:{}}); render(); },
+        updateRoomName: function(id, v) { if(state.rooms) { for(var i=0; i<state.rooms.length; i++){ if(state.rooms[i].id===id) state.rooms[i].name = v; } } render(); },
+        updateRoomCapacity: function(id, v) { if(state.rooms) { for(var i=0; i<state.rooms.length; i++){ if(state.rooms[i].id===id) state.rooms[i].capacity = Math.max(1, parseInt(v)||1); } } render(); },
+        removeRoom: function(id) { if(state.rooms) { state.rooms = state.rooms.filter(function(x){return x.id!==id;}); } render(); },
+        addSubject: function(n) { actions.pushSubjectsUndo(); if(!state.subjects) state.subjects=[]; state.subjects.push({ id:'s_'+Date.now()+Math.random(), name:n, stdHours:{1:0,2:0,3:0,4:0,5:0,6:0}, defaultRoom:'通常教室' }); render(); },
+        updateSubject: function(id, k, v) { actions.pushSubjectsUndo(); if(state.subjects) { for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id===id) state.subjects[i][k] = v; } } render(); },
+        updateSubjectHour: function(id, g, delta) { actions.pushSubjectsUndo(); if(state.subjects) { for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id===id) { if(!state.subjects[i].stdHours) state.subjects[i].stdHours={}; state.subjects[i].stdHours[g] = Math.max(0,(state.subjects[i].stdHours[g]||0)+delta); } } } render(); },
+        setSubjectHour: function(id, g, val) { actions.pushSubjectsUndo(); if(state.subjects) { for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id===id) { if(!state.subjects[i].stdHours) state.subjects[i].stdHours={}; state.subjects[i].stdHours[g] = Math.max(0, parseInt(val) || 0); } } } render(); },
+        removeSubject: function(id) { actions.pushSubjectsUndo(); if(state.subjects) { state.subjects = state.subjects.filter(function(x){return x.id!==id;}); } render(); },
+        cloneSubject: function(id) { actions.pushSubjectsUndo(); if(state.subjects) { for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id===id) { state.subjects.push(JSON.parse(JSON.stringify(state.subjects[i]))); state.subjects[state.subjects.length-1].id = 's_'+Date.now(); break; } } } render(); },
         handleTeacherClick: function(id) { var now = Date.now(); if (lastClickId === id && now - lastClickTime < 300) { state.editingTeacherNameId = id; render(); setTimeout(function() { var el = document.getElementById('t-name-input-'+id); if(el) el.focus(); }, 10); } else { lastClickTime = now; lastClickId = id; state.selectedTeacherId = id; render(); } },
-        saveTeacherName: function(id, v) { for(var i=0; i<state.teachers.length; i++){ if(state.teachers[i].id===id) state.teachers[i].name = v; } state.editingTeacherNameId = null; render(); },
-        addTeacher: function() { state.teachers.push({id:'t_'+Date.now(), name:'教員'+(state.teachers.length+1), maxHours:24, homeroom:'', ngTimes:{}, assignments:[]}); render(); },
-        updateTeacher: function(id, k, v) { for(var i=0; i<state.teachers.length; i++){ if(state.teachers[i].id===id) state.teachers[i][k] = v; } render(); },
-        removeTeacher: function(id) { state.teachers = state.teachers.filter(function(x){return x.id!==id;}); if(state.selectedTeacherId===id && state.teachers.length>0) state.selectedTeacherId=state.teachers[0].id; render(); },
-        toggleTeacherNG: function(id, k) { for(var i=0; i<state.teachers.length; i++){ if(state.teachers[i].id===id) { if(!state.teachers[i].ngTimes) state.teachers[i].ngTimes={}; state.teachers[i].ngTimes[k] = !state.teachers[i].ngTimes[k]; } } render(); },
-        updateTeacherHomeroom: function(tid, cls) { for(var i=0; i<state.teachers.length; i++){ if(state.teachers[i].id===tid) { if(state.teachers[i].homeroom && state.classAssignments[state.teachers[i].homeroom]) state.classAssignments[state.teachers[i].homeroom].homeroom = ''; state.teachers[i].homeroom = cls; if(cls && state.classAssignments[cls]) { var oldTId = state.classAssignments[cls].homeroom; if(oldTId) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===oldTId) state.teachers[j].homeroom = ''; } } state.classAssignments[cls].homeroom = tid; } } } render(); },
-        updateHomeroom: function(cls, tid) { var oldTId = state.classAssignments[cls]?.homeroom; if (oldTId) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===oldTId) state.teachers[j].homeroom = ''; } } if (tid) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===tid) { if(state.teachers[j].homeroom && state.classAssignments[state.teachers[j].homeroom]) state.classAssignments[state.teachers[j].homeroom].homeroom = ''; state.teachers[j].homeroom = cls; } } } if (!state.classAssignments[cls]) state.classAssignments[cls] = { overrides: {} }; state.classAssignments[cls].homeroom = tid; render(); },
-        updateSubjectOverride: function(cls, sid, k, v) { if(!state.classAssignments[cls]) state.classAssignments[cls] = { overrides: {} }; if(!state.classAssignments[cls].overrides) state.classAssignments[cls].overrides = {}; if(!state.classAssignments[cls].overrides[sid]) state.classAssignments[cls].overrides[sid]={}; if(v==="") delete state.classAssignments[cls].overrides[sid][k]; else state.classAssignments[cls].overrides[sid][k]=v; render(); },
-        copyClassSettings: function(src) { var grade = src.split('-')[0]; var n = state.grades[grade]||1; var srcData = state.classAssignments[src]; for(var i=1; i<=n; i++){ var t = grade + '-' + i; if(t!==src) { if(!state.classAssignments[t]) state.classAssignments[t] = { overrides: {} }; state.classAssignments[t].overrides = JSON.parse(JSON.stringify(srcData?.overrides || {})); } } render(); showToast(grade + "年の他クラスにコピーしました", "success"); },
-        addSpecialBlock: function() { var subId = document.getElementById('sp-sub').value; var hrs = document.getElementById('sp-hrs').value; if(!subId || !hrs) { showToast("教科を入力してください", "error"); return; } var sub = null; for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id === subId) sub = state.subjects[i]; } if (!state.specialBlocks) state.specialBlocks = []; state.specialBlocks.unshift({ id:'sp_'+Date.now(), type:document.getElementById('sp-type').value, subjectId:subId, subject:sub?sub.name:'特殊', room:document.getElementById('sp-room').value, hours:Math.max(1, parseInt(hrs)||1), targets:[], teachers:[] }); render(); },
+        saveTeacherName: function(id, v) { if(state.teachers) { for(var i=0; i<state.teachers.length; i++){ if(state.teachers[i].id===id) state.teachers[i].name = v; } } state.editingTeacherNameId = null; render(); },
+        addTeacher: function() { if(!state.teachers) state.teachers=[]; state.teachers.push({id:'t_'+Date.now(), name:'教員'+(state.teachers.length+1), maxHours:24, homeroom:'', ngTimes:{}, assignments:[]}); render(); },
+        updateTeacher: function(id, k, v) { if(state.teachers) { for(var i=0; i<state.teachers.length; i++){ if(state.teachers[i].id===id) state.teachers[i][k] = v; } } render(); },
+        removeTeacher: function(id) { if(state.teachers) { state.teachers = state.teachers.filter(function(x){return x.id!==id;}); if(state.selectedTeacherId===id && state.teachers.length>0) state.selectedTeacherId=state.teachers[0].id; } render(); },
+        toggleTeacherNG: function(id, k) { if(state.teachers) { for(var i=0; i<state.teachers.length; i++){ if(state.teachers[i].id===id) { if(!state.teachers[i].ngTimes) state.teachers[i].ngTimes={}; state.teachers[i].ngTimes[k] = !state.teachers[i].ngTimes[k]; } } } render(); },
+        updateTeacherHomeroom: function(tid, cls) { if(state.teachers) { for(var i=0; i<state.teachers.length; i++){ if(state.teachers[i].id===tid) { if(state.teachers[i].homeroom && state.classAssignments && state.classAssignments[state.teachers[i].homeroom]) state.classAssignments[state.teachers[i].homeroom].homeroom = ''; state.teachers[i].homeroom = cls; if(cls && state.classAssignments && state.classAssignments[cls]) { var oldTId = state.classAssignments[cls].homeroom; if(oldTId) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===oldTId) state.teachers[j].homeroom = ''; } } state.classAssignments[cls].homeroom = tid; } } } } render(); },
+        updateHomeroom: function(cls, tid) { var oldTId = (state.classAssignments && state.classAssignments[cls]) ? state.classAssignments[cls].homeroom : null; if (oldTId && state.teachers) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===oldTId) state.teachers[j].homeroom = ''; } } if (tid && state.teachers) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===tid) { if(state.teachers[j].homeroom && state.classAssignments[state.teachers[j].homeroom]) state.classAssignments[state.teachers[j].homeroom].homeroom = ''; state.teachers[j].homeroom = cls; } } } if (!state.classAssignments) state.classAssignments={}; if (!state.classAssignments[cls]) state.classAssignments[cls] = { overrides: {} }; state.classAssignments[cls].homeroom = tid; render(); },
+        updateSubjectOverride: function(cls, sid, k, v) { if(!state.classAssignments) state.classAssignments={}; if(!state.classAssignments[cls]) state.classAssignments[cls] = { overrides: {} }; if(!state.classAssignments[cls].overrides) state.classAssignments[cls].overrides = {}; if(!state.classAssignments[cls].overrides[sid]) state.classAssignments[cls].overrides[sid]={}; if(v==="") delete state.classAssignments[cls].overrides[sid][k]; else state.classAssignments[cls].overrides[sid][k]=v; render(); },
+        copyClassSettings: function(src) { var grade = src.split('-')[0]; var n = (state.grades && state.grades[grade]) ? state.grades[grade] : 1; var srcData = state.classAssignments[src]; for(var i=1; i<=n; i++){ var t = grade + '-' + i; if(t!==src) { if(!state.classAssignments[t]) state.classAssignments[t] = { overrides: {} }; state.classAssignments[t].overrides = JSON.parse(JSON.stringify(srcData && srcData.overrides ? srcData.overrides : {})); } } render(); showToast(grade + "年の他クラスにコピーしました", "success"); },
+        addSpecialBlock: function() { var subId = document.getElementById('sp-sub').value; var hrs = document.getElementById('sp-hrs').value; if(!subId || !hrs) { showToast("教科を入力してください", "error"); return; } var sub = null; if(state.subjects) { for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id === subId) sub = state.subjects[i]; } } if (!state.specialBlocks) state.specialBlocks = []; state.specialBlocks.unshift({ id:'sp_'+Date.now(), type:document.getElementById('sp-type').value, subjectId:subId, subject:sub?sub.name:'特殊', room:document.getElementById('sp-room').value, hours:Math.max(1, parseInt(hrs)||1), targets:[], teachers:[] }); render(); },
         removeSpecialBlock: function(idx) { if (state.specialBlocks) { state.specialBlocks.splice(idx, 1); render(); } },
-        updateSpecialBlock: function(id, k, v) { for(var i=0; i<state.specialBlocks.length; i++){ if(state.specialBlocks[i].id===id) { state.specialBlocks[i][k] = (k==='hours'?Math.max(1, parseInt(v)||1):v); if(k==='hours' && state.specialBlocks[i].teachers) { for(var j=0; j<state.specialBlocks[i].teachers.length; j++){ if(state.specialBlocks[i].teachers[j].hours > state.specialBlocks[i][k]) state.specialBlocks[i].teachers[j].hours = state.specialBlocks[i][k]; } } } } render(); },
-        toggleSpecialTarget: function(id, cls) { for(var i=0; i<state.specialBlocks.length; i++){ if(state.specialBlocks[i].id===id) { if(!state.specialBlocks[i].targets) state.specialBlocks[i].targets = []; var idx = state.specialBlocks[i].targets.indexOf(cls); if(idx > -1) state.specialBlocks[i].targets.splice(idx,1); else state.specialBlocks[i].targets.push(cls); } } render(); },
-        toggleSpecialTeacher: function(id, tid) { for(var i=0; i<state.specialBlocks.length; i++){ if(state.specialBlocks[i].id===id) { if(!state.specialBlocks[i].teachers) state.specialBlocks[i].teachers = []; var tIdx = -1; for(var j=0; j<state.specialBlocks[i].teachers.length; j++){ if(state.specialBlocks[i].teachers[j].id===tid) tIdx = j; } if(tIdx > -1) state.specialBlocks[i].teachers.splice(tIdx,1); else state.specialBlocks[i].teachers.push({id:tid, hours:state.specialBlocks[i].hours}); } } render(); },
-        updateSpecialTeacherHours: function(bid, tid, hrs) { for(var i=0; i<state.specialBlocks.length; i++){ if(state.specialBlocks[i].id===bid && state.specialBlocks[i].teachers) { for(var j=0; j<state.specialBlocks[i].teachers.length; j++){ if(state.specialBlocks[i].teachers[j].id===tid) state.specialBlocks[i].teachers[j].hours = Math.max(0, parseInt(hrs)||0); } } } render(); },
+        updateSpecialBlock: function(id, k, v) { if(state.specialBlocks) { for(var i=0; i<state.specialBlocks.length; i++){ if(state.specialBlocks[i].id===id) { state.specialBlocks[i][k] = (k==='hours'?Math.max(1, parseInt(v)||1):v); if(k==='hours' && state.specialBlocks[i].teachers) { for(var j=0; j<state.specialBlocks[i].teachers.length; j++){ if(state.specialBlocks[i].teachers[j].hours > state.specialBlocks[i][k]) state.specialBlocks[i].teachers[j].hours = state.specialBlocks[i][k]; } } } } } render(); },
+        toggleSpecialTarget: function(id, cls) { if(state.specialBlocks) { for(var i=0; i<state.specialBlocks.length; i++){ if(state.specialBlocks[i].id===id) { if(!state.specialBlocks[i].targets) state.specialBlocks[i].targets = []; var idx = state.specialBlocks[i].targets.indexOf(cls); if(idx > -1) state.specialBlocks[i].targets.splice(idx,1); else state.specialBlocks[i].targets.push(cls); } } } render(); },
+        toggleSpecialTeacher: function(id, tid) { if(state.specialBlocks) { for(var i=0; i<state.specialBlocks.length; i++){ if(state.specialBlocks[i].id===id) { if(!state.specialBlocks[i].teachers) state.specialBlocks[i].teachers = []; var tIdx = -1; for(var j=0; j<state.specialBlocks[i].teachers.length; j++){ if(state.specialBlocks[i].teachers[j].id===tid) tIdx = j; } if(tIdx > -1) state.specialBlocks[i].teachers.splice(tIdx,1); else state.specialBlocks[i].teachers.push({id:tid, hours:state.specialBlocks[i].hours}); } } } render(); },
+        updateSpecialTeacherHours: function(bid, tid, hrs) { if(state.specialBlocks) { for(var i=0; i<state.specialBlocks.length; i++){ if(state.specialBlocks[i].id===bid && state.specialBlocks[i].teachers) { for(var j=0; j<state.specialBlocks[i].teachers.length; j++){ if(state.specialBlocks[i].teachers[j].id===tid) state.specialBlocks[i].teachers[j].hours = Math.max(0, parseInt(hrs)||0); } } } } render(); },
         
-        // ★ Step 8 関連の処理 (詳細診断用の setRule 等は変更なし)
         setRule: function(k, v) { if (!state.advancedRules) state.advancedRules = {}; state.advancedRules[k] = v; render(); },
-        addContinuousClass: function() { var g = document.getElementById('rule-cont-g').value; var s = document.getElementById('rule-cont-s').value; if(g && s) { if(!state.advancedRules.continuousClasses) state.advancedRules.continuousClasses = []; state.advancedRules.continuousClasses.push({grade: g, subject: s}); render(); } },
-        removeContinuousClass: function(idx) { state.advancedRules.continuousClasses.splice(idx, 1); render(); },
-        addAvoidTime: function() { var g = document.getElementById('rule-avoid-g').value; var s = document.getElementById('rule-avoid-s').value; var p = document.getElementById('rule-avoid-p').value; if(g && s && p) { if(!state.advancedRules.avoidSpecificTimes) state.advancedRules.avoidSpecificTimes = []; state.advancedRules.avoidSpecificTimes.push({grade: g, subject: s, period: parseInt(p)}); render(); } },
-        removeAvoidTime: function(idx) { if(state.advancedRules.avoidSpecificTimes) { state.advancedRules.avoidSpecificTimes.splice(idx, 1); render(); } },
+        addContinuousClass: function() { var g = document.getElementById('rule-cont-g').value; var s = document.getElementById('rule-cont-s').value; if(g && s) { if(!state.advancedRules) state.advancedRules={}; if(!state.advancedRules.continuousClasses) state.advancedRules.continuousClasses = []; state.advancedRules.continuousClasses.push({grade: g, subject: s}); render(); } },
+        removeContinuousClass: function(idx) { if(state.advancedRules && state.advancedRules.continuousClasses) { state.advancedRules.continuousClasses.splice(idx, 1); render(); } },
+        addAvoidTime: function() { var g = document.getElementById('rule-avoid-g').value; var s = document.getElementById('rule-avoid-s').value; var p = document.getElementById('rule-avoid-p').value; if(g && s && p) { if(!state.advancedRules) state.advancedRules={}; if(!state.advancedRules.avoidSpecificTimes) state.advancedRules.avoidSpecificTimes = []; state.advancedRules.avoidSpecificTimes.push({grade: g, subject: s, period: parseInt(p)}); render(); } },
+        removeAvoidTime: function(idx) { if(state.advancedRules && state.advancedRules.avoidSpecificTimes) { state.advancedRules.avoidSpecificTimes.splice(idx, 1); render(); } },
         
-        // -----------------------
-        // モーダル関連の処理
         openAllocModal: function(cls, subId, stdHours) { var cData = state.classAssignments[cls]; var ovr = {}; if (cData && cData.overrides && cData.overrides[subId]) ovr = cData.overrides[subId]; var rows = []; if (ovr.allocations && ovr.allocations.length > 0) { rows = JSON.parse(JSON.stringify(ovr.allocations)); } else { var defaultTid = ovr.teacherId || cData.homeroom || ''; rows = [{ teacherId: defaultTid, hours: stdHours }]; } state.allocationModal = { cls: cls, subId: subId, stdHours: stdHours, rows: rows }; render(); },
         closeAllocModal: function() { state.allocationModal = null; render(); },
         addAllocRow: function() { if (state.allocationModal) { state.allocationModal.rows.push({ teacherId: '', hours: 1 }); render(); } },
@@ -902,44 +1117,43 @@
         pushUndo: function() { if (!state.undoStack) state.undoStack = []; state.undoStack.push(JSON.stringify(state.generatedSchedule)); if(state.undoStack.length > 15) state.undoStack.shift(); },
         undo: function() { if(state.undoStack && state.undoStack.length > 0) { state.generatedSchedule = JSON.parse(state.undoStack.pop()); state.selectedDashCell = null; render(); showToast('戻しました', 'success'); } },
         
-        // ★ 詳細診断ポップアップ
         showDiagnostic: function(key) {
-            const diag = state.reportDetails?.[key];
+            const diag = state.reportDetails && state.reportDetails[key] ? state.reportDetails[key] : null;
             if(!diag) return showToast("詳細データがありません");
             const modal = document.getElementById('modal-overlay');
             const body = document.getElementById('modal-body');
             modal.classList.remove('hidden');
             
-            let html = `<h3 class="text-xl font-black text-blue-900 mb-2">【AI診断】${diag.target}：${diag.subject}</h3>
-            <p class="text-xs text-slate-500 mb-6 font-bold">AIがこの授業を配置できなかった原因と対策を報告します。</p>
-            <div class="space-y-4 mb-6 overflow-y-auto pr-2 custom-scrollbar">`;
+            let html = '<h3 class="text-xl font-black text-blue-900 mb-2">【AI診断】' + diag.target + '：' + diag.subject + '</h3>';
+            html += '<p class="text-xs text-slate-500 mb-6 font-bold">AIがこの授業を配置できなかった原因と対策を報告します。</p>';
+            html += '<div class="space-y-4 mb-6 overflow-y-auto pr-2 custom-scrollbar">';
             
             if (diag.causes && diag.causes.length > 0) {
                 diag.causes.forEach(function(c) {
-                    const solution = c.type === "教員の都合" ? `Step 4で${c.detail.split('先生')[0]}先生の「✕」を減らしてください。` : `Step 3で${c.detail.split('が')[0]}の同時使用枠を増やすか、使用制限を緩和してください。`;
+                    const solution = c.type === "教員の都合" ? 'Step 4で' + c.detail.split('先生')[0] + '先生の「✕」を減らしてください。' : 'Step 3で' + c.detail.split('が')[0] + 'の同時使用枠を増やすか、使用制限を緩和してください。';
                     const imprv = Math.min(99, 100 - c.impact + 30);
-                    html += `<div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-inner">
-                        <div class="flex justify-between items-start mb-2"><span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded text-[10px] font-black">${c.type}</span><span class="text-sm font-black text-rose-600">影響度: ${c.impact}%</span></div>
-                        <p class="text-xs font-bold text-slate-700 mb-2">原因：${c.detail}</p>
-                        <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100"><p class="text-[10px] font-black text-blue-700 mb-1">💡 対策と成功率の向上</p><p class="text-xs font-bold text-blue-800">${solution}</p><p class="mt-2 text-[10px] font-black text-blue-600">➔ 対策実行後の配置可能性：<span class="text-lg font-black">${imprv}%</span></p></div>
-                    </div>`;
+                    html += '<div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-inner">';
+                    html += '<div class="flex justify-between items-start mb-2"><span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded text-[10px] font-black">' + c.type + '</span><span class="text-sm font-black text-rose-600">影響度: ' + c.impact + '%</span></div>';
+                    html += '<p class="text-xs font-bold text-slate-700 mb-2">原因：' + c.detail + '</p>';
+                    html += '<div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100"><p class="text-[10px] font-black text-blue-700 mb-1">💡 対策と成功率の向上</p><p class="text-xs font-bold text-blue-800">' + solution + '</p><p class="mt-2 text-[10px] font-black text-blue-600">➔ 対策実行後の配置可能性：<span class="text-lg font-black">' + imprv + '%</span></p></div>';
+                    html += '</div>';
                 });
             } else {
-                html += `<div class="text-center py-6 text-sm font-bold text-slate-400">特定のエラー原因は見つかりませんでした。条件が厳しすぎる可能性があります。</div>`;
+                html += '<div class="text-center py-6 text-sm font-bold text-slate-400">特定のエラー原因は見つかりませんでした。条件が厳しすぎる可能性があります。</div>';
             }
             
-            html += `</div><button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="w-full p-4 bg-slate-800 text-white font-black rounded-2xl hover:bg-slate-900 transition-all">閉じて設定を修正する</button>`;
+            html += '</div><button onclick="document.getElementById(\'modal-overlay\').classList.add(\'hidden\')" class="w-full p-4 bg-slate-800 text-white font-black rounded-2xl hover:bg-slate-900 transition-all">閉じて設定を修正する</button>';
             body.innerHTML = html;
         },
 
-        // ★ 自動リレー通信ロジック
         startGeneration: async function() {
             if (!GAS_URL || GAS_URL.indexOf("ここに") !== -1) { showToast("URL未設定です。", "error"); return; }
-            var relayMinutes = parseInt(document.getElementById('relay-setting')?.value || 1);
+            var relayEl = document.getElementById('relay-setting');
+            var relayMinutes = parseInt(relayEl ? relayEl.value : 1);
             state.maxRelayCount = relayMinutes * 2;
             state.relayCount = 1;
             
-            showLoading("AI自動生成中...", `初期配置と最適化を行っています（自動リレー ${state.relayCount}/${state.maxRelayCount}回目）`);
+            showLoading("AI自動生成中...", "初期配置と最適化を行っています（自動リレー " + state.relayCount + "/" + state.maxRelayCount + "回目）");
             state.generatedSchedule = null; state.unassigned = []; state.reportDetails = {};
             try {
                 var res = await fetch(GAS_URL, { method: 'POST', mode: 'cors', body: JSON.stringify({ action: 'generate', state: state, currentSchedule: null, unassigned: null }) });
@@ -958,7 +1172,7 @@
         },
         autoContinueGeneration: async function() {
             state.relayCount++;
-            showLoading("AI継続生成中...", `未配置コマの最適化を行っています（自動リレー ${state.relayCount}/${state.maxRelayCount}回目）`);
+            showLoading("AI継続生成中...", "未配置コマの最適化を行っています（自動リレー " + state.relayCount + "/" + state.maxRelayCount + "回目）");
             try {
                 var res = await fetch(GAS_URL, { method: 'POST', mode: 'cors', body: JSON.stringify({ action: 'generate', state: state, currentSchedule: state.generatedSchedule, unassigned: state.unassigned }) });
                 if (!res.ok) throw new Error("サーバーエラー");
@@ -975,7 +1189,8 @@
             } catch (e) { showToast("通信エラー発生。途中結果を表示します。", "error"); state.currentStep = 10; render(); hideLoading(); }
         },
         continueGeneration: function() {
-            var relayMinutes = parseInt(document.getElementById('relay-setting-dash')?.value || 1);
+            var relayEl = document.getElementById('relay-setting-dash');
+            var relayMinutes = parseInt(relayEl ? relayEl.value : 1);
             state.maxRelayCount = state.relayCount + (relayMinutes * 2);
             actions.autoContinueGeneration();
         },
