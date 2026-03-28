@@ -1,455 +1,1864 @@
-/**
- * ==========================================
- * Smart TimeTable - Backend Engine (GAS)
- * Version: 13.44 (Ultimate AI Engine)
- * Description: 25秒タイムアウト回避、継続実行、失敗原因診断、マルチシート出力
- * ==========================================
- */
-
-function doOptions(e) {
-  return ContentService.createTextOutput("")
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders({
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    });
-}
-
-function doPost(e) {
-  try {
-    if (!e || !e.postData || !e.postData.contents) {
-      return ContentService.createTextOutput(JSON.stringify({ success: false, message: "No data received." }))
-        .setMimeType(ContentService.MimeType.JSON).setHeaders({ "Access-Control-Allow-Origin": "*" });
-    }
-
-    const params = JSON.parse(e.postData.contents);
-    const action = params.action;
-    
-    if (action === 'generate') {
-      // 継続実行のために、現在のスケジュールと未配置リストを受け取る（初回はundefined）
-      const result = generateSchedule(params.state, params.currentSchedule, params.unassigned);
-      return ContentService.createTextOutput(JSON.stringify({
-        success: true,
-        schedule: result.schedule,
-        unassigned: result.unassigned,
-        isComplete: result.isComplete,
-        diagnostics: result.diagnostics, // 診断レポート用データ
-        message: result.message
-      }))
-      .setMimeType(ContentService.MimeType.JSON)
-      .setHeaders({ "Access-Control-Allow-Origin": "*" });
-    } else if (action === 'export') {
-      const result = exportToSpreadsheet(params.schedule, params.state);
-      return ContentService.createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders({ "Access-Control-Allow-Origin": "*" });
-    }
-    
-    return ContentService.createTextOutput(JSON.stringify({ success: false, message: 'Invalid action' }))
-      .setMimeType(ContentService.MimeType.JSON).setHeaders({ "Access-Control-Allow-Origin": "*" });
-      
-  } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({ success: false, message: "GAS Error: " + error.toString() }))
-      .setMimeType(ContentService.MimeType.JSON).setHeaders({ "Access-Control-Allow-Origin": "*" });
-  }
-}
-
-function doGet(e) {
-  return ContentService.createTextOutput("Smart TimeTable API Ver 13.44 is running.");
-}
-
-// ==========================================
-// コア・アルゴリズム
-// ==========================================
-function generateSchedule(state, currentSchedule, currentUnassigned) {
-  const startTime = Date.now();
-  // ★ ブラウザのタイムアウトを防ぐため、24秒で処理を強制的に切り上げる
-  const TIME_LIMIT = 24000; 
-  
-  const DAYS = ['月', '火', '水', '木', '金'];
-  const PERIODS = [1, 2, 3, 4, 5, 6];
-  
-  const teacherMap = {};
-  if (state.teachers) state.teachers.forEach(t => teacherMap[t.id] = t.name);
-
-  const rules = state.advancedRules || {};
-  const hrMap = {}; 
-  if (state.classAssignments) {
-    Object.keys(state.classAssignments).forEach(c => hrMap[c] = state.classAssignments[c].homeroom);
-  }
-
-  let schedule = currentSchedule;
-  let unassigned = currentUnassigned;
-  let diagnostics = {
-    '学年の上限コマ数超過': 0,
-    '全校不可枠': 0,
-    '教員の不可枠または重複': 0,
-    'クラスの重複': 0,
-    '特別教室の不足': 0
-  };
-
-  // ------------------------------------------
-  // 1. 初回実行時の準備（コマの生成と初期配置）
-  // ------------------------------------------
-  if (!schedule || !unassigned) {
-    let lessons = [];
-    
-    // (A) 特殊ブロック
-    if (state.specialBlocks) {
-      state.specialBlocks.forEach(b => {
-        for (let i = 0; i < b.hours; i++) {
-          lessons.push({
-            id: `sp_${b.id}_${i}`,
-            subjectId: b.subjectId,
-            subject: state.subjects.find(s=>s.id===b.subjectId)?.name || '特殊',
-            targets: b.targets || [],
-            teacherIds: (b.teachers || []).map(t => t.id),
-            teacherName: (b.teachers || []).map(t => teacherMap[t.id]).join(', ') || '未定',
-            room: b.room || '通常教室',
-            isSp: true
-          });
+<!-- ==========================================
+  Smart TimeTable
+  Version: 13.44 (Ultimate AI Engine Ready)
+  Type: Vanilla HTML / JS / Tailwind CSS
+  Description: 25秒タイムアウト回避(継続実行)、診断レポート表示対応版。
+=========================================== -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart TimeTable - Ver 13.44</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style type="text/tailwindcss">
+        @layer utilities {
+            html, body { @apply h-full h-[100dvh] overflow-hidden m-0 p-0 font-sans bg-slate-100 text-slate-800; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+            #app-container { @apply h-full h-[100dvh] flex flex-col p-2 md:p-4 pb-[max(16px,env(safe-area-inset-bottom))] max-w-[1800px] mx-auto w-full box-border overflow-hidden; }
+            .custom-scrollbar::-webkit-scrollbar { @apply w-1.5 h-1.5; }
+            .custom-scrollbar::-webkit-scrollbar-thumb { @apply bg-slate-300 rounded-full; }
+            .m3-card { @apply bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6 flex flex-col overflow-hidden min-h-0; }
+            .m3-btn-primary { @apply bg-blue-600 text-white px-6 py-3 rounded-xl font-black hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-50 text-sm whitespace-nowrap; }
+            .m3-btn-secondary { @apply bg-white text-slate-600 border border-slate-300 px-6 py-3 rounded-xl font-black hover:bg-slate-50 active:scale-95 transition-all flex items-center justify-center gap-2 text-sm whitespace-nowrap; }
+            .m3-input { @apply p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-blue-500 focus:bg-white font-bold text-xs transition-colors w-full; }
+            .step-dot { @apply h-2 w-2 rounded-full transition-all duration-300 bg-slate-200; }
+            .step-dot.active { @apply bg-blue-600 w-8; }
+            .fade-in { animation: fadeIn 0.2s ease-out forwards; }
+            @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+            .dash-cell { @apply min-h-[50px] p-1 border-r border-b border-slate-200 flex flex-col items-center justify-center gap-0.5 relative bg-white transition-colors cursor-pointer hover:bg-blue-50; }
+            input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         }
-      });
-    }
+    </style>
+</head>
+<body>
 
-    // (B) 通常授業
-    if (state.classAssignments) {
-      Object.keys(state.classAssignments).forEach(cls => {
-        const grade = cls.split('-')[0];
-        const data = state.classAssignments[cls];
-        
-        state.subjects.forEach(sub => {
-          let totalHours = parseInt(sub.stdHours?.[grade]) || 0;
-          if (totalHours === 0) return;
-          
-          if (state.specialBlocks && state.specialBlocks.some(b => b.subjectId === sub.id && (b.targets||[]).includes(cls))) return;
-          
-          const ovr = data.overrides?.[sub.id] || {};
-          const roomName = ovr.room || sub.defaultRoom || '通常教室';
-          
-          if (ovr.allocations && Array.isArray(ovr.allocations) && ovr.allocations.length > 0) {
-            ovr.allocations.forEach((alloc, allocIdx) => {
-              const h = parseInt(alloc.hours) || 0;
-              const tId = alloc.teacherId;
-              if(!tId) return;
-              for (let i = 0; i < h; i++) {
-                lessons.push(createLessonObj(cls, sub, tId, teacherMap, roomName, `n_${cls}_${sub.id}_a${allocIdx}_${i}`));
-              }
-            });
-          } else {
-            const tId = ovr.teacherId || data.homeroom;
-            if (!tId) return;
-            for (let i = 0; i < totalHours; i++) {
-              lessons.push(createLessonObj(cls, sub, tId, teacherMap, roomName, `n_${cls}_${sub.id}_${i}`));
-            }
-          }
-        });
-      });
-    }
+<div id="toast" class="fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm flex items-center gap-2 z-[9999] transition-all opacity-0 pointer-events-none">
+    <span id="toast-msg"></span>
+</div>
 
-    function createLessonObj(cls, sub, tId, tMap, room, id) {
-      return {
-        id: id, subjectId: sub.id, subject: sub.name, targets: [cls],
-        teacherIds: [tId], teacherName: tMap[tId] || '未定', room: room, isSp: false
-      };
-    }
+<div id="app-container">
+    <header class="flex items-center justify-between mb-3 shrink-0 px-2">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200 shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <div>
+                <h1 class="text-xl font-black tracking-tight leading-none text-slate-800">Smart TimeTable</h1>
+                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.44 Ultimate AI Engine Ready)</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+            <button onclick="actions.exportData()" class="text-xs font-bold text-slate-500 hover:text-blue-600 px-3 py-1.5 bg-white border border-slate-200 rounded-lg shadow-sm transition-colors">JSON出力</button>
+            <button onclick="actions.importData()" class="text-xs font-bold text-slate-500 hover:text-blue-600 px-3 py-1.5 bg-white border border-slate-200 rounded-lg shadow-sm transition-colors">JSON読込</button>
+            <button onclick="actions.resetData()" class="text-xs font-bold text-rose-500 hover:text-rose-700 px-3 py-1.5 bg-rose-50 border border-rose-100 rounded-lg transition-colors ml-2">リセット</button>
+        </div>
+    </header>
 
-    lessons.sort((a, b) => {
-      let scoreA = (a.targets.length * 10) + (a.room !== '通常教室' ? 5 : 0) + a.teacherIds.length;
-      let scoreB = (b.targets.length * 10) + (b.room !== '通常教室' ? 5 : 0) + b.teacherIds.length;
-      return scoreB - scoreA;
-    });
+    <div class="m3-card flex-1 flex flex-col min-h-0 relative">
+        <div class="flex items-center justify-between mb-4 shrink-0 border-b border-slate-100 pb-4">
+            <h2 id="step-title" class="text-lg font-black text-slate-800"></h2>
+            <div id="progress-dots" class="flex gap-1.5 flex-wrap justify-center"></div>
+        </div>
+        <div id="step-content" class="fade-in flex-1 overflow-hidden flex flex-col relative min-h-0"></div>
+        <div class="flex justify-between items-center mt-4 pt-4 border-t border-slate-100 shrink-0" id="bottom-navigation">
+            <button id="btn-prev" class="m3-btn-secondary w-[120px]">戻る</button>
+            <button id="btn-next" class="m3-btn-primary w-[180px]"><span id="btn-next-text">次へ進む</span></button>
+        </div>
+    </div>
+</div>
 
-    schedule = {};
-    DAYS.forEach(d => { schedule[d] = {}; PERIODS.forEach(p => schedule[d][p] = []); });
-    unassigned = [];
+<!-- ダイアログ用DOM -->
+<div id="modal-overlay" class="fixed inset-0 z-[150] flex items-center justify-center hidden p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl p-6 max-w-2xl w-full shadow-2xl flex flex-col" id="modal-body"></div>
+</div>
+<div id="allocation-modal-container"></div>
+<div id="loading-overlay" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] hidden items-center justify-center flex-col gap-4 transition-all">
+    <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+    <div class="text-white text-center">
+        <h3 class="text-lg font-black tracking-widest mb-1" id="loading-title">処理中...</h3>
+        <p class="text-blue-200 font-bold text-xs" id="loading-desc">しばらくお待ちください</p>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // 1. 初期データ
+    // ==========================================
+    // ★ 最新のGAS URLを設定（継続実行対応版）
+    var GAS_URL = "https://script.google.com/macros/s/AKfycbyDZQxeIcSfukIvE_fuIEmjdrITDfPzifZ8mNXfkJtbt648OE023WdV2iXvqtvYPcgvIQ/exec";
+    var GRADES = [1, 2, 3, 4, 5, 6];
+    var DAYS = ['月', '火', '水', '木', '金'];
+    var PERIODS = [1, 2, 3, 4, 5, 6];
+    var MAX_STEPS = 10;
     
-    // フェーズ1：初期配置
-    for (let lesson of lessons) {
-      let bestPlace = null;
-      let bestScore = Infinity;
-      let candidates = [];
-      DAYS.forEach(d => PERIODS.forEach(p => candidates.push({d, p})));
-      candidates.sort(() => Math.random() - 0.5);
+    var stepTitles = [
+        "1. 基本設定", "2. 行事・不可枠", "3. 教科と教室", "4. 教員名簿", "5. 特殊授業", 
+        "6. クラス別担当", "7. 教員別確認", "8. 配置ルール", "9. 最終点検", "10. ダッシュボード"
+    ];
 
-      for (let {d, p} of candidates) {
-        if (!canPlaceHard(lesson, d, p, schedule, state, diagnostics)) continue;
-        
-        schedule[d][p].push(lesson);
-        let score = evaluatePlacementPenalty(lesson, d, p, schedule, state, rules, hrMap);
-        schedule[d][p].pop();
-        
-        if (score < bestScore) {
-          bestScore = score;
-          bestPlace = {d, p};
+    var initialRooms = [
+        {id:'r1', name:'校庭', capacity:2, ngTimes:{}}, {id:'r2', name:'体育館', capacity:2, ngTimes:{}}, 
+        {id:'r3', name:'理科室', capacity:1, ngTimes:{}}, {id:'r4', name:'音楽室', capacity:1, ngTimes:{}}, 
+        {id:'r5', name:'図工室', capacity:1, ngTimes:{}}, {id:'r6', name:'家庭科室', capacity:1, ngTimes:{}}, 
+        {id:'r7', name:'外国語教室', capacity:1, ngTimes:{}}, {id:'r8', name:'図書室', capacity:1, ngTimes:{}}
+    ];
+
+    var initialSubjects = [
+        { id:'s1', name:'国語', stdHours:{1:9, 2:9, 3:7, 4:7, 5:5, 6:5}, defaultRoom:'通常教室' },
+        { id:'s2', name:'社会', stdHours:{1:0, 2:0, 3:2, 4:2, 5:3, 6:3}, defaultRoom:'通常教室' },
+        { id:'s3', name:'算数', stdHours:{1:4, 2:5, 3:5, 4:5, 5:5, 6:5}, defaultRoom:'通常教室' },
+        { id:'s4', name:'理科', stdHours:{1:0, 2:0, 3:3, 4:3, 5:3, 6:3}, defaultRoom:'理科室' },
+        { id:'s5', name:'生活', stdHours:{1:3, 2:3, 3:0, 4:0, 5:0, 6:0}, defaultRoom:'通常教室' },
+        { id:'s6', name:'音楽', stdHours:{1:2, 2:2, 3:2, 4:2, 5:2, 6:2}, defaultRoom:'音楽室' },
+        { id:'s7', name:'図工', stdHours:{1:2, 2:2, 3:2, 4:2, 5:2, 6:2}, defaultRoom:'図工室' },
+        { id:'s8', name:'家庭', stdHours:{1:0, 2:0, 3:0, 4:0, 5:2, 6:2}, defaultRoom:'家庭科室' },
+        { id:'s9', name:'中体育', stdHours:{1:1, 2:1, 3:1, 4:1, 5:1, 6:1}, defaultRoom:'体育館' },
+        { id:'s10', name:'外体育', stdHours:{1:2, 2:2, 3:2, 4:2, 5:2, 6:2}, defaultRoom:'校庭' },
+        { id:'s11', name:'道徳', stdHours:{1:1, 2:1, 3:1, 4:1, 5:1, 6:1}, defaultRoom:'通常教室' },
+        { id:'s12', name:'外国語', stdHours:{1:0, 2:0, 3:1, 4:1, 5:2, 6:2}, defaultRoom:'外国語教室' },
+        { id:'s13', name:'総合', stdHours:{1:0, 2:0, 3:1, 4:1, 5:2, 6:2}, defaultRoom:'通常教室' },
+        { id:'s14', name:'学活', stdHours:{1:1, 2:1, 3:1, 4:1, 5:1, 6:1}, defaultRoom:'通常教室' },
+        { id:'s15', name:'たまいち', stdHours:{1:1, 2:1, 3:1, 4:1, 5:1, 6:1}, defaultRoom:'通常教室' }
+    ];
+
+    // ==========================================
+    // 2. 状態管理（State）
+    // ==========================================
+    var currentStep = 1;
+    var lastClickTime = 0;
+    var lastClickId = null;
+
+    var state = {
+        periods: {},
+        grades: { 1:3, 2:3, 3:3, 4:3, 5:3, 6:3 },
+        rooms: JSON.parse(JSON.stringify(initialRooms)),
+        subjects: JSON.parse(JSON.stringify(initialSubjects)),
+        teachers: [], 
+        globalBlocks: {}, 
+        specialBlocks: [], 
+        classAssignments: {}, 
+        advancedRules: {
+            lastPeriodSubjects: [], 
+            continuousClasses: [], 
+            limitContinuousToSpecificPeriods: true,
+            homeroomOnlyTimes: [], 
+            pairHomeroomSubjects: [], 
+            limitOneSubjectPerDay: true, 
+            maxIntervalSubjects: [], 
+            considerSpecialistTimes: true, 
+            avoidPeTimes: [], 
+            avoidSpecificTimes: [], 
+            amPrioritySubjects: [],
+            consecutiveGradeSubjects: []
+        },
+        generatedSchedule: null, 
+        unassigned: null, // ★ 新規: 未配置リスト
+        diagnostics: null, // ★ 新規: 診断レポートデータ
+        dashView: 'class', 
+        dashFilter: '1-1', 
+        subjectsUndoStack: [], 
+        undoStack: [], 
+        conflicts: [], 
+        selectedDashCell: null, 
+        editingTeacherNameId: null, 
+        selectedTeacherId: null,
+        allocationModal: null
+    };
+
+    for(var i=0; i<GRADES.length; i++){
+        state.periods[GRADES[i]] = {月:5,火:5,水:4,木:5,金:5};
+    }
+
+    // ==========================================
+    // 3. ユーティリティ
+    // ==========================================
+    function showToast(msg, type) { 
+        if(!type) type = 'info';
+        var t = document.getElementById('toast'); 
+        if(!t) return;
+        t.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm z-[9999] transition-all opacity-100 ' + (type==='success'?'bg-emerald-600 text-white':'bg-rose-600 text-white');
+        document.getElementById('toast-msg').innerText = msg;
+        setTimeout(function(){ t.classList.replace('opacity-100', 'opacity-0'); }, 3000); 
+    }
+
+    function showLoading(title, desc) {
+        var el = document.getElementById('loading-overlay');
+        if(el) {
+            document.getElementById('loading-title').innerText = title;
+            document.getElementById('loading-desc').innerText = desc;
+            el.classList.replace('hidden', 'flex');
         }
-        if (score === 0) break;
-      }
-
-      if (bestPlace) {
-        schedule[bestPlace.d][bestPlace.p].push(lesson);
-      } else {
-        unassigned.push(lesson);
-      }
     }
-  }
 
-  // ------------------------------------------
-  // 2. フェーズ2：反復最適化（継続実行対応）
-  // ------------------------------------------
-  let iterations = 0;
-  
-  while (unassigned.length > 0 && (Date.now() - startTime) < TIME_LIMIT) {
-    iterations++;
-    const targetIdx = Math.floor(Math.random() * unassigned.length);
-    const targetLesson = unassigned[targetIdx];
+    function hideLoading() {
+        var el = document.getElementById('loading-overlay');
+        if(el) el.classList.replace('flex', 'hidden');
+    }
     
-    const d = DAYS[Math.floor(Math.random() * DAYS.length)];
-    const p = PERIODS[Math.floor(Math.random() * PERIODS.length)];
-    
-    // ハード制約のチェックと診断カウント
-    if (!canPlaceHard(targetLesson, d, p, schedule, state, diagnostics)) continue;
+    function save() {
+        try { localStorage.setItem('tt_v13_data', JSON.stringify(state)); } catch(e){}
+    }
 
-    // 押し出し判定
-    const conflicts = [];
-    schedule[d][p].forEach((existingLesson, idx) => {
-      let isConflict = false;
-      if (targetLesson.room !== '通常教室' && targetLesson.room === existingLesson.room) {
-        const cap = state.rooms.find(r => r.name === targetLesson.room)?.capacity || 1;
-        const currentCount = schedule[d][p].filter(l => l.room === targetLesson.room).length;
-        if (currentCount >= cap) isConflict = true;
-      }
-      if (targetLesson.teacherIds.some(tid => existingLesson.teacherIds.includes(tid))) isConflict = true;
-      if (targetLesson.targets.some(tgt => existingLesson.targets.includes(tgt))) isConflict = true;
-      if (isConflict) conflicts.push(idx);
-    });
-    
-    if (conflicts.length > 1) continue;
-
-    if (conflicts.length === 1) {
-      const removedLesson = schedule[d][p].splice(conflicts[0], 1)[0];
-      schedule[d][p].push(targetLesson);
-      unassigned.splice(targetIdx, 1);
-      unassigned.push(removedLesson);
-    } else {
-      schedule[d][p].push(targetLesson);
-      unassigned.splice(targetIdx, 1);
-    }
-  }
-
-  const isComplete = (unassigned.length === 0);
-  const msg = isComplete ? 'すべての授業の配置に成功しました！' : `${unassigned.length}コマが未配置です。通信エラーを防ぐため一時停止しました。「続きを計算する」を押してください。`;
-
-  return { schedule: schedule, unassigned: unassigned, isComplete: isComplete, diagnostics: diagnostics, message: msg };
-}
-
-// ------------------------------------------
-// ハード制約チェック（★診断カウント付き）
-// ------------------------------------------
-function canPlaceHard(lesson, d, p, schedule, state, diagnostics) {
-  for (let target of lesson.targets) {
-    const grade = target.split('-')[0];
-    if (p > (state.periods[grade]?.[d] || 0)) {
-      if(diagnostics) diagnostics['学年の上限コマ数超過']++;
-      return false;
-    }
-  }
-  if (state.globalBlocks && state.globalBlocks[`${d}-${p}`]) {
-    if(diagnostics) diagnostics['全校不可枠']++;
-    return false;
-  }
-  for (let tId of lesson.teacherIds) {
-    const t = state.teachers.find(x => x.id === tId);
-    if (t && t.ngTimes && t.ngTimes[`${d}-${p}`]) {
-      if(diagnostics) diagnostics['教員の不可枠または重複']++;
-      return false;
-    }
-    if (schedule[d][p].some(l => l.teacherIds.includes(tId))) {
-      if(diagnostics) diagnostics['教員の不可枠または重複']++;
-      return false;
-    }
-  }
-  for (let target of lesson.targets) {
-    if (schedule[d][p].some(l => l.targets.includes(target))) {
-      if(diagnostics) diagnostics['クラスの重複']++;
-      return false;
-    }
-  }
-  if (lesson.room !== '通常教室') {
-    const r = state.rooms.find(x => x.name === lesson.room);
-    if (r) {
-      if (r.ngTimes && r.ngTimes[`${d}-${p}`]) {
-        if(diagnostics) diagnostics['特別教室の不足']++;
-        return false;
-      }
-      const usedCount = schedule[d][p].filter(l => l.room === lesson.room).length;
-      if (usedCount >= (parseInt(r.capacity) || 1)) {
-        if(diagnostics) diagnostics['特別教室の不足']++;
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
-// ------------------------------------------
-// ソフト制約（配置の良し悪し）のペナルティ計算
-// ------------------------------------------
-function evaluatePlacementPenalty(lesson, d, p, schedule, state, rules, hrMap) {
-  let penalty = 0;
-  if (rules.limitOneSubjectPerDay) {
-    for(let i=1; i<=6; i++) {
-      if (i === p) continue;
-      if (schedule[d][i].some(l => l.subjectId === lesson.subjectId && l.targets.some(t => lesson.targets.includes(t)))) {
-        penalty += 100;
-      }
-    }
-  }
-  if (rules.amPrioritySubjects && rules.amPrioritySubjects.includes(lesson.subject)) {
-    if (p > 4) penalty += 30;
-  }
-  if (rules.lastPeriodSubjects && rules.lastPeriodSubjects.includes(lesson.subject)) {
-    for (let c of lesson.targets) {
-      let maxP = state.periods[c.split('-')[0]]?.[d] || 0;
-      if (p !== maxP) penalty += 50;
-    }
-  }
-  
-  if (rules.avoidSpecificTimes && rules.avoidSpecificTimes.length > 0) {
-    rules.avoidSpecificTimes.forEach(rule => {
-      if (lesson.subject === rule.subject && p === rule.period) {
-        if (rule.grade === '全学年') {
-          penalty += 200;
+    function sanitizeState(p) {
+        if (!p) return;
+        var keys = ['globalBlocks', 'periods', 'grades', 'selectedTeacherId', 'dashView', 'dashFilter', 'generatedSchedule', 'unassigned', 'diagnostics', 'teachers', 'specialBlocks', 'classAssignments', 'advancedRules', 'subjectsUndoStack'];
+        for(var i=0; i<keys.length; i++){
+            if(p[keys[i]] !== undefined) state[keys[i]] = p[keys[i]];
+        }
+        if (p.subjects) state.subjects = p.subjects;
+        if (p.rooms) state.rooms = p.rooms;
+        
+        if(!state.specialBlocks) state.specialBlocks = [];
+        if(!state.classAssignments) state.classAssignments = {};
+        if(!state.teachers) state.teachers = [];
+        if(!state.subjects) state.subjects = [];
+        if(!state.subjectsUndoStack) state.subjectsUndoStack = [];
+        
+        if(!state.advancedRules) {
+            state.advancedRules = {
+                lastPeriodSubjects: [], continuousClasses: [], limitContinuousToSpecificPeriods: true,
+                homeroomOnlyTimes: [], pairHomeroomSubjects: [], limitOneSubjectPerDay: true, 
+                maxIntervalSubjects: [], considerSpecialistTimes: true, avoidPeTimes: [], avoidSpecificTimes: [], amPrioritySubjects: [], consecutiveGradeSubjects: []
+            };
         } else {
-          const targetGradeStr = rule.grade.replace('年生', '');
-          if (lesson.targets.some(t => t.startsWith(targetGradeStr + '-'))) penalty += 200;
+            if(!state.advancedRules.pairHomeroomSubjects) state.advancedRules.pairHomeroomSubjects = [];
+            if(!state.advancedRules.maxIntervalSubjects) state.advancedRules.maxIntervalSubjects = [];
+            if(!state.advancedRules.amPrioritySubjects) state.advancedRules.amPrioritySubjects = [];
+            if(!state.advancedRules.consecutiveGradeSubjects) state.advancedRules.consecutiveGradeSubjects = [];
+            if(!state.advancedRules.avoidSpecificTimes) state.advancedRules.avoidSpecificTimes = [];
+            if(state.advancedRules.considerSpecialistTimes === undefined) state.advancedRules.considerSpecialistTimes = true;
         }
-      }
-    });
-  }
-
-  if (rules.pairHomeroomSubjects && rules.pairHomeroomSubjects.includes(lesson.subject)) {
-    let pairP = (p % 2 === 1) ? p + 1 : p - 1;
-    for (let c of lesson.targets) {
-      let hrId = hrMap[c];
-      let pairLesson = schedule[d][pairP] ? schedule[d][pairP].find(l => l.targets.includes(c)) : null;
-      if (pairLesson && !pairLesson.teacherIds.includes(hrId)) penalty += 80;
-      lesson.teacherIds.forEach(tid => {
-        if (schedule[d][pairP] && schedule[d][pairP].some(x => x.teacherIds.includes(tid) && !x.targets.includes(c))) penalty += 100;
-      });
-    }
-  }
-  return penalty;
-}
-
-// ==========================================
-// スプレッドシート出力（3軸マルチシート作成）
-// ==========================================
-function exportToSpreadsheet(schedule, data) {
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const timestamp = Utilities.formatDate(new Date(), "JST", "MMdd_HHmm");
-    
-    const DAYS = ['月', '火', '水', '木', '金'];
-    const PERIODS = [1, 2, 3, 4, 5, 6];
-
-    // --- 1. クラス軸シート作成 ---
-    const sheetClass = ss.insertSheet(`クラス軸_${timestamp}`);
-    const headerClass = ["クラス"];
-    DAYS.forEach(d => { PERIODS.forEach(p => headerClass.push(`${d}${p}`)); });
-    sheetClass.getRange(1, 1, 1, headerClass.length).setValues([headerClass]).setFontWeight("bold").setBackground("#f0f2f9");
-    
-    let rowC = 2;
-    Object.entries(data.grades).forEach(([g, n]) => {
-      for (let c = 1; c <= n; c++) {
-        const className = `${g}-${c}`; 
-        const rowData = [className];
-        DAYS.forEach(d => {
-          PERIODS.forEach(p => {
-            let cellText = "";
-            if (schedule[d] && schedule[d][p]) {
-              const lesson = schedule[d][p].find(l => l.targets && l.targets.includes(className));
-              if (lesson) {
-                cellText = `${lesson.subject}\n(${lesson.teacherName})`;
-                if (lesson.room && lesson.room !== '通常教室') cellText += `\n@${lesson.room}`;
-              }
-            }
-            rowData.push(cellText);
-          });
-        });
-        sheetClass.getRange(rowC, 1, 1, rowData.length).setValues([rowData]); 
-        rowC++;
-      }
-    });
-    sheetClass.setRowHeights(2, rowC - 2, 60);
-    sheetClass.setColumnWidths(2, headerClass.length - 1, 80);
-    sheetClass.getRange(1, 1, rowC - 1, headerClass.length).setBorder(true, true, true, true, true, true).setHorizontalAlignment("center").setVerticalAlignment("middle").setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
-
-    // --- 2. 教員軸シート作成 ---
-    const sheetTeacher = ss.insertSheet(`教員軸_${timestamp}`);
-    const headerTeacher = ["教員名"];
-    DAYS.forEach(d => { PERIODS.forEach(p => headerTeacher.push(`${d}${p}`)); });
-    sheetTeacher.getRange(1, 1, 1, headerTeacher.length).setValues([headerTeacher]).setFontWeight("bold").setBackground("#fff4e5");
-    
-    let rowT = 2;
-    if (data.teachers && data.teachers.length > 0) {
-      data.teachers.forEach(teacher => {
-        const rowData = [teacher.name];
-        DAYS.forEach(d => {
-          PERIODS.forEach(p => {
-            let cellText = "";
-            if (schedule[d] && schedule[d][p]) {
-              const lessons = schedule[d][p].filter(l => l.teacherIds && l.teacherIds.includes(teacher.id));
-              if (lessons.length > 0) {
-                cellText = lessons.map(l => `${l.subject}\n(${l.targets.join(',')})`).join('\n---\n');
-              }
-            }
-            rowData.push(cellText);
-          });
-        });
-        sheetTeacher.getRange(rowT, 1, 1, rowData.length).setValues([rowData]);
-        rowT++;
-      });
-      sheetTeacher.setRowHeights(2, rowT - 2, 60);
-      sheetTeacher.setColumnWidths(2, headerTeacher.length - 1, 80);
-      sheetTeacher.getRange(1, 1, rowT - 1, headerTeacher.length).setBorder(true, true, true, true, true, true).setHorizontalAlignment("center").setVerticalAlignment("middle").setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
     }
 
-    // --- 3. 特別教室軸シート作成 ---
-    const sheetRoom = ss.insertSheet(`教室軸_${timestamp}`);
-    const headerRoom = ["教室名"];
-    DAYS.forEach(d => { PERIODS.forEach(p => headerRoom.push(`${d}${p}`)); });
-    sheetRoom.getRange(1, 1, 1, headerRoom.length).setValues([headerRoom]).setFontWeight("bold").setBackground("#e8f5e9");
-    
-    let rowR = 2;
-    if (data.rooms && data.rooms.length > 0) {
-      data.rooms.forEach(room => {
-        if (room.name === '通常教室') return;
+    function initClassAssignments() { 
+        if(!state.classAssignments) state.classAssignments = {};
+        for(var g in state.grades){
+            var n = parseInt(state.grades[g]) || 1; 
+            for(var i=1; i<=n; i++) { 
+                var cls = g + '-' + i; 
+                if(!state.classAssignments[cls]) {
+                    state.classAssignments[cls] = { homeroom: '', overrides: {} }; 
+                }
+            } 
+        }
+    }
+
+    function load() {
+        var savedDataStr = null;
+        try { savedDataStr = localStorage.getItem('tt_v13_data'); } catch (e) {}
+
+        if (savedDataStr) { 
+            try { sanitizeState(JSON.parse(savedDataStr)); } catch(e) {} 
+        }
+        initClassAssignments();
         
-        const rowData = [room.name];
-        DAYS.forEach(d => {
-          PERIODS.forEach(p => {
-            let cellText = "";
-            if (schedule[d] && schedule[d][p]) {
-              const lessons = schedule[d][p].filter(l => l.room === room.name);
-              if (lessons.length > 0) {
-                cellText = lessons.map(l => `${l.subject}\n(${l.targets.join(',')})\n${l.teacherName}`).join('\n---\n');
-              }
+        try {
+            render();
+        } catch (e) {
+            var content = document.getElementById('step-content');
+            if(content) {
+                content.innerHTML = '<div class="flex flex-col items-center justify-center h-full gap-4 text-center p-8"><h2 class="text-xl font-black text-red-600">システムエラー</h2><button onclick="actions.resetData()" class="px-6 py-3 bg-red-500 text-white font-bold rounded-xl">リセットして再起動</button></div>';
             }
-            rowData.push(cellText);
-          });
-        });
-        sheetRoom.getRange(rowR, 1, 1, rowData.length).setValues([rowData]);
-        rowR++;
-      });
-      sheetRoom.setRowHeights(2, rowR - 2, 70);
-      sheetRoom.setColumnWidths(2, headerRoom.length - 1, 80);
-      sheetRoom.getRange(1, 1, rowR - 1, headerRoom.length).setBorder(true, true, true, true, true, true).setHorizontalAlignment("center").setVerticalAlignment("middle").setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
+            var nav = document.getElementById('bottom-navigation');
+            if(nav) nav.style.display = 'none';
+        }
     }
 
-    return { success: true };
-  } catch (e) { 
-    return { success: false, message: e.message }; 
-  }
-}
+    function getTeacherLoads() { 
+        var loads = {}; 
+        for(var i=0; i<state.teachers.length; i++){
+            loads[state.teachers[i].id] = 0;
+        }
+        
+        var classes = Object.keys(state.classAssignments);
+        for(var i=0; i<classes.length; i++){
+            var cls = classes[i];
+            var grade = cls.split('-')[0]; 
+            var data = state.classAssignments[cls]; 
+            
+            for(var j=0; j<state.subjects.length; j++){
+                var sub = state.subjects[j];
+                var hours = 0;
+                if (sub && sub.stdHours && sub.stdHours[grade]) {
+                    hours = parseInt(sub.stdHours[grade]) || 0;
+                }
+                if (hours === 0) continue;
+                
+                var isSp = false;
+                for(var k=0; k<state.specialBlocks.length; k++){
+                    if(state.specialBlocks[k].subjectId === sub.id && state.specialBlocks[k].targets && state.specialBlocks[k].targets.indexOf(cls) !== -1){
+                        isSp = true; break;
+                    }
+                }
+                if(isSp) continue;
+                
+                var ovr = (data.overrides && data.overrides[sub.id]) ? data.overrides[sub.id] : {};
+                
+                if (ovr.allocations && ovr.allocations.length > 0) {
+                    for(var k=0; k<ovr.allocations.length; k++){
+                        var a = ovr.allocations[k];
+                        if (a.teacherId && loads[a.teacherId] !== undefined) {
+                            loads[a.teacherId] += (parseInt(a.hours) || 0);
+                        }
+                    }
+                } else {
+                    var tId = ovr.teacherId || data.homeroom;
+                    if (tId && loads[tId] !== undefined) {
+                        loads[tId] += hours; 
+                    }
+                }
+            }
+        }
+        
+        for(var i=0; i<state.specialBlocks.length; i++){
+            var b = state.specialBlocks[i];
+            if (b.teachers) {
+                for(var j=0; j<b.teachers.length; j++){
+                    var bt = b.teachers[j];
+                    if (loads[bt.id] !== undefined) {
+                        loads[bt.id] += (parseInt(bt.hours) || 0); 
+                    }
+                }
+            }
+        }
+        return loads; 
+    }
+
+    function getTeacherDetails() { 
+        var details = {}; 
+        for(var i=0; i<state.teachers.length; i++){
+            details[state.teachers[i].id] = { load: 0, items: [] };
+        }
+        
+        var classes = Object.keys(state.classAssignments);
+        for(var i=0; i<classes.length; i++){
+            var cls = classes[i];
+            var grade = cls.split('-')[0]; 
+            var data = state.classAssignments[cls]; 
+            
+            for(var j=0; j<state.subjects.length; j++){
+                var sub = state.subjects[j];
+                var hours = 0;
+                if (sub && sub.stdHours && sub.stdHours[grade]) {
+                    hours = parseInt(sub.stdHours[grade]) || 0;
+                }
+                if (hours === 0) continue;
+                
+                var isSp = false;
+                for(var k=0; k<state.specialBlocks.length; k++){
+                    if(state.specialBlocks[k].subjectId === sub.id && state.specialBlocks[k].targets && state.specialBlocks[k].targets.indexOf(cls) !== -1){
+                        isSp = true; break;
+                    }
+                }
+                if(isSp) continue;
+                
+                var ovr = (data.overrides && data.overrides[sub.id]) ? data.overrides[sub.id] : {};
+                
+                if (ovr.allocations && ovr.allocations.length > 0) {
+                    for(var k=0; k<ovr.allocations.length; k++){
+                        var a = ovr.allocations[k];
+                        var tId = a.teacherId;
+                        var aHrs = parseInt(a.hours) || 0;
+                        if (tId && details[tId]) { 
+                            details[tId].load += aHrs; 
+                            details[tId].items.push({ target: cls, subject: sub.name, hours: aHrs, isSp: false }); 
+                        }
+                    }
+                } else {
+                    var tId = ovr.teacherId || data.homeroom;
+                    if (tId && details[tId]) { 
+                        details[tId].load += hours; 
+                        details[tId].items.push({ target: cls, subject: sub.name, hours: hours, isSp: false }); 
+                    } 
+                }
+            }
+        }
+        
+        for(var i=0; i<state.specialBlocks.length; i++){
+            var b = state.specialBlocks[i];
+            var subName = '特殊';
+            for(var j=0; j<state.subjects.length; j++){
+                if(state.subjects[j].id === b.subjectId) subName = state.subjects[j].name;
+            }
+            
+            if (b.teachers) {
+                for(var j=0; j<b.teachers.length; j++){
+                    var bt = b.teachers[j];
+                    if (details[bt.id]) { 
+                        var hours = parseInt(bt.hours) || 0; 
+                        details[bt.id].load += hours; 
+                        var tgtStr = '';
+                        if(b.targets && b.targets.length > 2) tgtStr = b.targets.length + 'クラス合同';
+                        else if(b.targets) tgtStr = b.targets.join(',');
+                        details[bt.id].items.push({ target: tgtStr, subject: subName, hours: hours, isSp: true }); 
+                    }
+                }
+            }
+        }
+        return details; 
+    }
+
+    function getSubColor(s) { 
+        if(!s) return 'bg-slate-100 text-slate-500 border-slate-200'; 
+        if(s.indexOf('国') !== -1) return 'bg-blue-100 text-blue-800 border-blue-200';
+        if(s.indexOf('算') !== -1) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        if(s.indexOf('理') !== -1) return 'bg-green-100 text-green-800 border-green-200';
+        if(s.indexOf('社') !== -1) return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+        if(s.indexOf('生') !== -1) return 'bg-orange-100 text-orange-800 border-orange-200';
+        if(s.indexOf('体') !== -1) return 'bg-red-100 text-red-800 border-red-200';
+        if(s.indexOf('図') !== -1) return 'bg-purple-100 text-purple-800 border-purple-200';
+        if(s.indexOf('音') !== -1) return 'bg-pink-100 text-pink-800 border-pink-200';
+        if(s.indexOf('家') !== -1) return 'bg-rose-100 text-rose-800 border-rose-200';
+        if(s.indexOf('外') !== -1) return 'bg-cyan-100 text-cyan-800 border-cyan-200';
+        if(s.indexOf('総') !== -1) return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        return 'bg-slate-100 text-slate-800 border-slate-200'; 
+    }
+
+    // ==========================================
+    // 4. 描画 (View Functions) - 徹底的な安全文字列連結
+    // ==========================================
+
+    function buildGrid(ngMap, globalBlocksMap, actionStr, cellType) { 
+        if(!cellType) cellType = 'teacher';
+        var html = '<div class="overflow-x-auto w-full custom-scrollbar min-h-0">';
+        html += '<table class="border-separate border-spacing-1 table-fixed w-max mx-auto">';
+        html += '<thead><tr><th class="w-8"></th>';
+        
+        for(var i=0; i<DAYS.length; i++){
+            html += '<th class="text-center text-xs font-black text-slate-400 w-9">' + DAYS[i] + '</th>'; 
+        }
+        html += '</tr></thead><tbody>';
+        
+        for(var p=1; p<=6; p++){
+            html += '<tr><td class="text-right pr-2 text-[10px] font-bold text-slate-400">' + p + '限</td>';
+            for(var i=0; i<DAYS.length; i++){
+                var d = DAYS[i];
+                var k = d + '-' + p; 
+                var gl = globalBlocksMap && globalBlocksMap[k]; 
+                var ng = ngMap && ngMap[k]; 
+                var cls = 'w-8 h-8 border rounded-lg flex items-center justify-center cursor-pointer font-bold text-xs transition-colors ';
+                var icon = '〇';
+                var click = ''; 
+                
+                if (cellType === 'global') { 
+                    if (gl) { 
+                        cls += 'bg-slate-800 border-slate-800 text-white shadow-md'; icon = '■'; 
+                    } else { 
+                        cls += 'bg-white border-slate-200 text-slate-200 hover:bg-blue-50'; 
+                    } 
+                    click = 'onclick="' + actionStr.replace('__KEY__', k) + '"'; 
+                } else { 
+                    if (gl) { 
+                        cls += 'bg-slate-100 border-slate-200 cursor-not-allowed text-slate-300'; icon = '■'; 
+                    } else if (ng) { 
+                        cls += 'bg-rose-50 border-rose-300 text-rose-500 hover:bg-rose-100 shadow-inner'; icon = '✕'; 
+                        click = 'onclick="' + actionStr.replace('__KEY__', k) + '"'; 
+                    } else { 
+                        cls += 'bg-white border-slate-200 text-slate-200 hover:bg-blue-50'; 
+                        click = 'onclick="' + actionStr.replace('__KEY__', k) + '"'; 
+                    } 
+                } 
+                html += '<td class="p-0"><div ' + click + ' class="' + cls + '">' + icon + '</div></td>'; 
+            }
+            html += '</tr>'; 
+        }
+        html += '</tbody></table></div>'; 
+        return html;
+    }
+
+    function renderAllocationModal() {
+        if (!state.allocationModal) return '';
+        var m = state.allocationModal;
+        var subName = '';
+        for(var i=0; i<state.subjects.length; i++){
+            if(state.subjects[i].id === m.subId) subName = state.subjects[i].name;
+        }
+        
+        var tOpts = '<option value="">-- 教員を選択 --</option>';
+        for(var i=0; i<state.teachers.length; i++){
+            tOpts += '<option value="' + state.teachers[i].id + '">' + state.teachers[i].name + '</option>';
+        }
+
+        var rowsHtml = '';
+        var total = 0;
+        
+        for(var idx=0; idx<m.rows.length; idx++){
+            var r = m.rows[idx];
+            total += parseInt(r.hours) || 0;
+            var sel = tOpts.replace('value="' + r.teacherId + '"', 'value="' + r.teacherId + '" selected');
+            
+            rowsHtml += '<div class="flex items-center gap-2 mb-3 bg-slate-50 p-2 rounded-xl border border-slate-200 shadow-sm">';
+            rowsHtml += '<span class="text-xs font-black text-slate-400 w-4">' + (idx + 1) + '.</span>';
+            rowsHtml += '<select onchange="actions.updateAllocRow(' + idx + ', \'teacherId\', this.value)" class="m3-input w-full flex-1 !py-1.5 shadow-none">' + sel + '</select>';
+            rowsHtml += '<div class="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 shadow-sm">';
+            rowsHtml += '<button onclick="actions.updateAllocRow(' + idx + ', \'hours\', Math.max(1, ' + r.hours + '-1))" class="w-6 h-6 text-slate-500 font-black hover:bg-slate-100 rounded transition-colors">-</button>';
+            rowsHtml += '<input type="number" min="1" value="' + r.hours + '" onchange="actions.updateAllocRow(' + idx + ', \'hours\', this.value)" class="w-8 text-center font-black text-blue-600 outline-none bg-transparent !py-1" />';
+            rowsHtml += '<button onclick="actions.updateAllocRow(' + idx + ', \'hours\', ' + r.hours + '+1)" class="w-6 h-6 text-slate-500 font-black hover:bg-slate-100 rounded transition-colors">+</button>';
+            rowsHtml += '</div>';
+            rowsHtml += '<button onclick="actions.removeAllocRow(' + idx + ')" class="text-red-400 hover:text-red-600 font-bold px-2 py-1 bg-white border border-red-100 rounded-lg shadow-sm">✕</button>';
+            rowsHtml += '</div>';
+        }
+
+        var isMatch = (total === m.stdHours);
+        var matchClass = isMatch ? 'bg-green-50 text-green-600 border-green-200' : 'bg-red-50 text-red-600 border-red-200';
+        var matchMsg = !isMatch ? '<br><span class="text-[10px] font-black opacity-80 mt-1 inline-block">※ 合計を ' + m.stdHours + ' コマに一致させてください</span>' : '';
+        var btnDisabled = !isMatch ? 'disabled' : '';
+
+        var html = '<div class="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">';
+        html += '<div class="bg-white rounded-[32px] p-6 md:p-8 max-w-md w-full shadow-2xl flex flex-col">';
+        html += '<div class="flex justify-between items-center mb-1"><h3 class="text-xl font-black text-blue-900">' + m.cls + ' ' + subName + '</h3><span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg text-xs font-black border border-blue-200 shadow-sm">全 ' + m.stdHours + ' コマ</span></div>';
+        html += '<p class="text-xs text-slate-500 mb-6 font-bold">この授業を複数の教員で分け合う設定を行います。</p>';
+        html += '<div class="flex-1 overflow-y-auto mb-4 max-h-[40vh] pr-2 custom-scrollbar" id="scroll-modal-alloc">' + rowsHtml + '<button onclick="actions.addAllocRow()" class="mt-2 w-full text-xs font-black text-blue-600 bg-blue-50 py-3 rounded-xl hover:bg-blue-100 transition-colors border border-blue-100 shadow-sm">+ 教員を追加する</button></div>';
+        html += '<div class="p-3 rounded-xl mb-6 text-center font-bold text-sm transition-colors shadow-inner border ' + matchClass + '">現在の合計: <span class="text-lg font-black">' + total + '</span> / ' + m.stdHours + ' コマ' + matchMsg + '</div>';
+        html += '<div class="flex gap-3"><button onclick="actions.closeAllocModal()" class="flex-1 p-3 font-bold text-slate-500 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors">キャンセル</button><button onclick="actions.saveAllocModal()" class="flex-1 p-3 font-black text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none" ' + btnDisabled + '>設定を保存</button></div>';
+        html += '</div></div>';
+        return html;
+    }
+
+    function render() {
+        save();
+        
+        var scrollMap = {};
+        var scrolls = document.querySelectorAll('.custom-scrollbar');
+        for(var i=0; i<scrolls.length; i++){
+            var el = scrolls[i];
+            if(el.id) {
+                scrollMap[el.id] = { t: el.scrollTop, l: el.scrollLeft };
+            }
+        }
+
+        var titleEl = document.getElementById('step-title');
+        if(titleEl) titleEl.innerText = stepTitles[currentStep-1];
+        
+        var nextBtn = document.getElementById('btn-next');
+        var nextText = document.getElementById('btn-next-text');
+        
+        if (nextBtn && nextText) {
+            if (currentStep === 9) {
+                nextText.innerText = 'AI自動生成 (実行)'; 
+                nextBtn.className = 'm3-btn-primary w-[180px] bg-indigo-600 hover:bg-indigo-700 text-white';
+            } else if (currentStep === MAX_STEPS) {
+                nextText.innerText = 'スプレッドシート出力'; 
+                nextBtn.className = 'm3-btn-primary w-[180px] bg-emerald-600 hover:bg-emerald-700 text-white';
+            } else {
+                nextText.innerText = '次へ進む'; 
+                nextBtn.className = 'm3-btn-primary w-[180px] bg-blue-600 hover:bg-blue-700 text-white';
+            }
+        }
+        
+        var prevBtn = document.getElementById('btn-prev');
+        if(prevBtn) prevBtn.style.visibility = currentStep === 1 ? 'hidden' : 'visible';
+        
+        var dotsHtml = '';
+        for(var i=0; i<MAX_STEPS-1; i++) {
+            var activeClass = (i < currentStep) ? 'active' : '';
+            dotsHtml += '<div class="step-dot ' + activeClass + '"></div>';
+        }
+        var dotsEl = document.getElementById('progress-dots');
+        if(dotsEl) dotsEl.innerHTML = currentStep === MAX_STEPS ? '' : dotsHtml;
+        
+        var content = document.getElementById('step-content');
+        var html = '';
+        if(currentStep === 1) html = viewStep1();
+        else if(currentStep === 2) html = viewStep2();
+        else if(currentStep === 3) html = viewStep3();
+        else if(currentStep === 4) html = viewStep4();
+        else if(currentStep === 5) html = viewStep5();
+        else if(currentStep === 6) html = viewStep6();
+        else if(currentStep === 7) html = viewStep7();
+        else if(currentStep === 8) html = viewStep8();
+        else if(currentStep === 9) html = viewStep9();
+        else if(currentStep === 10) html = viewStep10();
+        
+        if(content) content.innerHTML = html;
+        
+        var modalContainer = document.getElementById('allocation-modal-container');
+        if(modalContainer) modalContainer.innerHTML = renderAllocationModal();
+        
+        setTimeout(function() { 
+            var keys = Object.keys(scrollMap);
+            for(var i=0; i<keys.length; i++){
+                var id = keys[i];
+                var el = document.getElementById(id); 
+                if(el) { 
+                    el.scrollTop = scrollMap[id].t; 
+                    el.scrollLeft = scrollMap[id].l; 
+                } 
+            }
+        }, 0);
+    }
+
+    function viewStep1() {
+        var html = '<div class="flex flex-col gap-6 h-full overflow-y-auto custom-scrollbar pr-2" id="scroll-step1">';
+        html += '<div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 shadow-inner">';
+        html += '<h3 class="font-black text-sm mb-3">学級数の設定</h3><div class="grid grid-cols-3 md:grid-cols-6 gap-3">';
+        
+        for(var i=0; i<GRADES.length; i++){
+            var g = GRADES[i];
+            var val = state.grades[g] || 1;
+            html += '<div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center">';
+            html += '<span class="text-slate-500 font-bold text-xs mb-2">' + g + '年</span>';
+            html += '<div class="flex items-center gap-2">';
+            html += '<button onclick="actions.updateGrade(' + g + ', -1)" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 font-black text-slate-500 transition-colors">-</button>';
+            html += '<input type="number" value="' + val + '" onchange="actions.setGrade(' + g + ', this.value)" class="w-10 text-xl font-black text-blue-600 text-center outline-none bg-transparent" min="1" max="10">';
+            html += '<button onclick="actions.updateGrade(' + g + ', 1)" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 font-black text-slate-500 transition-colors">+</button>';
+            html += '</div></div>';
+        }
+        
+        html += '</div></div>';
+        html += '<div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 shadow-inner">';
+        html += '<h3 class="font-black text-sm mb-3">時数設定</h3><div class="overflow-x-auto">';
+        html += '<table class="w-full text-xs text-center border-collapse min-w-[500px]">';
+        html += '<thead><tr><th class="p-2 border-b text-slate-500">学年</th>';
+        
+        for(var i=0; i<DAYS.length; i++){
+            html += '<th class="p-2 border-b font-black text-slate-700">' + DAYS[i] + '曜</th>'; 
+        }
+        
+        html += '</tr></thead><tbody>';
+        
+        for(var j=0; j<GRADES.length; j++){
+            var g = GRADES[j];
+            html += '<tr><td class="p-2 font-bold border-b text-slate-600">' + g + '年</td>';
+            for(var i=0; i<DAYS.length; i++){
+                var d = DAYS[i];
+                var val = 0;
+                if (state.periods && state.periods[g] && state.periods[g][d]) val = state.periods[g][d];
+                html += '<td class="p-2 border-b"><div class="flex items-center justify-center gap-1">';
+                html += '<button onclick="actions.updatePeriod(' + g + ', \'' + d + '\', -1)" class="w-6 h-6 bg-white shadow-sm border border-slate-200 hover:bg-slate-50 rounded-lg font-black text-slate-500 transition-colors">-</button>';
+                html += '<input type="number" value="' + val + '" onchange="actions.setPeriod(' + g + ', \'' + d + '\', this.value)" class="w-8 text-center font-black text-blue-600 outline-none bg-transparent">';
+                html += '<button onclick="actions.updatePeriod(' + g + ', \'' + d + '\', 1)" class="w-6 h-6 bg-white shadow-sm border border-slate-200 hover:bg-slate-50 rounded-lg font-black text-slate-500 transition-colors">+</button>';
+                html += '</div></td>';
+            }
+            html += '</tr>';
+        }
+        
+        html += '</tbody></table></div><div class="mt-5 flex flex-wrap gap-3 justify-center">';
+        
+        for(var j=0; j<GRADES.length; j++){
+            var g = GRADES[j];
+            var sum = 0;
+            for(var i=0; i<DAYS.length; i++){
+                var d = DAYS[i];
+                if (state.periods && state.periods[g] && state.periods[g][d]) sum += parseInt(state.periods[g][d]) || 0; 
+            }
+            html += '<div class="bg-white border border-slate-200 rounded-xl px-4 py-2 shadow-sm flex items-center gap-2">';
+            html += '<span class="text-xs font-bold text-slate-500">' + g + '年 合計</span>';
+            html += '<span class="text-lg font-black text-blue-600">' + sum + '</span><span class="text-[10px] font-bold text-slate-400">コマ</span>';
+            html += '</div>';
+        }
+        html += '</div></div></div>';
+        return html;
+    }
+
+    function viewStep2() {
+        var html = '<div class="flex flex-col items-center justify-center h-full text-center space-y-4" id="scroll-step2">';
+        html += '<h2 class="text-xl font-black">行事・全校不可枠設定</h2>';
+        html += '<p class="text-xs text-slate-500 max-w-md">学校全体で授業を入れない時間帯を設定します。</p>';
+        html += '<div class="bg-slate-50 border border-slate-200 rounded-3xl p-4 shadow-inner">';
+        html += buildGrid(null, state.globalBlocks, "actions.toggleBlock('__KEY__')", 'global');
+        html += '</div></div>';
+        return html;
+    }
+
+    function viewStep3() {
+        var rmOpts = '<option value="通常教室">通常教室</option>';
+        for(var i=0; i<state.rooms.length; i++){
+            var r = state.rooms[i];
+            rmOpts += '<option value="' + r.name + '">' + r.name + '</option>'; 
+        }
+        
+        var html = '<div class="flex flex-col md:flex-row gap-4 h-full">';
+        html += '<div class="w-full md:w-1/4 flex flex-col bg-slate-50 rounded-2xl border border-slate-200 p-3 h-1/3 md:h-full">';
+        html += '<div class="flex justify-between items-center mb-3">';
+        html += '<h3 class="font-black text-xs">特別教室</h3>';
+        html += '<div class="flex gap-1.5"><button onclick="actions.openBulk(\'rooms\')" class="text-[10px] bg-white border border-slate-200 px-2 py-1 rounded-md font-bold hover:bg-slate-100 transition-colors">一括</button>';
+        html += '<button onclick="actions.addRoom()" class="text-[10px] bg-blue-50 text-blue-600 border px-2 py-1 rounded-md font-bold hover:bg-blue-100 transition-colors">+ 追加</button></div></div>';
+        html += '<div class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1" id="scroll-step3-left">';
+        
+        for(var i=0; i<state.rooms.length; i++){
+            var r = state.rooms[i];
+            html += '<div class="flex items-center gap-1 bg-white p-1.5 rounded-lg border shadow-sm">';
+            html += '<input type="text" value="' + r.name + '" onchange="actions.updateRoomName(\'' + r.id + '\', this.value)" class="flex-1 min-w-0 text-xs font-bold outline-none">';
+            html += '<div class="flex items-center gap-0.5 ml-1"><span class="text-[8px] text-slate-400 font-bold">枠:</span>';
+            html += '<button onclick="actions.updateRoomCapacity(\'' + r.id + '\', Math.max(1, ' + (r.capacity||1) + '-1))" class="w-4 h-4 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black flex items-center justify-center">-</button>';
+            html += '<input type="number" value="' + (r.capacity||1) + '" onchange="actions.updateRoomCapacity(\'' + r.id + '\', parseInt(this.value)||1)" min="1" class="w-6 text-xs font-black text-center bg-transparent outline-none">';
+            html += '<button onclick="actions.updateRoomCapacity(\'' + r.id + '\', ' + (r.capacity||1) + '+1)" class="w-4 h-4 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black flex items-center justify-center">+</button></div>';
+            html += '<button onclick="actions.removeRoom(\'' + r.id + '\')" class="text-slate-300 hover:text-rose-500 font-bold px-1 ml-1">✕</button></div>';
+        }
+        
+        html += '</div></div>';
+        html += '<div class="flex-1 flex flex-col bg-slate-50 rounded-2xl border border-slate-200 p-3 h-2/3 md:h-full overflow-hidden">';
+        html += '<div class="flex justify-between items-center mb-3"><h3 class="font-black text-xs">科目時数</h3><div class="flex items-center gap-2">';
+        
+        var undoDisabled = (!state.subjectsUndoStack || state.subjectsUndoStack.length===0);
+        html += '<button onclick="actions.undoSubjects()" class="text-[10px] px-3 py-1.5 rounded-md font-bold shadow-sm transition-colors flex items-center gap-1 ' + (undoDisabled?'bg-slate-100 text-slate-400 cursor-not-allowed':'bg-white border text-slate-600 hover:bg-slate-50') + '" ' + (undoDisabled?'disabled':'') + '>元に戻す</button>';
+        html += '<button onclick="actions.addSubject(\'新規教科\')" class="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded-md font-bold shadow-sm hover:bg-blue-700 transition-colors">+ 新規教科</button></div></div>';
+        html += '<div class="flex-1 overflow-auto custom-scrollbar pr-1 relative border border-slate-200 rounded-xl bg-white" id="scroll-step3-right">';
+        html += '<table class="w-full text-xs text-center border-collapse min-w-[700px]"><thead class="sticky top-0 bg-slate-100 z-10 shadow-sm">';
+        html += '<tr><th class="p-2 border-r text-left pl-3 w-28">科目名</th><th class="p-2 border-r w-24">教室</th>';
+        
+        for(var i=0; i<GRADES.length; i++){
+            html += '<th class="p-2 border-r">' + GRADES[i] + '年</th>'; 
+        }
+        
+        html += '<th class="w-12"></th></tr></thead><tbody>';
+        
+        for(var i=0; i<state.subjects.length; i++){
+            var s = state.subjects[i];
+            var safeRoom = s.defaultRoom || '通常教室';
+            var localRmOpts = rmOpts.replace('value="' + safeRoom + '"', 'value="' + safeRoom + '" selected');
+            
+            html += '<tr class="border-b border-slate-100 hover:bg-slate-50">';
+            html += '<td class="p-1 border-r"><input type="text" value="' + s.name + '" onchange="actions.updateSubject(\'' + s.id + '\', \'name\', this.value)" class="m3-input !p-1.5 w-full font-bold bg-transparent border-transparent focus:bg-white shadow-none"></td>';
+            html += '<td class="p-1 border-r"><select onchange="actions.updateSubject(\'' + s.id + '\', \'defaultRoom\', this.value)" class="m3-input !p-1.5 text-[10px] w-full bg-transparent border-transparent cursor-pointer shadow-none">' + localRmOpts + '</select></td>';
+            
+            for(var j=0; j<GRADES.length; j++){
+                var g = GRADES[j];
+                var val = 0;
+                if (s.stdHours && s.stdHours[g]) val = s.stdHours[g];
+                html += '<td class="p-1 border-r"><div class="flex items-center justify-center gap-1">';
+                html += '<button onclick="actions.updateSubjectHour(\'' + s.id + '\', ' + g + ', -1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black transition-colors">-</button>';
+                html += '<input type="number" value="' + val + '" onchange="actions.setSubjectHour(\'' + s.id + '\', ' + g + ', this.value)" class="w-6 text-center font-black text-blue-600 bg-transparent outline-none">';
+                html += '<button onclick="actions.updateSubjectHour(\'' + s.id + '\', ' + g + ', 1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black transition-colors">+</button>';
+                html += '</div></td>';
+            }
+            html += '<td><div class="flex items-center justify-center gap-1"><button onclick="actions.cloneSubject(\'' + s.id + '\')" title="複製" class="text-blue-400 hover:bg-blue-50 p-1 rounded font-bold transition-colors">📋</button><button onclick="actions.removeSubject(\'' + s.id + '\')" class="text-slate-300 hover:text-rose-500 hover:bg-rose-50 p-1 rounded font-bold transition-colors">✕</button></div></td></tr>';
+        }
+        
+        html += '</tbody><tfoot class="sticky bottom-0 bg-blue-50 border-t-2 border-blue-200 z-10"><tr><td colspan="2" class="p-2 border-r border-blue-100 font-black text-blue-800 text-right pr-4">合計時数</td>';
+        
+        for(var j=0; j<GRADES.length; j++){
+            var g = GRADES[j];
+            var total = 0;
+            for(var i=0; i<state.subjects.length; i++){
+                var s = state.subjects[i];
+                if (s && s.stdHours && s.stdHours[g]) total += parseInt(s.stdHours[g]) || 0; 
+            }
+            html += '<td class="p-2 border-r border-blue-100 font-black text-blue-700 text-sm">' + total + '</td>'; 
+        }
+        
+        html += '<td></td></tr></tfoot></table></div></div></div>';
+        return html;
+    }
+
+    function viewStep4() {
+        if(!state.selectedTeacherId && state.teachers && state.teachers.length > 0) {
+            state.selectedTeacherId = state.teachers[0].id;
+        }
+        
+        var teacher = null;
+        for(var i=0; i<state.teachers.length; i++){
+            if(String(state.teachers[i].id) === String(state.selectedTeacherId)) teacher = state.teachers[i];
+        }
+        
+        var hrOpts = '<option value="">専科等</option>';
+        for(var i=0; i<GRADES.length; i++){
+            var g = GRADES[i];
+            var n = parseInt(state.grades[g]) || 1;
+            for(var j=1; j<=n; j++){
+                hrOpts += '<option value="' + g + '-' + j + '">' + g + '年' + j + '組</option>';
+            }
+        }
+
+        var html = '<div class="flex flex-col md:flex-row gap-4 h-full">';
+        html += '<div class="w-full md:w-1/2 flex flex-col bg-slate-50 border p-3 h-1/2 md:h-full rounded-2xl">';
+        html += '<div class="flex justify-between items-center mb-2"><h3 class="font-black text-xs">教員名簿</h3>';
+        html += '<div class="flex gap-1.5"><button onclick="actions.openBulk(\'teachers\')" class="text-[10px] bg-white border px-2 py-1 rounded font-bold">一括貼付</button>';
+        html += '<button onclick="actions.addTeacher()" class="text-[10px] bg-blue-600 text-white px-2 py-1 rounded font-bold">+ 追加</button></div></div>';
+        html += '<div class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1" id="scroll-step4-left">';
+                
+        for(var i=0; i<state.teachers.length; i++){
+            var tc = state.teachers[i];
+            var isSel = String(tc.id) === String(state.selectedTeacherId);
+            var isEdit = String(tc.id) === String(state.editingTeacherNameId);
+            var hrSelected = tc.homeroom ? hrOpts.replace('value="' + tc.homeroom + '"', 'value="' + tc.homeroom + '" selected') : hrOpts;
+            var maxH = tc.maxHours || 24;
+            
+            html += '<div onclick="actions.handleTeacherClick(\'' + tc.id + '\')" class="flex items-center gap-1.5 p-1.5 md:p-2 rounded-xl border shadow-sm cursor-pointer transition-all ' + (isSel?'bg-blue-50 border-blue-400':'bg-white border-slate-200') + '">';
+            
+            if (isEdit) {
+                html += '<input id="t-name-input-' + tc.id + '" type="text" value="' + tc.name + '" onblur="actions.saveTeacherName(\'' + tc.id + '\', this.value)" onclick="event.stopPropagation()" class="flex-1 text-xs font-bold outline-none bg-white px-1 border border-blue-400 rounded py-0.5">';
+            } else {
+                html += '<span class="flex-1 text-xs font-bold px-1 truncate select-none">' + tc.name + '</span>';
+            }
+            
+            html += '<select onchange="actions.updateTeacherHomeroom(\'' + tc.id + '\', this.value)" class="text-[9px] font-bold py-1 px-0.5 bg-white border rounded outline-none max-w-[70px]" onclick="event.stopPropagation()">' + hrSelected + '</select>';
+            html += '<div class="flex items-center gap-0.5 ml-1" onclick="event.stopPropagation()">';
+            html += '<button onclick="actions.updateTeacher(\'' + tc.id + '\',\'maxHours\',Math.max(0, ' + maxH + '-1))" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black flex items-center justify-center transition-colors">-</button>';
+            html += '<input type="number" value="' + maxH + '" onchange="actions.updateTeacher(\'' + tc.id + '\',\'maxHours\',parseInt(this.value)||0)" class="w-6 text-center text-xs font-black text-blue-600 bg-transparent outline-none">';
+            html += '<button onclick="actions.updateTeacher(\'' + tc.id + '\',\'maxHours\',' + maxH + '+1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500 font-black flex items-center justify-center transition-colors">+</button></div>';
+            html += '<button onclick="event.stopPropagation(); actions.removeTeacher(\'' + tc.id + '\')" class="text-slate-300 hover:text-rose-500 px-1 ml-1">✕</button></div>';
+        }
+        
+        var gridHtml = '';
+        if (teacher) {
+            gridHtml = buildGrid(teacher.ngTimes, state.globalBlocks, "actions.toggleTeacherNG('" + teacher.id + "', '__KEY__')", 'teacher');
+        }
+
+        html += '</div></div><div class="flex-1 flex flex-col bg-slate-50 border p-4 h-1/2 md:h-full items-center rounded-2xl">';
+        html += '<h3 class="font-black text-sm mb-1">個人の不可時間</h3>';
+        if(teacher) {
+            html += '<p class="text-[10px] text-slate-500 mb-4 text-center font-bold text-blue-600">' + teacher.name + '先生の不可枠(✕)</p>' + gridHtml;
+        } else {
+            html += '<div class="flex-1 flex items-center justify-center text-slate-400 text-sm">教員を選択</div>';
+        }
+        html += '</div></div>';
+        return html;
+    }
+
+    function viewStep5() {
+        var sOpts = ''; 
+        for(var i=0; i<state.subjects.length; i++){
+            var s = state.subjects[i];
+            sOpts += '<option value="' + s.id + '">' + s.name + '</option>'; 
+        }
+        
+        var rOpts = '<option value="通常教室">通常教室</option>'; 
+        for(var i=0; i<state.rooms.length; i++){
+            var r = state.rooms[i];
+            rOpts += '<option value="' + r.name + '">' + r.name + '</option>'; 
+        }
+        
+        var html = '<div class="flex flex-col h-full gap-4">';
+        html += '<div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 shrink-0 shadow-sm">';
+        html += '<h3 class="font-black text-indigo-800 text-xs mb-2">特殊授業ブロック (合同・分割)</h3>';
+        html += '<div class="flex flex-wrap gap-2 items-center">';
+        html += '<select id="sp-type" class="m3-input !w-auto !py-1"><option value="joint">🤝 合同</option><option value="split">✂️ 少人数</option></select>';
+        html += '<select id="sp-sub" class="m3-input !w-auto !py-1" onchange="document.getElementById(\'sp-room\').value = actions.getSubjectRoom(this.value)">';
+        html += '<option value="">- 教科 -</option>' + sOpts + '</select>';
+        html += '<div class="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 shadow-sm">';
+        html += '<button onclick="document.getElementById(\'sp-hrs\').value = Math.max(1, parseInt(document.getElementById(\'sp-hrs\').value)-1)" class="w-6 h-6 text-slate-500 font-black hover:bg-slate-100 rounded transition-colors">-</button>';
+        html += '<input type="number" id="sp-hrs" value="1" class="w-6 text-center font-black outline-none text-blue-600 bg-transparent text-xs" min="1">';
+        html += '<button onclick="document.getElementById(\'sp-hrs\').value = parseInt(document.getElementById(\'sp-hrs\').value)+1" class="w-6 h-6 text-slate-500 font-black hover:bg-slate-100 rounded transition-colors">+</button></div>';
+        html += '<select id="sp-room" class="m3-input !w-auto !py-1">' + rOpts + '</select>';
+        html += '<button onclick="actions.addSpecialBlock()" class="bg-indigo-600 text-white font-bold text-xs px-4 py-1.5 rounded-lg shadow-sm ml-auto hover:bg-indigo-700 transition-colors">+ 作成</button>';
+        html += '</div></div><div class="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1" id="scroll-step5">';
+            
+        if (!state.specialBlocks || state.specialBlocks.length === 0) {
+            html += '<div class="text-center text-slate-400 text-xs mt-10 font-bold">設定なし</div>';
+        } else {
+            for(var i=0; i<state.specialBlocks.length; i++){
+                var b = state.specialBlocks[i];
+                var subName = '？';
+                for(var j=0; j<state.subjects.length; j++){ if(state.subjects[j].id===b.subjectId) subName = state.subjects[j].name; }
+                
+                var rOptsSelected = rOpts;
+                if (b.room && b.room !== '通常教室') rOptsSelected = rOpts.replace('value="' + b.room + '"', 'value="' + b.room + '" selected');
+                
+                html += '<div class="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col gap-2 relative transition-all animate-in fade-in">';
+                html += '<button onclick="actions.removeSpecialBlock(' + i + ')" class="absolute top-2 right-2 text-slate-300 hover:text-rose-500 font-bold px-1.5 py-0.5 hover:bg-rose-50 rounded transition-colors">✕</button>';
+                html += '<div class="flex flex-wrap items-center gap-3 pr-6">';
+                html += '<span class="px-2 py-1 bg-indigo-100 text-indigo-800 font-black text-[10px] rounded uppercase">' + (b.type==='joint'?'合同':'分割') + '</span>';
+                html += '<span class="font-black text-sm">' + subName + '</span>';
+                html += '<div class="flex items-center gap-1 border border-slate-200 bg-slate-50 px-1 py-0.5 rounded">';
+                html += '<span class="text-[10px] font-bold text-slate-500 ml-1">週</span>';
+                html += '<button onclick="actions.updateSpecialBlock(\'' + b.id + '\', \'hours\', Math.max(1, ' + b.hours + '-1))" class="w-5 h-5 bg-white shadow-sm rounded text-slate-500 font-black text-xs flex items-center justify-center hover:bg-slate-100 transition-colors">-</button>';
+                html += '<input type="number" value="' + b.hours + '" onchange="actions.updateSpecialBlock(\'' + b.id + '\', \'hours\', this.value)" class="w-6 text-center font-black text-blue-600 text-xs outline-none bg-transparent">';
+                html += '<button onclick="actions.updateSpecialBlock(\'' + b.id + '\', \'hours\', ' + b.hours + '+1)" class="w-5 h-5 bg-white shadow-sm rounded text-slate-500 font-black text-xs flex items-center justify-center hover:bg-slate-100 transition-colors">+</button>';
+                html += '<span class="text-[10px] font-bold text-slate-500 mr-1">コマ</span></div>';
+                html += '<div class="flex items-center gap-1"><span class="text-xs font-bold text-slate-500">📍</span>';
+                html += '<select onchange="actions.updateSpecialBlock(\'' + b.id + '\', \'room\', this.value)" class="text-xs font-bold text-slate-600 border border-slate-200 rounded p-1 outline-none bg-slate-50 hover:bg-white cursor-pointer shadow-sm transition-colors">' + rOptsSelected + '</select></div></div>';
+                
+                html += '<div class="flex flex-wrap gap-4 bg-slate-50 p-2 rounded-lg border border-slate-100 mt-1">';
+                html += '<div class="flex-1 min-w-[200px]"><div class="text-[9px] font-black text-slate-400 mb-1">対象クラス</div><div class="flex flex-wrap gap-1">';
+                            
+                var clsKeys = Object.keys(state.classAssignments || {});
+                for(var j=0; j<clsKeys.length; j++){
+                    var cls = clsKeys[j];
+                    var isTgt = false;
+                    if (b.targets && b.targets.indexOf(cls) !== -1) isTgt = true;
+                    
+                    html += '<label class="flex items-center gap-1 bg-white border ' + (isTgt?'border-indigo-400 bg-indigo-50':'border-slate-200') + ' px-1.5 py-0.5 rounded cursor-pointer transition-colors">';
+                    html += '<input type="checkbox" class="hidden" ' + (isTgt?'checked':'') + ' onchange="actions.toggleSpecialTarget(\'' + b.id + '\', \'' + cls + '\')">';
+                    html += '<span class="text-[10px] font-bold ' + (isTgt?'text-indigo-700':'text-slate-500') + '">' + cls + '</span></label>';
+                }
+                
+                html += '</div></div><div class="flex-1 min-w-[200px]"><div class="text-[9px] font-black text-slate-400 mb-1">担当教員</div><div class="flex flex-wrap gap-1">';
+                            
+                for(var j=0; j<state.teachers.length; j++){
+                    var t = state.teachers[j];
+                    var bt = null;
+                    if (b.teachers) {
+                        for(var k=0; k<b.teachers.length; k++){ if(b.teachers[k].id===t.id) bt = b.teachers[k]; }
+                    }
+                    html += '<label class="flex items-center gap-1 bg-white border ' + (bt?'border-indigo-400 bg-indigo-50':'border-slate-200') + ' px-1.5 py-0.5 rounded cursor-pointer transition-colors">';
+                    html += '<input type="checkbox" class="hidden" ' + (bt?'checked':'') + ' onchange="actions.toggleSpecialTeacher(\'' + b.id + '\', \'' + t.id + '\')">';
+                    html += '<span class="text-[10px] font-bold ' + (bt?'text-indigo-700':'text-slate-500') + '">' + t.name + '</span></label>';
+                }
+                
+                html += '</div>';
+                
+                if(b.teachers && b.teachers.length > 0) {
+                    html += '<div class="mt-2 text-[9px] font-black text-slate-400 mb-1 border-t border-slate-200 pt-1">各教員の参加コマ数</div><div class="flex flex-wrap gap-1.5">';
+                    for(var j=0; j<b.teachers.length; j++){
+                        var bt = b.teachers[j];
+                        var tName = '不明';
+                        for(var k=0; k<state.teachers.length; k++){ if(state.teachers[k].id===bt.id) tName = state.teachers[k].name; }
+                        
+                        html += '<div class="flex items-center gap-1 bg-white border border-indigo-200 px-1 py-0.5 rounded shadow-sm">';
+                        html += '<span class="text-[9px] font-bold text-indigo-700 truncate max-w-[60px]">' + tName + '</span>';
+                        html += '<div class="flex items-center gap-0.5">';
+                        html += '<button onclick="actions.updateSpecialTeacherHours(\'' + b.id + '\', \'' + bt.id + '\', Math.max(0, ' + bt.hours + '-1))" class="w-4 h-4 bg-indigo-100 hover:bg-indigo-200 rounded text-indigo-700 font-black text-[10px] flex items-center justify-center transition-colors">-</button>';
+                        html += '<input type="number" value="' + bt.hours + '" onchange="actions.updateSpecialTeacherHours(\'' + b.id + '\', \'' + bt.id + '\', this.value)" class="w-6 text-center text-[10px] font-black text-indigo-600 bg-transparent outline-none">';
+                        html += '<button onclick="actions.updateSpecialTeacherHours(\'' + b.id + '\', \'' + bt.id + '\', Math.min(' + b.hours + ', ' + bt.hours + '+1))" class="w-4 h-4 bg-indigo-100 hover:bg-indigo-200 rounded text-indigo-700 font-black text-[10px] flex items-center justify-center transition-colors">+</button>';
+                        html += '</div></div>';
+                    }
+                    html += '</div>';
+                }
+                html += '</div></div></div>';
+            }
+        }
+        html += '</div></div>';
+        return html;
+    }
+
+    function viewStep6() {
+        var classes = Object.keys(state.classAssignments || {}); 
+        if (classes.length === 0) return '<div class="p-4 text-center font-bold text-slate-400">クラスデータがありません。</div>';
+        
+        var activeCls = classes[0] || '1-1';
+        var hasFilter = false;
+        for(var i=0; i<classes.length; i++){ if(classes[i] === state.dashFilter) hasFilter = true; }
+        if (hasFilter) activeCls = state.dashFilter;
+        
+        var cData = state.classAssignments[activeCls]; 
+        if (!cData) return '<div class="p-4 text-center font-bold text-slate-400">クラスデータが見つかりません。</div>';
+        
+        var grade = activeCls.split('-')[0]; 
+        
+        var tOpts = '<option value="">-- 未設定 --</option>';
+        for(var i=0; i<state.teachers.length; i++){
+            tOpts += '<option value="' + state.teachers[i].id + '">' + state.teachers[i].name + '</option>'; 
+        }
+        
+        var tOptsSelected = tOpts;
+        if (cData.homeroom) {
+            tOptsSelected = tOpts.replace('value="' + cData.homeroom + '"', 'value="' + cData.homeroom + '" selected');
+        }
+        
+        var loads = getTeacherLoads();
+        
+        var html = '<div class="flex flex-col lg:flex-row h-full gap-3 md:gap-4 overflow-hidden">';
+        
+        // 左ペイン：クラス選択
+        html += '<div class="w-full lg:w-1/6 min-w-[120px] bg-slate-50 border border-slate-200 rounded-2xl flex flex-col overflow-hidden h-1/4 lg:h-full shadow-sm">';
+        html += '<div class="p-2 border-b border-slate-200 font-black text-xs text-slate-500 bg-slate-100 flex justify-center items-center gap-1">クラス一覧</div>';
+        html += '<div class="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar flex flex-row lg:flex-col flex-wrap lg:flex-nowrap content-start" id="scroll-step6-left">';
+                
+        for(var i=0; i<classes.length; i++){
+            var c = classes[i];
+            var tId = null;
+            if (state.classAssignments[c]) tId = state.classAssignments[c].homeroom;
+            
+            var tName = '(未定)';
+            if (tId) {
+                for(var j=0; j<state.teachers.length; j++){
+                    if(state.teachers[j].id === tId) tName = state.teachers[j].name;
+                }
+            }
+            
+            html += '<div onclick="actions.setDashFilter(\'' + c + '\')" class="p-2 rounded-xl cursor-pointer transition-all border shadow-sm flex flex-col min-w-[80px] ' + (c===activeCls?'bg-blue-600 text-white border-blue-700':'bg-white text-slate-700 border-slate-200 hover:bg-blue-50') + '">';
+            html += '<span class="font-black text-sm">' + c + '</span>';
+            html += '<span class="text-[9px] truncate ' + (c===activeCls?'text-blue-200':'text-slate-400') + '">' + tName + '</span>';
+            html += '</div>';
+        }
+        html += '</div></div>';
+        
+        // 中央ペイン：担当設定
+        html += '<div class="flex-1 bg-white border border-slate-200 rounded-2xl flex flex-col shadow-sm overflow-hidden min-h-0">';
+        html += '<div class="p-3 md:p-4 bg-blue-50 border-b border-blue-100 flex justify-between items-center shrink-0 flex-wrap gap-2">';
+        html += '<div class="flex items-center gap-3">';
+        html += '<h3 class="text-xl font-black text-blue-900 tracking-tight flex items-center">' + activeCls + ' <span class="text-xs font-bold text-blue-600 ml-2">担当設定</span></h3>';
+        html += '<button onclick="actions.copyClassSettings(\'' + activeCls + '\')" class="text-[10px] bg-white border border-blue-200 text-blue-600 px-3 py-1.5 rounded-lg font-bold hover:bg-blue-100 shadow-sm transition-colors hidden sm:block">同学年にコピー</button>';
+        html += '</div>';
+        html += '<div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-blue-200 shadow-sm">';
+        html += '<span class="text-xs font-bold text-slate-500">担任:</span>';
+        html += '<select onchange="actions.updateHomeroom(\'' + activeCls + '\', this.value)" class="m3-input !p-1 !text-sm border-none font-black text-blue-700 w-32 cursor-pointer">' + tOptsSelected + '</select>';
+        html += '</div></div>';
+        
+        html += '<div class="flex-1 overflow-y-auto p-2 md:p-4 custom-scrollbar" id="scroll-step6-mid">';
+        html += '<div class="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">';
+        html += '<div class="grid grid-cols-[1fr_50px_1.5fr_1fr] gap-2 p-2 bg-slate-100 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center"><div>教科</div><div>週時数</div><div>担当教員</div><div>教室</div></div>';
+        
+        var hasSubject = false;
+        for(var i=0; i<state.subjects.length; i++){
+            var s = state.subjects[i];
+            var hours = 0;
+            if (s.stdHours && s.stdHours[grade]) hours = parseInt(s.stdHours[grade]);
+            if (hours <= 0) continue;
+            hasSubject = true;
+            
+            var spBlock = null;
+            if (state.specialBlocks) {
+                for(var j=0; j<state.specialBlocks.length; j++){
+                    var b = state.specialBlocks[j];
+                    if(b.subjectId === s.id && b.targets && b.targets.indexOf(activeCls) !== -1) spBlock = b;
+                }
+            }
+            
+            var ovr = {};
+            if (cData.overrides && cData.overrides[s.id]) ovr = cData.overrides[s.id];
+            
+            if (spBlock) {
+                var spTNames = '未設定';
+                if (spBlock.teachers && spBlock.teachers.length > 0) {
+                    var tArr = [];
+                    for(var j=0; j<spBlock.teachers.length; j++){
+                        var bt = spBlock.teachers[j];
+                        var tn = '?';
+                        for(var k=0; k<state.teachers.length; k++){ if(state.teachers[k].id === bt.id) tn = state.teachers[k].name; }
+                        tArr.push(tn + '(' + bt.hours + ')');
+                    }
+                    spTNames = tArr.join(', ');
+                }
+                html += '<div class="grid grid-cols-[1fr_50px_1.5fr_1fr] gap-2 p-2 border-b border-slate-100 items-center bg-indigo-50/40 hover:bg-indigo-50 transition-colors">';
+                html += '<div class="font-black text-sm pl-2 text-indigo-900">' + s.name + ' <span class="px-1.5 py-0.5 rounded text-[8px] bg-indigo-100 text-indigo-700 border border-indigo-200 ml-1">特殊</span></div>';
+                html += '<div class="text-center font-black text-indigo-600 text-xs">' + hours + '</div>';
+                html += '<div class="text-[10px] font-bold text-indigo-700 bg-white p-1.5 rounded-lg border border-indigo-200 truncate shadow-sm">🔒 ' + spTNames + '</div>';
+                html += '<div class="text-[10px] font-bold text-slate-500 bg-white p-1.5 rounded-lg border border-slate-200 truncate shadow-sm">📍 ' + (spBlock.room||s.defaultRoom) + '</div></div>';
+            } else {
+                var hrName = '未設定';
+                if (cData.homeroom) {
+                    for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id === cData.homeroom) hrName = state.teachers[j].name; }
+                }
+                
+                var rmOptsStr = '<option value="">' + (s.defaultRoom || '通常教室') + '</option>';
+                for(var j=0; j<state.rooms.length; j++){ rmOptsStr += '<option value="' + state.rooms[j].name + '">' + state.rooms[j].name + '</option>'; }
+                if (ovr.room) rmOptsStr = rmOptsStr.replace('value="' + ovr.room + '"', 'value="' + ovr.room + '" selected');
+                
+                var tOptsSub = '<option value="">担任 (' + hrName + ')</option>';
+                for(var j=0; j<state.teachers.length; j++){ tOptsSub += '<option value="' + state.teachers[j].id + '">' + state.teachers[j].name + '</option>'; }
+                if (ovr.teacherId) tOptsSub = tOptsSub.replace('value="' + ovr.teacherId + '"', 'value="' + ovr.teacherId + '" selected');
+                
+                var teacherArea = '';
+                if (ovr.allocations && ovr.allocations.length > 0) {
+                    var allocArr = [];
+                    for(var j=0; j<ovr.allocations.length; j++){
+                        var a = ovr.allocations[j];
+                        var tn = '未設定';
+                        for(var k=0; k<state.teachers.length; k++){ if(state.teachers[k].id === a.teacherId) tn = state.teachers[k].name; }
+                        allocArr.push(tn + '(' + a.hours + ')');
+                    }
+                    var allocStr = allocArr.join(', ');
+                    
+                    teacherArea = '<div class="flex items-center gap-1"><div onclick="actions.openAllocModal(\'' + activeCls + '\', \'' + s.id + '\', ' + hours + ')" class="text-[10px] bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg border border-blue-200 font-bold truncate flex-1 cursor-pointer hover:bg-blue-100 shadow-sm transition-colors" title="クリックで分配を編集">🔗 分配: ' + allocStr + '</div><button onclick="actions.clearAllocations(\'' + activeCls + '\', \'' + s.id + '\')" class="text-slate-300 hover:text-red-500 font-black px-2 py-1 text-xs transition-colors">✕</button></div>';
+                } else {
+                    teacherArea = '<div class="flex items-center gap-1"><select onchange="actions.updateSubjectOverride(\'' + activeCls + '\', \'' + s.id + '\', \'teacherId\', this.value)" class="m3-input w-full min-w-[100px] !p-1.5 shadow-sm ' + (ovr.teacherId?'bg-amber-50 border-amber-300 text-amber-900':'') + '">' + tOptsSub + '</select><button title="複数教員で分配" onclick="actions.openAllocModal(\'' + activeCls + '\', \'' + s.id + '\', ' + hours + ')" class="bg-slate-100 hover:bg-slate-200 text-slate-500 px-2 py-1.5 rounded-lg font-bold text-[10px] shadow-sm transition-colors shrink-0">分配</button></div>';
+                }
+                
+                html += '<div class="grid grid-cols-[1fr_50px_1.5fr_1fr] gap-2 p-1.5 border-b border-slate-100 items-center hover:bg-white transition-colors">';
+                html += '<div class="font-black text-sm pl-2">' + s.name + '</div><div class="text-center font-black text-blue-600 text-xs">' + hours + '</div>';
+                html += '<div>' + teacherArea + '</div>';
+                html += '<div><select onchange="actions.updateSubjectOverride(\'' + activeCls + '\', \'' + s.id + '\', \'room\', this.value)" class="m3-input !p-1.5 w-full shadow-sm ' + (ovr.room?'bg-amber-50 border-amber-300 text-amber-900':'') + '">' + rmOptsStr + '</select></div></div>';
+            }
+        }
+        if(!hasSubject) html += '<div class="p-4 text-center text-xs font-bold text-slate-400">標準時数が設定されている科目がありません</div>';
+        
+        html += '</div></div></div>';
+        
+        // 右ペイン：負荷メーター
+        html += '<div class="w-full lg:w-1/4 bg-slate-800 rounded-2xl flex flex-col overflow-hidden shrink-0 shadow-lg h-1/4 lg:h-full">';
+        html += '<div class="p-3 border-b border-slate-700 bg-slate-900 text-xs text-white font-black flex items-center justify-between"><span class="flex items-center gap-1">教員 持ち時数</span><span class="text-[9px] text-slate-400 font-normal">超過で赤色</span></div>';
+        html += '<div class="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar" id="scroll-step6-right">';
+                
+        for(var i=0; i<state.teachers.length; i++){
+            var t = state.teachers[i];
+            var load = loads[t.id] || 0; 
+            var max = t.maxHours || 24; 
+            var isOver = load > max;
+            html += '<div>';
+            html += '<div class="flex justify-between text-[10px] font-bold mb-1 text-slate-200"><span class="truncate pr-2">' + t.name + '</span><span class="' + (isOver?'text-rose-400':'text-blue-300') + '">' + load + ' / ' + max + '</span></div>';
+            html += '<div class="w-full bg-slate-700 rounded-full h-1.5 overflow-hidden"><div class="h-full rounded-full transition-all duration-300 ' + (isOver?'bg-rose-500':'bg-blue-500') + '" style="width: ' + Math.min(100, (load/max)*100) + '%"></div></div></div>'; 
+        }
+        
+        html += '</div></div></div>';
+        return html;
+    }
+
+    function viewStep7() {
+        var details = getTeacherDetails();
+        var html = '<div class="flex flex-col h-full overflow-hidden"><div class="mb-4 shrink-0 flex justify-between items-center"><h2 class="text-xl font-black">7. 教員別 担当確認</h2><span class="text-xs font-bold text-slate-500 hidden md:inline">※修正は「6. クラス別 担当割り当て」で行ってください</span></div><div class="flex-1 overflow-y-auto custom-scrollbar pr-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 content-start" id="scroll-step7">';
+            
+        for(var j=0; j<state.teachers.length; j++){
+            var t = state.teachers[j];
+            var d = details[t.id] || { load: 0, items: [] }; 
+            var max = t.maxHours || 24; 
+            var isOver = d.load > max; 
+            
+            html += '<div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3"><div class="flex justify-between items-center"><span class="font-black text-sm text-blue-900">' + t.name + '</span><span class="text-xs font-black ' + (isOver?'text-rose-500':'text-slate-500') + '">' + d.load + ' / ' + max + ' コマ</span></div><div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden"><div class="h-full rounded-full transition-all duration-300 ' + (isOver?'bg-rose-500':'bg-blue-500') + '" style="width: ' + Math.min(100,(d.load/max)*100) + '%"></div></div><div class="flex flex-wrap gap-1.5 mt-1">';
+                
+            if (!d.items || d.items.length === 0) {
+                html += '<span class="text-xs text-slate-400 font-bold">担当なし</span>';
+            } else {
+                for(var i=0; i<d.items.length; i++){
+                    var item = d.items[i];
+                    html += '<span class="px-2 py-1 rounded text-[10px] font-bold ' + (item.isSp?'bg-indigo-50 text-indigo-700 border border-indigo-200':'bg-slate-50 text-slate-600 border border-slate-200') + '">' + item.target + ' ' + item.subject + ' (' + item.hours + ')</span>';
+                }
+            }
+            html += '</div></div>'; 
+        }
+        html += '</div></div>';
+        return html;
+    }
+
+    // ★ ステップ8 (全9項目＋新ルール＋連続配置＋特定時間回避 追加)
+    function viewStep8() {
+        var html = '<div class="flex flex-col h-full overflow-hidden"><div class="mb-4 shrink-0"><h2 class="text-xl font-black">8. 配置ルール設定</h2></div><div class="flex-1 overflow-y-auto custom-scrollbar pr-4 space-y-6 pb-10" id="scroll-step8">';
+        
+        // --- 優先：高 ---
+        html += '<div><div class="flex items-center gap-3 mb-4"><span class="bg-rose-100 text-rose-700 font-black text-[10px] px-3 py-1 rounded-full">優先：高</span><h3 class="text-lg font-black">1. 授業の形状と一斉配置</h3></div>';
+        html += '<div class="bg-white border border-slate-200 rounded-[24px] p-5 shadow-sm">';
+        
+        // ① 最終コマ固定
+        html += '<div class="mb-6"><div class="text-sm font-bold mb-2">1日の最後の時間に固定する教科</div><div class="flex flex-wrap gap-2">';
+        for(var i=0; i<state.subjects.length; i++){
+            var s = state.subjects[i];
+            var isChk = (state.advancedRules.lastPeriodSubjects && state.advancedRules.lastPeriodSubjects.indexOf(s.name) !== -1);
+            html += '<label class="cursor-pointer text-xs px-4 py-2 rounded-full border ' + (isChk?'bg-blue-100 border-blue-400 text-blue-800 font-black shadow-sm':'bg-white text-slate-500 hover:bg-slate-50 border-slate-200') + '"><input type="checkbox" class="hidden" ' + (isChk?'checked':'') + ' onchange="actions.toggleRule(\'lastPeriodSubjects\',\'' + s.name + '\')">' + s.name + '</label>';
+        }
+        html += '</div></div>';
+
+        // ② 連続授業（ニコイチ）
+        html += '<div class="mb-6"><div class="text-sm font-bold mb-2">連続授業（ニコイチ）の登録</div>';
+        html += '<div class="flex gap-2 mb-3"><select id="rule-cont-g" class="m3-input !w-auto shadow-sm"><option value="全学年">全学年</option>';
+        for(var i=0; i<GRADES.length; i++) html += '<option value="' + GRADES[i] + '">' + GRADES[i] + '年</option>';
+        html += '</select><select id="rule-cont-s" class="m3-input !w-auto shadow-sm">';
+        for(var i=0; i<state.subjects.length; i++) html += '<option value="' + state.subjects[i].name + '">' + state.subjects[i].name + '</option>';
+        html += '</select><button onclick="actions.addContinuousClass()" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-sm transition-colors">+ 追加</button></div>';
+        html += '<div class="flex flex-wrap gap-2">';
+        if (state.advancedRules.continuousClasses && state.advancedRules.continuousClasses.length > 0) {
+            for(var i=0; i<state.advancedRules.continuousClasses.length; i++){
+                var cc = state.advancedRules.continuousClasses[i];
+                html += '<span class="bg-slate-100 border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 font-bold shadow-sm">' + cc.grade + ' ' + cc.subject + '<button onclick="actions.removeContinuousClass(' + i + ')" class="text-red-400 hover:text-red-600 ml-1 transition-colors">✕</button></span>';
+            }
+        } else {
+            html += '<span class="text-xs text-slate-400 font-bold">未登録</span>';
+        }
+        html += '</div></div>';
+
+        // ③ 連続授業のペア限定
+        var isLimitCont = state.advancedRules.limitContinuousToSpecificPeriods;
+        html += '<label class="flex items-center justify-between cursor-pointer p-4 bg-slate-50 rounded-xl border border-slate-200 mb-6 hover:bg-slate-100 transition-colors"><span class="text-sm font-bold text-slate-700">連続授業を「1-2限, 3-4限, 5-6限」のペア枠に限定する（中休み跨ぎ不可）</span><input type="checkbox" ' + (isLimitCont?'checked':'') + ' onchange="actions.setRule(\'limitContinuousToSpecificPeriods\', this.checked)" class="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"></label>';
+
+        // 【新ルール】ペア枠の担任授業化
+        html += '<div class="mb-6 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl"><div class="text-sm font-black mb-1 text-indigo-900">【新機能】ペア枠・専科空き時間確保ルール</div><p class="text-[10px] font-bold text-indigo-700 mb-3">ペア時間の片方が以下の教科になった場合、もう片方を「クラス担任の授業」にして特定教科教員を空き時間に自動確保します。</p>';
+        html += '<div class="flex gap-2 mb-3"><select id="rule-pair-s" class="m3-input !w-auto border-indigo-200 shadow-sm">';
+        for(var i=0; i<state.subjects.length; i++) html += '<option value="' + state.subjects[i].name + '">' + state.subjects[i].name + '</option>';
+        html += '</select><button onclick="actions.addPairHomeroom()" class="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors">+ 追加</button></div>';
+        html += '<div class="flex flex-wrap gap-2">';
+        if (state.advancedRules.pairHomeroomSubjects && state.advancedRules.pairHomeroomSubjects.length > 0) {
+            for(var i=0; i<state.advancedRules.pairHomeroomSubjects.length; i++){
+                var ps = state.advancedRules.pairHomeroomSubjects[i];
+                html += '<span class="bg-white border border-indigo-200 text-indigo-800 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 font-black shadow-sm">' + ps + '<button onclick="actions.removePairHomeroom(' + i + ')" class="text-red-400 hover:text-red-600 ml-1 transition-colors">✕</button></span>';
+            }
+        } else {
+            html += '<span class="text-xs text-indigo-400 font-bold">未登録</span>';
+        }
+        html += '</div></div>';
+
+        // ④ 担任のみ時間帯
+        html += '<div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200"><span class="text-sm font-bold text-slate-700">「担任のみ」時間帯の設定（この時間は専科授業不可）</span><button onclick="showToast(\'モック：時間割グリッドから直接指定するUIを後日実装予定です\')" class="text-xs bg-white border border-slate-300 px-4 py-2 rounded-lg shadow-sm font-bold hover:bg-slate-50 text-blue-600 transition-colors">設定を開く</button></div>';
+        
+        html += '</div></div>';
+
+        // --- 優先：中 ---
+        html += '<div><div class="flex items-center gap-3 mb-4"><span class="bg-amber-100 text-amber-700 font-black text-[10px] px-3 py-1 rounded-full">優先：中</span><h3 class="text-lg font-black">2. 教科の配置バランス</h3></div>';
+        html += '<div class="bg-white border border-slate-200 rounded-[24px] p-5 shadow-sm">';
+        
+        // ⑤ 1日1教科
+        var isLimitOne = state.advancedRules.limitOneSubjectPerDay;
+        html += '<label class="flex items-center justify-between cursor-pointer p-4 bg-slate-50 rounded-xl border border-slate-200 mb-6 hover:bg-slate-100 transition-colors"><span class="text-sm font-bold text-slate-700">1日に同一教科を分散させる（1日1回ルール）</span><input type="checkbox" ' + (isLimitOne?'checked':'') + ' onchange="actions.setRule(\'limitOneSubjectPerDay\', this.checked)" class="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"></label>';
+        
+        // ⑦ 間隔最大化
+        html += '<div class="mb-6"><div class="text-sm font-bold mb-2">配置間隔をなるべく空ける（最大化）教科</div><div class="flex flex-wrap gap-2">';
+        for(var i=0; i<state.subjects.length; i++){
+            var s = state.subjects[i];
+            var isChk = (state.advancedRules.maxIntervalSubjects && state.advancedRules.maxIntervalSubjects.indexOf(s.name) !== -1);
+            html += '<label class="cursor-pointer text-xs px-4 py-2 rounded-full border ' + (isChk?'bg-amber-100 border-amber-400 text-amber-800 font-black shadow-sm':'bg-white text-slate-500 hover:bg-slate-50 border-slate-200') + '"><input type="checkbox" class="hidden" ' + (isChk?'checked':'') + ' onchange="actions.toggleRule(\'maxIntervalSubjects\',\'' + s.name + '\')">' + s.name + '</label>';
+        }
+        html += '</div></div>';
+
+        // ⑥ 専科教員の勤務時間考慮
+        var isConsiderSp = state.advancedRules.considerSpecialistTimes;
+        html += '<label class="flex items-center justify-between cursor-pointer p-4 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors"><span class="text-sm font-bold text-slate-700">専科教員の勤務可能時間（Step 4）を厳密に考慮する</span><input type="checkbox" ' + (isConsiderSp?'checked':'') + ' onchange="actions.setRule(\'considerSpecialistTimes\', this.checked)" class="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"></label>';
+
+        html += '</div></div>';
+
+        // --- 優先：低 ---
+        html += '<div><div class="flex items-center gap-3 mb-4"><span class="bg-emerald-100 text-emerald-700 font-black text-[10px] px-3 py-1 rounded-full">優先：低</span><h3 class="text-lg font-black">3. 時間帯の最適化（ソフト制約）</h3></div>';
+        html += '<div class="bg-white border border-slate-200 rounded-[24px] p-5 shadow-sm">';
+        
+        // ⑧ 体育の回避 (時間帯指定の回避ルール)
+        html += '<div class="mb-6 p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl"><div class="text-sm font-black mb-1 text-emerald-900">特定の時間帯（熱中症警戒など）への配置を避ける教科</div><p class="text-[10px] font-bold text-emerald-700 mb-3">午後の体育などを指定すると、AIがその時間帯を極力避けて配置します。</p>';
+        html += '<div class="flex flex-wrap gap-2 mb-3 items-center"><select id="rule-avoid-g" class="m3-input !w-auto border-emerald-200 shadow-sm"><option value="全学年">全学年</option>';
+        for(var i=0; i<GRADES.length; i++) html += '<option value="' + GRADES[i] + '">' + GRADES[i] + '年生</option>';
+        html += '</select><select id="rule-avoid-s" class="m3-input !w-auto border-emerald-200 shadow-sm">';
+        for(var i=0; i<state.subjects.length; i++) html += '<option value="' + state.subjects[i].name + '">' + state.subjects[i].name + '</option>';
+        html += '</select><select id="rule-avoid-p" class="m3-input !w-auto border-emerald-200 shadow-sm">';
+        for(var i=1; i<=6; i++) html += '<option value="' + i + '">' + i + '限</option>';
+        html += '</select><button onclick="actions.addAvoidTime()" class="bg-emerald-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700 shadow-sm transition-colors">+ 追加</button></div>';
+        html += '<div class="flex flex-wrap gap-2">';
+        if (state.advancedRules.avoidSpecificTimes && state.advancedRules.avoidSpecificTimes.length > 0) {
+            for(var i=0; i<state.advancedRules.avoidSpecificTimes.length; i++){
+                var av = state.advancedRules.avoidSpecificTimes[i];
+                html += '<span class="bg-white border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 font-black shadow-sm">' + av.grade + ' ' + av.subject + ' (' + av.period + '限)<button onclick="actions.removeAvoidTime(' + i + ')" class="text-red-400 hover:text-red-600 ml-1 transition-colors">✕</button></span>';
+            }
+        } else {
+            html += '<span class="text-xs text-emerald-400 font-bold">未登録</span>';
+        }
+        html += '</div></div>';
+
+        // ⑨ 午前優先
+        html += '<div class="mb-6"><div class="text-sm font-bold mb-2">午前中（集中しやすい時間帯）に優先配置する教科</div><div class="flex flex-wrap gap-2">';
+        for(var i=0; i<state.subjects.length; i++){
+            var s = state.subjects[i];
+            var isChk = (state.advancedRules.amPrioritySubjects && state.advancedRules.amPrioritySubjects.indexOf(s.name) !== -1);
+            html += '<label class="cursor-pointer text-xs px-4 py-2 rounded-full border ' + (isChk?'bg-emerald-100 border-emerald-400 text-emerald-800 font-black shadow-sm':'bg-white text-slate-500 hover:bg-slate-50 border-slate-200') + '"><input type="checkbox" class="hidden" ' + (isChk?'checked':'') + ' onchange="actions.toggleRule(\'amPrioritySubjects\',\'' + s.name + '\')">' + s.name + '</label>';
+        }
+        html += '</div></div>';
+
+        // ⑩ 学年内で連続して配置する教科
+        html += '<div><div class="text-sm font-bold mb-1">学年内で連続して配置する教科</div><p class="text-[10px] font-bold text-slate-500 mb-3">準備や片付けのため、曜日を跨いでも同じ学年を続ける（例：1組の次は2組）</p><div class="flex flex-wrap gap-2">';
+        for(var i=0; i<state.subjects.length; i++){
+            var s = state.subjects[i];
+            var isChk = (state.advancedRules.consecutiveGradeSubjects && state.advancedRules.consecutiveGradeSubjects.indexOf(s.name) !== -1);
+            html += '<label class="cursor-pointer text-xs px-4 py-2 rounded-full border ' + (isChk?'bg-emerald-100 border-emerald-400 text-emerald-800 font-black shadow-sm':'bg-white text-slate-500 hover:bg-slate-50 border-slate-200') + '"><input type="checkbox" class="hidden" ' + (isChk?'checked':'') + ' onchange="actions.toggleRule(\'consecutiveGradeSubjects\',\'' + s.name + '\')">' + s.name + '</label>';
+        }
+        html += '</div></div>';
+
+        html += '</div></div>';
+
+        html += '</div></div>';
+        return html;
+    }
+
+    function viewStep9() {
+        var errors = []; 
+        var loads = getTeacherLoads();
+        
+        for(var i=0; i<state.teachers.length; i++){
+            var t = state.teachers[i];
+            var load = loads[t.id] || 0; 
+            var avail = 0; 
+            for(var jd=0; jd<DAYS.length; jd++){
+                for(var jp=1; jp<=6; jp++){
+                    var d = DAYS[jd]; var p = jp;
+                    var isNg = false;
+                    if (t.ngTimes && t.ngTimes[d+'-'+p]) isNg = true;
+                    if (state.globalBlocks && state.globalBlocks[d+'-'+p]) isNg = true;
+                    if (!isNg) avail++; 
+                }
+            }
+            if(load > avail) errors.push('[教員限界] ' + t.name + ': 担当授業(' + load + 'コマ) が 勤務可能枠(' + avail + 'コマ) を超過しています。');
+        }
+        
+        var clsKeys = Object.keys(state.classAssignments || {});
+        for(var i=0; i<clsKeys.length; i++){
+            var cls = clsKeys[i];
+            if(!state.classAssignments[cls].homeroom) errors.push('[担任未定] ' + cls + ' の担任が設定されていません'); 
+        }
+        
+        var html = '<div class="flex flex-col h-full"><div class="mb-4 shrink-0 font-black text-xl">9. 最終点検</div><div class="flex-1 bg-slate-900 rounded-[32px] p-6 flex flex-col overflow-hidden shadow-xl"><div class="flex items-center justify-between mb-4 shrink-0"><div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full animate-pulse ' + (errors.length===0?'bg-green-500':'bg-red-500') + '"></div><h4 class="text-sm font-black text-white">プレフライト・マトリックス</h4></div><span class="text-[10px] text-slate-400">' + (errors.length===0?'✅ すべてOK':'⚠️ 修正が必要') + '</span></div><div class="flex-1 overflow-auto bg-white rounded-xl p-4">';
+        
+        if (errors.length === 0) {
+            html += '<div class="text-center text-green-600 font-bold mt-10">準備完了！AI生成を実行できます。</div>';
+        } else {
+            html += '<div class="space-y-2">';
+            for(var i=0; i<errors.length; i++){ html += '<p class="text-red-500 font-bold text-xs">⚠️ ' + errors[i] + '</p>'; }
+            html += '</div>';
+        }
+        html += '</div></div></div>';
+        return html;
+    }
+
+    // ★ ステップ10: ダッシュボード（継続実行と診断レポートの表示）
+    function viewStep10() {
+        if(!state.generatedSchedule && !state.unassigned) {
+            return '<div class="flex items-center justify-center h-full flex-col gap-4"><div class="text-slate-400 font-black text-lg">自動生成を実行してください</div><button onclick="actions.startGeneration()" class="m3-btn-primary mt-4">AI生成を開始する</button></div>';
+        }
+        
+        var fOpts = '';
+        if (state.dashView === 'class') { 
+            var clsKeys = Object.keys(state.classAssignments || {});
+            for(var i=0; i<clsKeys.length; i++){
+                var c = clsKeys[i];
+                var isSel = (c === state.dashFilter) ? 'selected' : '';
+                fOpts += '<option value="' + c + '" ' + isSel + '>' + c + '</option>'; 
+            }
+        } else if (state.dashView === 'teacher') { 
+            for(var i=0; i<state.teachers.length; i++){
+                var t = state.teachers[i];
+                var isSel = (t.id === state.dashFilter) ? 'selected' : '';
+                fOpts += '<option value="' + t.id + '" ' + isSel + '>' + t.name + '</option>'; 
+            }
+        }
+
+        var html = '<div class="flex flex-col flex-1 overflow-hidden min-h-0">';
+        
+        // ★ 継続実行コントロール ＆ 診断レポート表示エリア
+        if (state.unassigned && state.unassigned.length > 0) {
+            html += '<div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-3 shrink-0 shadow-sm">';
+            html += '<div class="flex justify-between items-center flex-wrap gap-2">';
+            html += '<div class="flex items-center gap-2"><span class="text-amber-600 font-black text-lg">⚠️ ' + state.unassigned.length + 'コマ未配置</span><span class="text-xs font-bold text-amber-700">（タイムアウト回避のため一時停止）</span></div>';
+            html += '<div class="flex gap-2">';
+            html += '<button onclick="actions.startGeneration()" class="px-4 py-2 bg-white text-slate-600 border border-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors">最初からやり直す</button>';
+            html += '<button onclick="actions.continueGeneration()" class="px-4 py-2 bg-amber-500 text-white rounded-xl text-xs font-black shadow-md shadow-amber-200 hover:bg-amber-600 transition-colors animate-pulse flex items-center gap-1">続きを計算する 🚀</button>';
+            html += '</div></div>';
+            
+            if (state.diagnostics) {
+                html += '<div class="mt-3 pt-3 border-t border-amber-200">';
+                html += '<h4 class="text-xs font-black text-amber-800 mb-2">💡 AIからの診断レポート（配置できなかった理由の推測）</h4>';
+                html += '<div class="flex flex-wrap gap-2">';
+                var diagKeys = Object.keys(state.diagnostics);
+                var hasDiag = false;
+                for(var i=0; i<diagKeys.length; i++){
+                    var k = diagKeys[i];
+                    var v = state.diagnostics[k];
+                    if(v > 0) {
+                        html += '<span class="bg-white border border-amber-200 text-amber-700 px-2 py-1 rounded text-[10px] font-bold shadow-sm">' + k + ': <span class="text-amber-600 font-black">' + v + '回</span> 衝突</span>';
+                        hasDiag = true;
+                    }
+                }
+                if(!hasDiag) html += '<span class="text-xs text-amber-600 font-bold">特定のハード制約違反は見当たりませんでした。（ルールが厳しすぎて身動きが取れていない可能性があります）</span>';
+                html += '</div></div>';
+            }
+            html += '</div>';
+        } else if (state.generatedSchedule) {
+            html += '<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 mb-3 shrink-0 flex justify-between items-center shadow-sm">';
+            html += '<span class="text-emerald-700 font-black text-sm">✅ すべてのコマが配置されました！</span>';
+            html += '<button onclick="actions.startGeneration()" class="px-3 py-1.5 bg-white text-slate-500 border border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors">最初から生成し直す</button>';
+            html += '</div>';
+        }
+
+        html += '<div class="flex justify-between items-center mb-3 bg-white border p-2 rounded-2xl shadow-sm shrink-0 gap-2"><div class="flex items-center gap-2 bg-slate-50 p-1 rounded-xl"><button onclick="actions.setDashView(\'class\')" class="px-4 py-2 rounded-lg font-black text-xs ' + (state.dashView==='class'?'bg-blue-600 text-white':'text-slate-500 hover:bg-slate-100') + '">クラス別</button><button onclick="actions.setDashView(\'teacher\')" class="px-4 py-2 rounded-lg font-black text-xs ' + (state.dashView==='teacher'?'bg-blue-600 text-white':'text-slate-500 hover:bg-slate-100') + '">教員別</button></div><select onchange="actions.setDashFilter(this.value)" class="m3-input !py-2 !text-sm !w-48">' + fOpts + '</select><button onclick="actions.undo()" class="text-xs px-4 py-2 border rounded-xl font-bold ' + ((!state.undoStack || state.undoStack.length===0)?'text-slate-300':'text-slate-700 hover:bg-slate-50') + '">手動操作を戻す</button></div><div id="scroll-step10" class="flex-1 overflow-auto bg-white border rounded-2xl shadow-sm custom-scrollbar p-1 min-h-0"><div class="grid grid-cols-[40px_repeat(5,1fr)] min-w-[700px] h-full gap-px bg-slate-200 border border-slate-200"><div class="bg-slate-100 flex items-center justify-center font-black text-[10px] uppercase">Time</div>';
+                    
+        for(var i=0; i<DAYS.length; i++){
+            html += '<div class="bg-slate-100 flex items-center justify-center font-black text-[12px] py-2">' + DAYS[i] + '曜</div>';
+        }
+        
+        for(var p=1; p<=6; p++){
+            html += '<div class="bg-slate-50 flex items-center justify-center font-black text-xs border-r">' + p + '限</div>';
+            for(var i=0; i<DAYS.length; i++){
+                var d = DAYS[i];
+                var ls = [];
+                if(state.generatedSchedule && state.generatedSchedule[d] && state.generatedSchedule[d][p]) {
+                    for(var j=0; j<state.generatedSchedule[d][p].length; j++){
+                        var l = state.generatedSchedule[d][p][j];
+                        var hit = false;
+                        if (state.dashView === 'class') {
+                            if(l.targets && l.targets.indexOf(state.dashFilter) !== -1) hit = true;
+                        } else if (state.dashView === 'teacher') {
+                            if(l.teacherIds && l.teacherIds.indexOf(state.dashFilter) !== -1) hit = true;
+                        }
+                        if(hit) ls.push(l);
+                    }
+                }
+                
+                var isS = false;
+                if (state.selectedDashCell && state.selectedDashCell.d === d && state.selectedDashCell.p === p) {
+                    isS = true;
+                }
+                
+                html += '<div onclick="actions.clickDashCell(\'' + d + '\', ' + p + ')" class="dash-cell border-b border-r ' + (isS?'ring-2 ring-amber-500 z-10 bg-amber-50':'') + '">';
+                
+                for(var j=0; j<ls.length; j++){
+                    var l = ls[j];
+                    var tName = l.teacherName || '未定';
+                    if (state.dashView === 'teacher' && l.targets) tName = l.targets.join(', ');
+                    var subColor = getSubColor(l.subject);
+                    
+                    html += '<div class="text-center w-full px-1 py-1 flex flex-col items-center justify-center h-full gap-0.5"><div class="px-2 py-0.5 rounded text-[10px] font-black uppercase border leading-none ' + subColor + ' shadow-sm truncate max-w-[95%]">' + l.subject + '</div><div class="text-[8px] font-bold text-slate-600 truncate">' + tName + '</div></div>';
+                }
+                
+                html += '</div>';
+            }
+        }
+        
+        html += '</div></div></div>';
+        return html;
+    }
+
+
+    // ==========================================
+    // 5. アクション (Logic)
+    // ==========================================
+    window.actions = {
+        pushSubjectsUndo: function() { 
+            if (!state.subjectsUndoStack) state.subjectsUndoStack = []; 
+            state.subjectsUndoStack.push(JSON.stringify(state.subjects)); 
+            if(state.subjectsUndoStack.length > 20) state.subjectsUndoStack.shift(); 
+        },
+        undoSubjects: function() { 
+            if(state.subjectsUndoStack && state.subjectsUndoStack.length > 0) { 
+                state.subjects = JSON.parse(state.subjectsUndoStack.pop()); 
+                render(); 
+                showToast("元に戻しました", "success"); 
+            } 
+        },
+        getSubjectRoom: function(subId) {
+            for(var i=0; i<state.subjects.length; i++){
+                if(state.subjects[i].id === subId) return state.subjects[i].defaultRoom || '通常教室';
+            }
+            return '通常教室';
+        },
+
+        updateGrade: function(g, delta) { 
+            if (!state.grades) state.grades = {};
+            state.grades[g] = Math.max(1, Math.min(10, (parseInt(state.grades[g])||1) + delta));
+            initClassAssignments(); render(); 
+        },
+        setGrade: function(g, val) {
+            if (!state.grades) state.grades = {};
+            state.grades[g] = Math.max(1, Math.min(10, parseInt(val) || 1));
+            initClassAssignments(); render();
+        },
+        updatePeriod: function(g, d, delta) { 
+            if (!state.periods) state.periods = {};
+            if (!state.periods[g]) state.periods[g] = {月:5,火:5,水:4,木:5,金:5};
+            state.periods[g][d] = Math.max(0, Math.min(6, (state.periods[g][d]||0)+delta)); 
+            render(); 
+        },
+        setPeriod: function(g, d, val) {
+            if (!state.periods) state.periods = {};
+            if (!state.periods[g]) state.periods[g] = {月:5,火:5,水:4,木:5,金:5};
+            state.periods[g][d] = Math.max(0, Math.min(6, parseInt(val) || 0)); 
+            render();
+        },
+        toggleBlock: function(k) { 
+            if (!state.globalBlocks) state.globalBlocks = {};
+            state.globalBlocks[k] = !state.globalBlocks[k]; render(); 
+        },
+        addRoom: function() {
+            if (!state.rooms) state.rooms = [];
+            state.rooms.push({id:'r_'+Date.now(), name:'新規教室', capacity:1, ngTimes:{}}); render();
+        },
+        updateRoomName: function(id, v) { 
+            for(var i=0; i<state.rooms.length; i++){ if(state.rooms[i].id===id) state.rooms[i].name = v; } render(); 
+        },
+        updateRoomCapacity: function(id, v) { 
+            for(var i=0; i<state.rooms.length; i++){ if(state.rooms[i].id===id) state.rooms[i].capacity = Math.max(1, parseInt(v)||1); } render(); 
+        },
+        removeRoom: function(id) { 
+            var arr = []; for(var i=0; i<state.rooms.length; i++){ if(state.rooms[i].id!==id) arr.push(state.rooms[i]); } state.rooms = arr; render(); 
+        },
+        
+        addSubject: function(n) { 
+            actions.pushSubjectsUndo();
+            if (!state.subjects) state.subjects = [];
+            state.subjects.push({ id:'s_'+Date.now()+Math.random(), name:n, stdHours:{1:0,2:0,3:0,4:0,5:0,6:0}, defaultRoom:'通常教室' }); render(); 
+        },
+        updateSubject: function(id, k, v) { 
+            actions.pushSubjectsUndo();
+            for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id===id) state.subjects[i][k] = v; } render(); 
+        },
+        updateSubjectHour: function(id, g, delta) { 
+            actions.pushSubjectsUndo();
+            for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id===id) { if(!state.subjects[i].stdHours) state.subjects[i].stdHours={}; state.subjects[i].stdHours[g] = Math.max(0,(state.subjects[i].stdHours[g]||0)+delta); } } render(); 
+        },
+        setSubjectHour: function(id, g, val) {
+            actions.pushSubjectsUndo();
+            for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id===id) { if(!state.subjects[i].stdHours) state.subjects[i].stdHours={}; state.subjects[i].stdHours[g] = Math.max(0, parseInt(val) || 0); } } render();
+        },
+        removeSubject: function(id) { 
+            actions.pushSubjectsUndo();
+            var arr = []; for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id!==id) arr.push(state.subjects[i]); } state.subjects = arr; render(); 
+        },
+        cloneSubject: function(id) { 
+            actions.pushSubjectsUndo();
+            for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id===id) { state.subjects.push(JSON.parse(JSON.stringify(state.subjects[i]))); state.subjects[state.subjects.length-1].id = 's_'+Date.now(); } } render(); 
+        },
+
+        handleTeacherClick: function(id) { 
+            var now = Date.now(); 
+            if (lastClickId === id && now - lastClickTime < 300) { 
+                state.editingTeacherNameId = id; render(); 
+                setTimeout(function() { var i = document.getElementById('t-name-input-'+id); if(i){ i.focus(); i.select(); } }, 10); 
+            } else { 
+                lastClickTime = now; lastClickId = id; 
+                if (state.selectedTeacherId !== id) { state.selectedTeacherId = id; render(); } 
+            } 
+        },
+        saveTeacherName: function(id, v) { 
+            for(var i=0; i<state.teachers.length; i++){ if(state.teachers[i].id===id) state.teachers[i].name = v; } 
+            state.editingTeacherNameId = null; render(); 
+        },
+        addTeacher: function() { 
+            if (!state.teachers) state.teachers = [];
+            state.teachers.push({id:'t_'+Date.now()+Math.random(), name:'教員'+(state.teachers.length+1), maxHours:24, homeroom:'', ngTimes:{}, assignments:[]}); render(); 
+        },
+        updateTeacher: function(id, k, v) { 
+            for(var i=0; i<state.teachers.length; i++){ if(state.teachers[i].id===id) state.teachers[i][k] = v; } render(); 
+        },
+        removeTeacher: function(id) { 
+            var arr = []; for(var i=0; i<state.teachers.length; i++){ if(state.teachers[i].id!==id) arr.push(state.teachers[i]); } state.teachers = arr; 
+            if(state.selectedTeacherId===id && state.teachers.length > 0) state.selectedTeacherId = state.teachers[0].id; render(); 
+        },
+        toggleTeacherNG: function(id, k) { 
+            for(var i=0; i<state.teachers.length; i++){ if(state.teachers[i].id===id) { if(!state.teachers[i].ngTimes) state.teachers[i].ngTimes={}; state.teachers[i].ngTimes[k] = !state.teachers[i].ngTimes[k]; } } render(); 
+        },
+        updateTeacherHomeroom: function(tid, cls) { 
+            for(var i=0; i<state.teachers.length; i++){ 
+                if(state.teachers[i].id===tid) { 
+                    if(state.teachers[i].homeroom && state.classAssignments[state.teachers[i].homeroom]) state.classAssignments[state.teachers[i].homeroom].homeroom = ''; 
+                    state.teachers[i].homeroom = cls; 
+                    if(cls && state.classAssignments[cls]) { 
+                        var oldTId = state.classAssignments[cls].homeroom; 
+                        if(oldTId) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===oldTId) state.teachers[j].homeroom = ''; } } 
+                        state.classAssignments[cls].homeroom = tid; 
+                    } 
+                } 
+            } render(); 
+        },
+        updateHomeroom: function(cls, tid) { 
+            var oldTId = state.classAssignments[cls]?.homeroom; 
+            if (oldTId) { for(var j=0; j<state.teachers.length; j++){ if(state.teachers[j].id===oldTId) state.teachers[j].homeroom = ''; } } 
+            if (tid) { 
+                for(var j=0; j<state.teachers.length; j++){ 
+                    if(state.teachers[j].id===tid) { 
+                        if(state.teachers[j].homeroom && state.classAssignments[state.teachers[j].homeroom]) state.classAssignments[state.teachers[j].homeroom].homeroom = ''; 
+                        state.teachers[j].homeroom = cls; 
+                    } 
+                } 
+            } 
+            if (!state.classAssignments[cls]) state.classAssignments[cls] = { overrides: {} };
+            state.classAssignments[cls].homeroom = tid; render(); 
+        },
+        updateSubjectOverride: function(cls, sid, k, v) { 
+            if(!state.classAssignments[cls]) state.classAssignments[cls] = { overrides: {} };
+            if(!state.classAssignments[cls].overrides) state.classAssignments[cls].overrides = {};
+            if(!state.classAssignments[cls].overrides[sid]) state.classAssignments[cls].overrides[sid]={}; 
+            if(v==="") delete state.classAssignments[cls].overrides[sid][k]; 
+            else state.classAssignments[cls].overrides[sid][k]=v; render(); 
+        },
+        copyClassSettings: function(src) { 
+            var grade = src.split('-')[0]; 
+            var n = state.grades[grade]||1; 
+            var srcData = state.classAssignments[src]; 
+            var c=0; 
+            for(var i=1; i<=n; i++){ 
+                var t = grade + '-' + i; 
+                if(t!==src) { 
+                    if(!state.classAssignments[t]) state.classAssignments[t] = { overrides: {} };
+                    state.classAssignments[t].overrides = JSON.parse(JSON.stringify(srcData?.overrides || {})); c++; 
+                } 
+            } render(); showToast(grade + '年の他' + c + 'クラスにコピーしました', 'success'); 
+        },
+
+        // ★ Step 5用 特殊授業アクション (unshiftで先頭に追加)
+        addSpecialBlock: function() { 
+            var subId = document.getElementById('sp-sub').value; 
+            var hrs = document.getElementById('sp-hrs').value; 
+            if(!subId || !hrs) { showToast("教科を入力してください", "error"); return; } 
+            var sub = null;
+            for(var i=0; i<state.subjects.length; i++){ if(state.subjects[i].id === subId) sub = state.subjects[i]; }
+            if (!state.specialBlocks) state.specialBlocks = [];
+            state.specialBlocks.unshift({ id:'sp_'+Date.now(), type:document.getElementById('sp-type').value, subjectId:subId, subject:sub?sub.name:'特殊', room:document.getElementById('sp-room').value, hours:Math.max(1, parseInt(hrs)||1), targets:[], teachers:[] }); 
+            render(); 
+        },
+        removeSpecialBlock: function(idx) {
+            if (state.specialBlocks) {
+                state.specialBlocks.splice(idx, 1);
+                render();
+            }
+        },
+        updateSpecialBlock: function(id, k, v) { 
+            for(var i=0; i<state.specialBlocks.length; i++){ 
+                if(state.specialBlocks[i].id===id) {
+                    state.specialBlocks[i][k] = (k==='hours'?Math.max(1, parseInt(v)||1):v); 
+                    if(k==='hours' && state.specialBlocks[i].teachers) {
+                        for(var j=0; j<state.specialBlocks[i].teachers.length; j++){
+                            if(state.specialBlocks[i].teachers[j].hours > state.specialBlocks[i][k]) state.specialBlocks[i].teachers[j].hours = state.specialBlocks[i][k];
+                        }
+                    }
+                }
+            }
+            render(); 
+        },
+        toggleSpecialTarget: function(id, cls) { 
+            for(var i=0; i<state.specialBlocks.length; i++){
+                if(state.specialBlocks[i].id===id) {
+                    if(!state.specialBlocks[i].targets) state.specialBlocks[i].targets = [];
+                    var idx = state.specialBlocks[i].targets.indexOf(cls); 
+                    if(idx > -1) state.specialBlocks[i].targets.splice(idx,1); else state.specialBlocks[i].targets.push(cls); 
+                }
+            }
+            render(); 
+        },
+        toggleSpecialTeacher: function(id, tid) { 
+            for(var i=0; i<state.specialBlocks.length; i++){
+                if(state.specialBlocks[i].id===id) {
+                    if(!state.specialBlocks[i].teachers) state.specialBlocks[i].teachers = [];
+                    var tIdx = -1;
+                    for(var j=0; j<state.specialBlocks[i].teachers.length; j++){ if(state.specialBlocks[i].teachers[j].id===tid) tIdx = j; }
+                    if(tIdx > -1) state.specialBlocks[i].teachers.splice(tIdx,1); else state.specialBlocks[i].teachers.push({id:tid, hours:state.specialBlocks[i].hours}); 
+                }
+            }
+            render(); 
+        },
+        updateSpecialTeacherHours: function(bid, tid, hrs) { 
+            for(var i=0; i<state.specialBlocks.length; i++){
+                if(state.specialBlocks[i].id===bid && state.specialBlocks[i].teachers) {
+                    for(var j=0; j<state.specialBlocks[i].teachers.length; j++){
+                        if(state.specialBlocks[i].teachers[j].id===tid) state.specialBlocks[i].teachers[j].hours = Math.max(0, parseInt(hrs)||0); 
+                    }
+                }
+            }
+            render(); 
+        },
+        
+        // ★ Step 8用 アクション群
+        toggleRule: function(grp, s) { 
+            if (!state.advancedRules) state.advancedRules = {};
+            if(!state.advancedRules[grp]) state.advancedRules[grp] = [];
+            var arr = state.advancedRules[grp]; 
+            var i = arr.indexOf(s); 
+            if(i > -1) arr.splice(i, 1); else arr.push(s); 
+            state.advancedRules[grp] = arr; render(); 
+        },
+        setRule: function(k, v) {
+            if (!state.advancedRules) state.advancedRules = {};
+            state.advancedRules[k] = v; render();
+        },
+        addContinuousClass: function() {
+            var g = document.getElementById('rule-cont-g').value;
+            var s = document.getElementById('rule-cont-s').value;
+            if(g && s) {
+                if(!state.advancedRules.continuousClasses) state.advancedRules.continuousClasses = [];
+                state.advancedRules.continuousClasses.push({grade: g, subject: s});
+                render();
+            }
+        },
+        removeContinuousClass: function(idx) {
+            state.advancedRules.continuousClasses.splice(idx, 1); render();
+        },
+        addPairHomeroom: function() {
+            var s = document.getElementById('rule-pair-s').value;
+            if(s) {
+                if(!state.advancedRules.pairHomeroomSubjects) state.advancedRules.pairHomeroomSubjects = [];
+                if(state.advancedRules.pairHomeroomSubjects.indexOf(s) === -1) {
+                    state.advancedRules.pairHomeroomSubjects.push(s);
+                }
+                render();
+            }
+        },
+        removePairHomeroom: function(idx) {
+            state.advancedRules.pairHomeroomSubjects.splice(idx, 1); render();
+        },
+        addAvoidTime: function() {
+            var g = document.getElementById('rule-avoid-g').value;
+            var s = document.getElementById('rule-avoid-s').value;
+            var p = document.getElementById('rule-avoid-p').value;
+            if(g && s && p) {
+                if(!state.advancedRules.avoidSpecificTimes) state.advancedRules.avoidSpecificTimes = [];
+                state.advancedRules.avoidSpecificTimes.push({grade: g, subject: s, period: parseInt(p)});
+                render();
+            }
+        },
+        removeAvoidTime: function(idx) {
+            if(state.advancedRules.avoidSpecificTimes) {
+                state.advancedRules.avoidSpecificTimes.splice(idx, 1); render();
+            }
+        },
+        
+        // ★ 教員分配モーダルのアクション
+        openAllocModal: function(cls, subId, stdHours) {
+            var cData = state.classAssignments[cls];
+            var ovr = {};
+            if (cData && cData.overrides && cData.overrides[subId]) ovr = cData.overrides[subId];
+            
+            var rows = [];
+            if (ovr.allocations && ovr.allocations.length > 0) {
+                rows = JSON.parse(JSON.stringify(ovr.allocations));
+            } else {
+                var defaultTid = ovr.teacherId || cData.homeroom || '';
+                rows = [{ teacherId: defaultTid, hours: stdHours }];
+            }
+            state.allocationModal = { cls: cls, subId: subId, stdHours: stdHours, rows: rows }; render();
+        },
+        closeAllocModal: function() { state.allocationModal = null; render(); },
+        addAllocRow: function() { if (state.allocationModal) { state.allocationModal.rows.push({ teacherId: '', hours: 1 }); render(); } },
+        updateAllocRow: function(idx, key, val) { 
+            if (state.allocationModal) { 
+                if(key==='hours') state.allocationModal.rows[idx][key] = Math.max(0, parseInt(val)||0); 
+                else state.allocationModal.rows[idx][key] = val; 
+                render(); 
+            } 
+        },
+        removeAllocRow: function(idx) { if (state.allocationModal) { state.allocationModal.rows.splice(idx, 1); render(); } },
+        saveAllocModal: function() {
+            if (!state.allocationModal) return;
+            var m = state.allocationModal;
+            var total = 0;
+            for(var i=0; i<m.rows.length; i++){ total += parseInt(m.rows[i].hours)||0; }
+            
+            if (total !== m.stdHours) { showToast('合計を ' + m.stdHours + ' コマに合わせてください', 'error'); return; }
+            
+            var hasEmpty = false;
+            for(var i=0; i<m.rows.length; i++){ if(!m.rows[i].teacherId) hasEmpty = true; }
+            if (hasEmpty) { showToast('教員を選択してください', 'error'); return; }
+
+            if (!state.classAssignments[m.cls].overrides) state.classAssignments[m.cls].overrides = {};
+            if (!state.classAssignments[m.cls].overrides[m.subId]) state.classAssignments[m.cls].overrides[m.subId] = {};
+            
+            if (m.rows.length === 1) {
+                state.classAssignments[m.cls].overrides[m.subId].teacherId = m.rows[0].teacherId;
+                delete state.classAssignments[m.cls].overrides[m.subId].allocations;
+            } else {
+                state.classAssignments[m.cls].overrides[m.subId].allocations = JSON.parse(JSON.stringify(m.rows));
+            }
+            
+            state.allocationModal = null; render(); showToast('分配を保存しました', 'success');
+        },
+        clearAllocations: function(cls, subId) {
+            if (state.classAssignments[cls] && state.classAssignments[cls].overrides && state.classAssignments[cls].overrides[subId]) {
+                delete state.classAssignments[cls].overrides[subId].allocations; render(); showToast('分配をリセットしました', 'success');
+            }
+        },
+
+        setDashView: function(v) { state.dashView = v; state.selectedDashCell = null; render(); },
+        setDashFilter: function(v) { state.dashFilter = v; render(); },
+        clickDashCell: function(d, p) { 
+            if(!state.selectedDashCell) { 
+                state.selectedDashCell = { d: d, p: p }; render(); 
+            } else { 
+                var c1 = state.selectedDashCell; var c2 = { d: d, p: p }; 
+                if(c1.d!==c2.d || c1.p!==c2.p) { 
+                    actions.pushUndo(); 
+                    if(!state.generatedSchedule[c1.d]) state.generatedSchedule[c1.d] = {};
+                    if(!state.generatedSchedule[c2.d]) state.generatedSchedule[c2.d] = {};
+                    
+                    var ls1 = state.generatedSchedule[c1.d][c1.p] || []; 
+                    var ls2 = state.generatedSchedule[c2.d][c2.p] || []; 
+                    
+                    var it1 = []; var it2 = [];
+                    for(var i=0; i<ls1.length; i++){
+                        var hit = false;
+                        if(state.dashView==='class' && ls1[i].targets && ls1[i].targets.indexOf(state.dashFilter)!==-1) hit = true;
+                        if(state.dashView==='teacher' && ls1[i].teacherIds && ls1[i].teacherIds.indexOf(state.dashFilter)!==-1) hit = true;
+                        if(hit) it1.push(ls1[i]);
+                    }
+                    for(var i=0; i<ls2.length; i++){
+                        var hit = false;
+                        if(state.dashView==='class' && ls2[i].targets && ls2[i].targets.indexOf(state.dashFilter)!==-1) hit = true;
+                        if(state.dashView==='teacher' && ls2[i].teacherIds && ls2[i].teacherIds.indexOf(state.dashFilter)!==-1) hit = true;
+                        if(hit) it2.push(ls2[i]);
+                    }
+                    
+                    for(var i=0; i<it1.length; i++){ var idx = ls1.indexOf(it1[i]); if(idx!==-1) ls1.splice(idx, 1); }
+                    for(var i=0; i<it2.length; i++){ var idx = ls2.indexOf(it2[i]); if(idx!==-1) ls2.splice(idx, 1); }
+                    
+                    for(var i=0; i<it1.length; i++){ ls2.push(it1[i]); }
+                    for(var i=0; i<it2.length; i++){ ls1.push(it2[i]); }
+                    
+                    state.generatedSchedule[c1.d][c1.p] = ls1; state.generatedSchedule[c2.d][c2.p] = ls2;
+                } 
+                state.selectedDashCell = null; render(); 
+            } 
+        },
+        openBulk: function(type) { 
+            var ov = document.getElementById('modal-overlay'); var bd = document.getElementById('modal-body'); ov.classList.remove('hidden'); 
+            bd.innerHTML = '<h3 class="text-xl font-black mb-2">' + (type==='rooms'?'教室':'教員') + '一括貼付</h3><textarea id="bulk-txt" class="w-full h-40 p-4 bg-slate-50 border rounded-xl mb-4 text-xs font-bold" placeholder="改行区切りで貼付"></textarea><div class="flex gap-4"><button onclick="document.getElementById(\'modal-overlay\').classList.add(\'hidden\')" class="flex-1 p-3 bg-slate-100 rounded-xl font-bold">キャンセル</button><button onclick="actions.processBulk(\'' + type + '\')" class="flex-1 bg-blue-600 text-white rounded-xl font-black">追加</button></div>'; 
+        },
+        processBulk: function(type) { 
+            var r = document.getElementById('bulk-txt').value.split('\n'); 
+            var c = 0; 
+            for(var i=0; i<r.length; i++){
+                var n = r[i].trim();
+                if(!n) continue;
+                var nm = n.split('\t')[0].trim(); 
+                if (i === 0 && (nm.indexOf('名')!==-1 || nm==='教室' || nm==='教員')) continue; 
+                if(nm) { 
+                    if(type==='rooms') { if (!state.rooms) state.rooms = []; state.rooms.push({id:'r_'+Date.now()+Math.random(), name:nm, capacity:1, ngTimes:{}}); }
+                    if(type==='teachers') { if (!state.teachers) state.teachers = []; state.teachers.push({id:'t_'+Date.now()+Math.random(), name:nm, maxHours:24, homeroom:'', ngTimes:{}, assignments:[]}); }
+                    c++; 
+                } 
+            }
+            document.getElementById('modal-overlay').classList.add('hidden'); render(); showToast(c + '件追加しました', 'success'); 
+        },
+        pushUndo: function() { 
+            if (!state.undoStack) state.undoStack = []; 
+            state.undoStack.push(JSON.stringify(state.generatedSchedule)); 
+            if(state.undoStack.length > 15) state.undoStack.shift(); 
+        },
+        undo: function() { 
+            if(state.undoStack && state.undoStack.length > 0) { 
+                state.generatedSchedule = JSON.parse(state.undoStack.pop()); state.selectedDashCell = null; render(); showToast('戻しました', 'success'); 
+            } 
+        },
+        
+        // ★ 新規: AI生成（初回/リセット用）
+        startGeneration: async function() {
+            if (!GAS_URL || GAS_URL.indexOf("ここに") !== -1) { showToast("URL未設定です。", "error"); return; }
+            showLoading("AI自動生成中...", "初期配置と最適化を行っています（約25秒）");
+            
+            // 初回実行時は状態をリセットして送る
+            state.generatedSchedule = null;
+            state.unassigned = null;
+            state.diagnostics = null;
+            
+            try {
+                var res = await fetch(GAS_URL, { method: 'POST', mode: 'cors', body: JSON.stringify({ action: 'generate', state: state, currentSchedule: null, unassigned: null }) });
+                if (!res.ok) throw new Error("サーバーエラー");
+                var data = await res.json();
+                if (data.success) { 
+                    state.generatedSchedule = data.schedule; 
+                    state.unassigned = data.unassigned;
+                    state.diagnostics = data.diagnostics;
+                    currentStep = 10; state.undoStack = []; state.selectedDashCell = null; 
+                    render(); 
+                    if(data.isComplete) showToast("生成完了！", "success");
+                    else showToast("一時停止しました。続きを計算してください。", "info");
+                } else { showToast("生成エラー: " + data.message, "error"); }
+            } catch (e) { showToast("通信エラーが発生しました。", "error"); } finally { hideLoading(); }
+        },
+        
+        // ★ 新規: 継続生成（続きから実行）
+        continueGeneration: async function() {
+            if (!GAS_URL || GAS_URL.indexOf("ここに") !== -1) { showToast("URL未設定です。", "error"); return; }
+            showLoading("AI自動生成（継続）...", "未配置コマの押し出し最適化を行っています（約25秒）");
+            try {
+                var res = await fetch(GAS_URL, { method: 'POST', mode: 'cors', body: JSON.stringify({ action: 'generate', state: state, currentSchedule: state.generatedSchedule, unassigned: state.unassigned }) });
+                if (!res.ok) throw new Error("サーバーエラー");
+                var data = await res.json();
+                if (data.success) { 
+                    state.generatedSchedule = data.schedule; 
+                    state.unassigned = data.unassigned;
+                    state.diagnostics = data.diagnostics;
+                    currentStep = 10; state.undoStack = []; state.selectedDashCell = null; 
+                    render(); 
+                    if(data.isComplete) showToast("生成完了！", "success");
+                    else showToast("一時停止しました。さらに続きを計算できます。", "info");
+                } else { showToast("生成エラー: " + data.message, "error"); }
+            } catch (e) { showToast("通信エラーが発生しました。", "error"); } finally { hideLoading(); }
+        },
+
+        exportToSpreadsheet: async function() {
+            if (!state.generatedSchedule) return; showLoading("出力中...", "複数のシートを作成しています...");
+            try {
+                var res = await fetch(GAS_URL, { method: 'POST', mode: 'cors', body: JSON.stringify({ action: 'export', schedule: state.generatedSchedule, state: state }) });
+                var data = await res.json();
+                if(data.success) showToast("全シートの出力に成功しました！", "success"); else showToast("出力エラー: " + data.message, "error");
+            } catch (e) { showToast("通信エラー", "error"); } finally { hideLoading(); }
+        },
+        resetData: function() { if(confirm("すべてのデータを消去してリセットしますか？")) { try { localStorage.clear(); } catch(e){} location.reload(); } },
+        exportData: function() { var a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state)); a.download = "timetable.json"; a.click(); },
+        importData: function() { var i = document.createElement('input'); i.type = 'file'; i.onchange = function(e){ var r = new FileReader(); r.readAsText(e.target.files[0]); r.onload = function(ev){ try { sanitizeState(JSON.parse(ev.target.result)); currentStep=1; render(); showToast("読込完了", "success"); } catch(err) { showToast("読込エラー", "error"); } } }; i.click(); }
+    };
+
+    // --- 実行 ---
+    document.getElementById('btn-next').onclick = function() { 
+        if (currentStep === 9) actions.startGeneration(); 
+        else if (currentStep < MAX_STEPS) { currentStep++; render(); } 
+        else actions.exportToSpreadsheet(); 
+    };
+    
+    document.getElementById('btn-prev').onclick = function() { 
+        if(currentStep > 1) { currentStep--; render(); } 
+    };
+    
+    document.addEventListener('DOMContentLoaded', load);
+</script>
+</body>
+</html>
