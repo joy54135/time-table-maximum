@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 13.12 (Next Generation - Stable)
+  Version: 13.13 (Next Generation - Stable)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: 削除時のカスケード連動処理、および物理的限界チェックを追加
+  Description: 同学年への設定コピー機能、詳細なエラー検知（担任未定など）を追加
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 13.12</title>
+    <title>Smart TimeTable - Ver 13.13</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style type="text/tailwindcss">
@@ -500,7 +500,11 @@
         const tOpts = `<option value="">-- 未設定 --</option>` + state.teachers.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
         const loads = getTeacherLoads();
         return `<div class="flex flex-col lg:flex-row h-full gap-3 md:gap-4 overflow-hidden"><div class="w-full lg:w-1/6 min-w-[120px] bg-slate-50 border border-slate-200 rounded-2xl flex flex-col overflow-hidden shrink-0 h-1/4 lg:h-full"><div class="p-2 border-b font-black text-xs text-slate-500 bg-slate-100">クラス</div><div class="flex-1 overflow-y-auto p-1.5 space-y-1 custom-scrollbar flex flex-row lg:flex-col flex-wrap lg:flex-nowrap" id="step6-c-scroll">${classes.map(c => `<div onclick="state.dashFilter='${c}';render()" class="p-2 rounded-xl cursor-pointer transition-all border ${c===activeCls?'bg-blue-600 text-white border-blue-600':'bg-white text-slate-700 border-slate-100 hover:bg-blue-50'} flex flex-col min-w-[80px]"><span class="font-black text-sm">${c}</span><span class="text-[9px] truncate ${c===activeCls?'text-blue-200':'text-slate-400'}">${state.teachers.find(t=>t.id===state.classAssignments[c].homeroom)?.name||'(担任未定)'}</span></div>`).join('')}</div></div>
-            <div class="flex-1 bg-white border border-slate-200 rounded-2xl flex flex-col shadow-sm overflow-hidden min-h-0"><div class="p-3 md:p-4 bg-blue-50 border-b border-blue-100 flex justify-between items-center shrink-0"><h3 class="text-xl font-black text-blue-900 tracking-tight">${activeCls} <span class="text-xs font-bold text-blue-600 ml-2">担当割り当て</span></h3><div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-blue-200 shadow-sm"><span class="text-xs font-bold text-slate-500">担任:</span><select onchange="actions.updateHomeroom('${activeCls}', this.value)" class="m3-input !p-1 !text-sm border-none font-black text-blue-700 w-32 cursor-pointer">${tOpts.replace(`value="${cData.homeroom}"`, `value="${cData.homeroom}" selected`)}</select></div></div>
+            <div class="flex-1 bg-white border border-slate-200 rounded-2xl flex flex-col shadow-sm overflow-hidden min-h-0">
+                <div class="p-3 md:p-4 bg-blue-50 border-b border-blue-100 flex justify-between items-center shrink-0">
+                    <h3 class="text-xl font-black text-blue-900 tracking-tight flex items-center">${activeCls} <span class="text-xs font-bold text-blue-600 ml-2 mr-2">担当割り当て</span><button onclick="actions.copyClassSettings('${activeCls}')" class="text-[10px] bg-white border border-blue-200 text-blue-600 px-2 py-1 rounded font-bold hover:bg-blue-100 shadow-sm transition-colors">同学年にコピー</button></h3>
+                    <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-blue-200 shadow-sm"><span class="text-xs font-bold text-slate-500">担任:</span><select onchange="actions.updateHomeroom('${activeCls}', this.value)" class="m3-input !p-1 !text-sm border-none font-black text-blue-700 w-32 cursor-pointer">${tOpts.replace(`value="${cData.homeroom}"`, `value="${cData.homeroom}" selected`)}</select></div>
+                </div>
                 <div class="flex-1 overflow-y-auto p-2 md:p-4 custom-scrollbar" id="step6-main-scroll"><div class="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden"><div class="grid grid-cols-[1fr_50px_1.5fr_1fr] gap-2 p-2 bg-slate-100 border-b text-[10px] font-black text-slate-500 uppercase tracking-widest text-center"><div>教科</div><div>週コマ</div><div>担当教員</div><div>教室</div></div>
                         ${state.subjects.filter(s => (s.stdHours[grade]||0)>0).map(s => {
                             const hours = s.stdHours[grade]; const spBlock = state.specialBlocks.find(b => b.subjectId === s.id && b.targets.includes(activeCls)); const ovr = cData.overrides[s.id] || {};
@@ -705,16 +709,18 @@
         const errors = [];
         const loads = getTeacherLoads();
 
+        // 1. 教員チェック
         state.teachers.forEach(t => {
             const load = loads[t.id] || 0;
             let avail = 0;
             DAYS.forEach(d => PERIODS.forEach(p => {
                 if(!t.ngTimes?.[`${d}-${p}`] && !state.globalBlocks[`${d}-${p}`]) avail++;
             }));
-            if(load > avail) { errors.push(`[教員限界] ${t.name}: 担当授業(${load}コマ) が 勤務可能枠(${avail}コマ) を超過しています。`); totalErr++; }
-            if(load > (t.maxHours || 24)) { errors.push(`[教員設定] ${t.name}: 担当授業(${load}コマ) が 設定上限(${t.maxHours || 24}コマ) を超過しています。`); totalErr++; }
+            if(load > avail) { errors.push(`[教員限界] ${t.name}: 担当授業(${load}コマ) が 勤務可能枠(${avail}コマ) を超過`); totalErr++; }
+            if(load > (t.maxHours || 24)) { errors.push(`[教員設定] ${t.name}: 担当授業(${load}コマ) が 設定上限(${t.maxHours || 24}コマ) を超過`); totalErr++; }
         });
 
+        // 2. 教室チェック
         const roomNeeds = {};
         state.rooms.forEach(r => roomNeeds[r.name] = 0);
         Object.keys(state.classAssignments).forEach(cls => {
@@ -734,7 +740,37 @@
             const capacity = parseInt(r.capacity) || 1;
             const totalAvail = avail * capacity;
             const need = roomNeeds[r.name] || 0;
-            if(need > totalAvail) { errors.push(`[教室限界] ${r.name}: 必要数(${need}コマ) が 使用可能枠(${totalAvail}コマ) を超過しています。`); totalErr++; }
+            if(need > totalAvail) { errors.push(`[教室限界] ${r.name}: 必要数(${need}コマ) が 使用可能枠(${totalAvail}コマ) を超過`); totalErr++; }
+        });
+
+        // 3. 担任未定チェック
+        Object.keys(state.classAssignments).forEach(cls => {
+            if(!state.classAssignments[cls].homeroom) {
+                errors.push(`[担任未定] ${cls} の担任が設定されていません`);
+                totalErr++;
+            }
+        });
+
+        // 4. 特殊ブロック空チェック
+        state.specialBlocks.forEach(b => {
+            const subName = state.subjects.find(s=>s.id===b.subjectId)?.name || '不明';
+            if(b.targets.length === 0) { errors.push(`[特殊設定] ${subName}(${b.type==='joint'?'合同':'分割'}) の対象クラスが空です`); totalErr++; }
+            if(b.teachers.length === 0) { errors.push(`[特殊設定] ${subName}(${b.type==='joint'?'合同':'分割'}) の担当教員が空です`); totalErr++; }
+        });
+
+        // 5. 時数チェック
+        Object.entries(state.grades).forEach(([g, n]) => {
+            const totalNeed = state.subjects.reduce((sum, s) => sum + (parseInt(s.stdHours[g])||0), 0);
+            const maxFrames = DAYS.reduce((sum, d) => sum + (parseInt(state.periods[g][d])||0), 0);
+            if(totalNeed === 0) {
+                errors.push(`[時数設定] ${g}年生の合計時数が0コマです`);
+                totalErr++;
+            } else if (totalNeed > maxFrames) {
+                errors.push(`[時数超過] ${g}年生の必要時数(${totalNeed}コマ) が 週間枠数(${maxFrames}コマ) を上回っています`);
+                totalErr++;
+            } else if (maxFrames - totalNeed > 5) {
+                errors.push(`[空き過多] ${g}年生の空きコマが ${maxFrames - totalNeed} コマあります`);
+            }
         });
 
         let matrixErr = 0;
@@ -757,7 +793,7 @@
 
     // --- Actions ---
     window.actions = {
-        exportData: () => { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_v13_12.json"; a.click(); },
+        exportData: () => { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_v13_13.json"; a.click(); },
         importData: () => { const i=document.createElement('input'); i.type='file'; i.onchange=e=>{ const r=new FileReader(); r.readAsText(e.target.files[0]); r.onload=e=>{ try { sanitizeState(JSON.parse(e.target.result)); currentStep=1; render(); showToast("読み込みました", "success"); } catch(err) { showToast("エラー", "error"); } } }; i.click(); },
         resetData: () => { if(confirm("初期化しますか？")) { localStorage.clear(); location.reload(); } },
         updatePeriod: (g, d, delta) => { state.periods[g][d] = Math.max(0, Math.min(6, (parseInt(state.periods[g][d])||0) + delta)); render(); },
@@ -830,6 +866,23 @@
             render(); 
         },
         updateSubjectOverride: (cls, subId, key, val) => { if(!state.classAssignments[cls].overrides[subId]) state.classAssignments[cls].overrides[subId] = {}; if(val === "") delete state.classAssignments[cls].overrides[subId][key]; else state.classAssignments[cls].overrides[subId][key] = val; render(); },
+        
+        // ★ 設定一括コピー
+        copyClassSettings: (srcCls) => {
+            const grade = srcCls.split('-')[0];
+            const n = parseInt(state.grades[grade]) || 1;
+            const srcData = state.classAssignments[srcCls];
+            let count = 0;
+            for(let i=1; i<=n; i++) {
+                const targetCls = `${grade}-${i}`;
+                if(targetCls !== srcCls) {
+                    state.classAssignments[targetCls] = JSON.parse(JSON.stringify(srcData));
+                    count++;
+                }
+            }
+            render();
+            showToast(`${grade}年の他${count}クラスに設定をコピーしました`, "success");
+        },
 
         toggleRule: (ruleGrp, s) => {
             const arr = state.advancedRules[ruleGrp] || [];
