@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 13.9 (Next Generation - Stable)
+  Version: 13.10 (Next Generation - Stable)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: ステップ順序変更、教員名簿での担任紐付け、上限の+-ボタン化
+  Description: ステップ7「教員別 担当確認」画面を追加、MAX_STEPSを10に変更
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 13.9</title>
+    <title>Smart TimeTable - Ver 13.10</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style type="text/tailwindcss">
@@ -60,7 +60,7 @@
     <div class="m3-card flex-1 flex flex-col min-h-0 relative">
         <div class="flex items-center justify-between mb-4 shrink-0 border-b border-slate-100 pb-4">
             <h2 id="step-title" class="text-lg font-black text-slate-800"></h2>
-            <div id="progress-dots" class="flex gap-1.5"></div>
+            <div id="progress-dots" class="flex gap-1.5 flex-wrap justify-center"></div>
         </div>
         <div id="step-content" class="fade-in flex-1 overflow-hidden flex flex-col relative min-h-0"></div>
         <div class="flex justify-between items-center mt-4 pt-4 border-t border-slate-100 shrink-0">
@@ -80,10 +80,21 @@
     const GRADES = [1, 2, 3, 4, 5, 6];
     const DAYS = ['月', '火', '水', '木', '金'];
     const PERIODS = [1, 2, 3, 4, 5, 6];
-    const MAX_STEPS = 9;
+    const MAX_STEPS = 10;
     
-    // ★ ステップの順序を入れ替え（教員名簿を4に、特殊ブロックを5に）
-    const stepTitles = ["1. 基本設定", "2. 行事・全校不可枠", "3. 教科と教室", "4. 教員名簿と不可枠", "5. 特殊授業ブロック", "6. クラス別 担当割り当て", "7. 配置ルール", "8. 点検", "9. ダッシュボード"];
+    // ★ ステップ7に教員別担当確認を追加
+    const stepTitles = [
+        "1. 基本設定", 
+        "2. 行事・全校不可枠", 
+        "3. 教科と教室", 
+        "4. 教員名簿と不可枠", 
+        "5. 特殊授業ブロック", 
+        "6. クラス別 担当割り当て", 
+        "7. 教員別 担当確認", 
+        "8. 配置ルール", 
+        "9. 最終点検", 
+        "10. ダッシュボード"
+    ];
     let currentStep = 1;
     let saveTimeout = null;
 
@@ -171,7 +182,6 @@
         }
         if (p.classAssignments) state.classAssignments = p.classAssignments;
 
-        // ★ 双方向の担任リンク修復
         if(state.teachers && state.classAssignments) {
             state.teachers.forEach(t => {
                 if(t.homeroom && state.classAssignments[t.homeroom]) state.classAssignments[t.homeroom].homeroom = t.id;
@@ -214,6 +224,39 @@
         return loads;
     };
 
+    // ★ 詳細な教員担当データを取得するヘルパー
+    const getTeacherDetails = () => {
+        const details = {};
+        state.teachers.forEach(t => details[t.id] = { load: 0, items: [] });
+        
+        Object.keys(state.classAssignments).forEach(cls => {
+            const grade = cls.split('-')[0];
+            const data = state.classAssignments[cls];
+            state.subjects.forEach(sub => {
+                const hours = parseInt(sub.stdHours[grade]) || 0;
+                if (hours === 0 || state.specialBlocks.some(b => b.subjectId === sub.id && b.targets.includes(cls))) return;
+                const tId = data.overrides[sub.id]?.teacherId || data.homeroom;
+                if (tId && details[tId]) {
+                    details[tId].load += hours;
+                    details[tId].items.push({ target: cls, subject: sub.name, hours: hours, isSp: false });
+                }
+            });
+        });
+        
+        state.specialBlocks.forEach(b => {
+            const subName = state.subjects.find(s=>s.id===b.subjectId)?.name || '特殊';
+            b.teachers.forEach(bt => {
+                if (details[bt.id]) {
+                    const hours = parseInt(bt.hours) || 0;
+                    details[bt.id].load += hours;
+                    const tgtStr = b.targets.length > 2 ? `${b.targets.length}クラス合同` : b.targets.join(',');
+                    details[bt.id].items.push({ target: tgtStr, subject: subName, hours: hours, isSp: true });
+                }
+            });
+        });
+        return details;
+    };
+
     const buildGrid = (ngMap, globalBlocksMap, actionStr, cellType = 'teacher') => {
         let html = `<div class="overflow-x-auto w-full custom-scrollbar min-h-0"><table class="border-separate border-spacing-1 select-none table-fixed w-max mx-auto">`;
         html += `<thead><tr><th class="w-8"></th>`;
@@ -244,13 +287,16 @@
         save();
         const scrollMap = Array.from(document.querySelectorAll('.custom-scrollbar')).reduce((acc, el) => ({...acc, [el.id||Math.random()]: {t: el.scrollTop, l: el.scrollLeft}}), {});
         document.getElementById('step-title').innerText = stepTitles[currentStep-1];
-        document.getElementById('btn-next-text').innerText = currentStep === 8 ? 'AI自動生成' : currentStep === MAX_STEPS ? '出力' : '次へ進む';
+        document.getElementById('btn-next-text').innerText = currentStep === 9 ? 'AI自動生成' : currentStep === MAX_STEPS ? '出力' : '次へ進む';
         document.getElementById('btn-prev').style.visibility = currentStep === 1 ? 'hidden' : 'visible';
         document.getElementById('progress-dots').innerHTML = currentStep === MAX_STEPS ? '' : [...Array(MAX_STEPS-1)].map((_, i) => `<div class="step-dot ${i < currentStep ? 'active' : ''}"></div>`).join('');
         const content = document.getElementById('step-content');
         
-        // ★ ステップの呼び出し順を変更
-        content.innerHTML = [viewStep1, viewStep2, viewStep3, viewStep4, viewStep5, viewStep6, viewStep7, viewStep8, viewStep9][currentStep-1]();
+        // ★ ステップの呼び出し順
+        content.innerHTML = [
+            viewStep1, viewStep2, viewStep3, viewStep4, viewStep5, 
+            viewStep6, viewStep7, viewStep8, viewStep9, viewStep10
+        ][currentStep-1]();
         
         setTimeout(() => { Object.keys(scrollMap).forEach(id => { const el = document.getElementById(id); if(el) { el.scrollTop = scrollMap[id].t; el.scrollLeft = scrollMap[id].l; } }); }, 0);
     };
@@ -308,12 +354,10 @@
         </div>`;
     };
 
-    // Step 4: 教員名簿と不可枠 (旧 Step 5)
     const viewStep4 = () => {
         if(!state.selectedTeacherId && state.teachers.length > 0) state.selectedTeacherId = state.teachers[0].id;
         const t = state.teachers.find(x => String(x.id) === String(state.selectedTeacherId));
         
-        // 担任選択用プルダウンの生成
         const hrOpts = `<option value="">専科等</option>` + GRADES.map(g => {
             const n = parseInt(state.grades[g]) || 1;
             return [...Array(n)].map((_,i) => `<option value="${g}-${i+1}">${g}年${i+1}組</option>`).join('');
@@ -364,7 +408,6 @@
         </div>`;
     };
 
-    // Step 5: 特殊授業ブロック (旧 Step 4)
     const viewStep5 = () => {
         const sOpts = state.subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
         const rOpts = `<option value="通常教室">通常教室</option>` + state.rooms.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
@@ -456,9 +499,38 @@
                 </div></div></div>`;
     };
 
-    const viewStep7 = () => `<div class="flex items-center justify-center h-full text-slate-400 font-black">Step 7: 配置ルール設定 (実装準備中)</div>`;
+    // ★ Step 7: 教員別担当確認画面 (NEW)
+    const viewStep7 = () => {
+        const details = getTeacherDetails();
+        return `<div class="flex flex-col h-full overflow-hidden">
+            <div class="mb-4 shrink-0 flex justify-between items-center">
+                <h2 class="text-xl font-black">7. 教員別 担当授業一覧</h2>
+                <span class="text-xs font-bold text-slate-500 hidden md:inline">※修正は「6. クラス別 担当割り当て」で行ってください</span>
+            </div>
+            <div class="flex-1 overflow-y-auto custom-scrollbar pr-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 content-start" id="step7-scroll">
+                ${state.teachers.map(t => {
+                    const d = details[t.id];
+                    const max = parseInt(t.maxHours)||24;
+                    const isOver = d.load > max;
+                    const pct = Math.min(100, (d.load/max)*100);
+                    return `<div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+                        <div class="flex justify-between items-center">
+                            <span class="font-black text-sm text-blue-900">${t.name}</span>
+                            <span class="text-xs font-black ${isOver?'text-rose-500':'text-slate-500'}">${d.load} / ${max} コマ</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden"><div class="h-full rounded-full transition-all duration-300 ${isOver?'bg-rose-500':'bg-blue-500'}" style="width: ${pct}%"></div></div>
+                        <div class="flex flex-wrap gap-1.5 mt-1">
+                            ${d.items.length===0 ? `<span class="text-xs text-slate-400 font-bold">担当授業なし</span>` : d.items.map(i => `<span class="px-2 py-1 rounded text-[10px] font-bold ${i.isSp?'bg-indigo-50 text-indigo-700 border border-indigo-200':'bg-slate-50 text-slate-600 border border-slate-200'}">${i.target} ${i.subject} (${i.hours})</span>`).join('')}
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>
+        </div>`;
+    };
+
+    const viewStep8 = () => `<div class="flex items-center justify-center h-full text-slate-400 font-black">Step 8: 配置ルール設定 (実装準備中)</div>`;
     
-    const viewStep8 = () => {
+    const viewStep9 = () => {
         const classNeeds = {}; const classAssigned = {}; 
         Object.entries(state.grades).forEach(([g, n]) => { for(let i=1; i<=n; i++) { state.subjects.forEach(s => { classNeeds[`${g}-${i}-${s.id}`] = parseInt(s.stdHours[g]) || 0; classAssigned[`${g}-${i}-${s.id}`] = 0; }); } });
         Object.keys(state.classAssignments).forEach(cls => {
@@ -480,14 +552,14 @@
             });
             matrix += `<td class="p-1 bg-slate-50 ${cAct-cNeed===0?'text-slate-400':(cAct-cNeed<0?'text-rose-500 font-bold':'text-amber-500 font-bold')}">${cAct}/${cNeed}</td></tr>`;
         }});
-        return `<div class="flex flex-col h-full"><div class="mb-4 shrink-0 font-black text-xl">8. 最終点検マトリックス</div><div class="flex-1 bg-slate-900 rounded-[32px] p-6 flex flex-col overflow-hidden shadow-xl"><div class="flex-1 overflow-auto custom-scrollbar rounded-xl bg-white border border-slate-700">${matrix}</tbody></table></div><div class="mt-4 text-center text-white text-[10px] font-bold ${totalErr>0?'text-rose-400':'text-green-400'}">${totalErr>0?`⚠️ 不一致が ${totalErr} 箇所あります。設定を確認してください。`:'✅ すべての時数設定が一致しています。自動生成可能です。'}</div></div></div>`;
+        return `<div class="flex flex-col h-full"><div class="mb-4 shrink-0 font-black text-xl">9. 最終点検マトリックス</div><div class="flex-1 bg-slate-900 rounded-[32px] p-6 flex flex-col overflow-hidden shadow-xl"><div class="flex items-center justify-between mb-4 shrink-0"><div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full animate-pulse ${totalErr===0?'bg-green-500':'bg-red-500'}"></div><h4 class="text-sm font-black text-white">プレフライト・マトリックス</h4></div><span class="text-[10px] text-slate-400">不足: 赤(-) / 超過: 黄(+) / 一致: 緑(✓)</span></div><div class="flex-1 overflow-auto custom-scrollbar rounded-xl border border-slate-700 bg-white">${matrix}</tbody></table></div><div class="mt-4 shrink-0">${totalErr > 0 ? `<div class="p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-[10px] text-red-300 font-bold">⚠️ 科目の時数設定に ${totalErr} 個の不一致があります。生成には影響しませんが確認を推奨します。</div>` : `<div class="text-center text-green-400 font-bold text-xs">All Checks Passed. Ready for generation.</div>`}</div></div></div>`;
     };
 
-    const viewStep9 = () => `<div class="flex items-center justify-center h-full text-slate-400 font-black">Step 9: ダッシュボード (実装準備中)</div>`;
+    const viewStep10 = () => `<div class="flex items-center justify-center h-full text-slate-400 font-black">Step 10: ダッシュボード (実装準備中)</div>`;
 
     // --- Actions ---
     window.actions = {
-        exportData: () => { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_v13_9.json"; a.click(); },
+        exportData: () => { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(state)); a.download="timetable_v13_10.json"; a.click(); },
         importData: () => { const i=document.createElement('input'); i.type='file'; i.onchange=e=>{ const r=new FileReader(); r.readAsText(e.target.files[0]); r.onload=e=>{ try { sanitizeState(JSON.parse(e.target.result)); currentStep=1; render(); showToast("読み込みました", "success"); } catch(err) { showToast("エラー", "error"); } } }; i.click(); },
         resetData: () => { if(confirm("初期化しますか？")) { localStorage.clear(); location.reload(); } },
         updatePeriod: (g, d, delta) => { state.periods[g][d] = Math.max(0, Math.min(6, (parseInt(state.periods[g][d])||0) + delta)); render(); },
@@ -522,8 +594,6 @@
             render(); 
         },
         toggleTeacherNG: (id, k) => { const t = state.teachers.find(x => String(x.id) === String(id)); if(t) { if(!t.ngTimes) t.ngTimes = {}; if(t.ngTimes[k]) delete t.ngTimes[k]; else t.ngTimes[k] = true; render(); } },
-        
-        // ★ 教員の担任紐付け (双方向同期)
         updateTeacherHomeroom: (tId, cls) => {
             const t = state.teachers.find(x => String(x.id) === String(tId));
             if(t) {
@@ -542,7 +612,6 @@
         toggleSpecialTeacher: (id, tId) => { const b = state.specialBlocks.find(x=>x.id===id); const i = b.teachers.findIndex(x=>x.id===tId); if(i>-1) b.teachers.splice(i,1); else b.teachers.push({id: tId, hours: b.hours}); render(); },
         updateSpecialTeacherHours: (bId, tId, hrs) => { const b = state.specialBlocks.find(x=>x.id===bId); const t = b.teachers.find(x=>x.id===tId); if(t) t.hours = parseInt(hrs) || 0; render(); },
         
-        // ★ クラスからの担任紐付け (双方向同期)
         updateHomeroom: (cls, tId) => { 
             const oldTId = state.classAssignments[cls].homeroom;
             if (oldTId) { const oldT = state.teachers.find(t => t.id === oldTId); if (oldT) oldT.homeroom = ''; }
