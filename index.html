@@ -1,15 +1,15 @@
 <!-- ==========================================
   Smart TimeTable
-  Version: 13.46 (Absolute Stable + Anti-Crash)
+  Version: 13.49 (Latest URL & Auto Relay)
   Type: Vanilla HTML / JS / Tailwind CSS
-  Description: 初期化ロジックを完全刷新。未定義エラーを物理的に排除した究極の安定版。
+  Description: 最新のGAS URLを適用。自動リレー通信(1-3分)、プレフライトマトリックス(表)の完全稼働版
 =========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 13.46</title>
+    <title>Smart TimeTable - Ver 13.49</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style type="text/tailwindcss">
@@ -45,7 +45,7 @@
             </div>
             <div>
                 <h1 class="text-xl font-black tracking-tight leading-none text-slate-800">Smart TimeTable</h1>
-                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.46 Absolute Stable)</p>
+                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-tight">Next Gen (13.49 Auto Relay & Matrix)</p>
             </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -84,7 +84,8 @@
     // ==========================================
     // 1. 初期化・定数
     // ==========================================
-    var GAS_URL = "https://script.google.com/macros/s/AKfycbyDZQxeIcSfukIvE_fuIEmjdrITDfPzifZ8mNXfkJtbt648OE023WdV2iXvqtvYPcgvIQ/exec";
+    // ★ 最新のGAS URLを設定
+    var GAS_URL = "https://script.google.com/macros/s/AKfycby0BPqylfOUpF1u8fBr5MveISgxosmxtjpBoUewvaGXBklBFPqIXNIp848F66pIe2RmKA/exec";
     var GRADES = [1, 2, 3, 4, 5, 6];
     var DAYS = ['月', '火', '水', '木', '金'];
     var PERIODS = [1, 2, 3, 4, 5, 6];
@@ -108,13 +109,13 @@
         },
         generatedSchedule: null, unassigned: null, diagnostics: null, 
         dashView: 'class', dashFilter: '1-1', subjectsUndoStack: [], undoStack: [],
-        selectedTeacherId: null, editingTeacherNameId: null, allocationModal: null, selectedDashCell: null
+        selectedTeacherId: null, editingTeacherNameId: null, allocationModal: null, selectedDashCell: null,
+        relayCount: 0, maxRelayCount: 0
     };
 
     var lastClickTime = 0;
     var lastClickId = null;
 
-    // ★ 物理的な初期化：undefinedエラーを根絶する
     function forceInitState() {
         GRADES.forEach(function(g) {
             if (!state.periods[g]) state.periods[g] = {月:5,火:5,水:4,木:5,金:5};
@@ -192,17 +193,14 @@
     }
 
     function load() {
-        var hasData = false;
         try {
             var d = localStorage.getItem('tt_v13_stable');
             if (d) {
                 var p = JSON.parse(d);
                 sanitizeState(p);
-                hasData = true;
             }
         } catch(e) {}
         
-        // どんな状況でも必ず箱を作る
         forceInitState();
         render();
     }
@@ -319,15 +317,8 @@
         if(!s) return 'bg-slate-100 text-slate-500 border-slate-200'; 
         if(s.indexOf('国') !== -1) return 'bg-blue-100 text-blue-800 border-blue-200';
         if(s.indexOf('算') !== -1) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-        if(s.indexOf('理') !== -1) return 'bg-green-100 text-green-800 border-green-200';
-        if(s.indexOf('社') !== -1) return 'bg-indigo-100 text-indigo-800 border-indigo-200';
-        if(s.indexOf('生') !== -1) return 'bg-orange-100 text-orange-800 border-orange-200';
         if(s.indexOf('体') !== -1) return 'bg-red-100 text-red-800 border-red-200';
-        if(s.indexOf('図') !== -1) return 'bg-purple-100 text-purple-800 border-purple-200';
-        if(s.indexOf('音') !== -1) return 'bg-pink-100 text-pink-800 border-pink-200';
-        if(s.indexOf('家') !== -1) return 'bg-rose-100 text-rose-800 border-rose-200';
-        if(s.indexOf('外') !== -1) return 'bg-cyan-100 text-cyan-800 border-cyan-200';
-        if(s.indexOf('総') !== -1) return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        if(s.indexOf('理') !== -1) return 'bg-green-100 text-green-800 border-green-200';
         return 'bg-slate-100 text-slate-800 border-slate-200'; 
     }
 
@@ -695,7 +686,6 @@
     function viewStep8() {
         var html = '<div class="flex flex-col h-full overflow-hidden"><div class="mb-4 shrink-0"><h2 class="text-xl font-black">8. 配置ルール設定</h2></div><div class="flex-1 overflow-y-auto custom-scrollbar pr-4 space-y-6 pb-10" id="sc-step8">';
         
-        // 1. 優先高
         html += '<div><div class="flex items-center gap-3 mb-4"><span class="bg-rose-100 text-rose-700 font-black text-[10px] px-3 py-1 rounded-full">優先：高</span><h3 class="text-lg font-black">1. 授業の形状と一斉配置</h3></div><div class="bg-white border border-slate-200 rounded-[24px] p-5 shadow-sm">';
         html += '<div class="mb-6"><div class="text-sm font-bold mb-2">1日の最後の時間に固定する教科</div><div class="flex flex-wrap gap-2">';
         state.subjects.forEach(function(s){
@@ -728,7 +718,6 @@
         } else { html += '<span class="text-xs text-indigo-400 font-bold">未登録</span>'; }
         html += '</div></div><div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200"><span class="text-sm font-bold text-slate-700">「担任のみ」時間帯の設定（この時間は専科不可）</span><button onclick="showToast(\'モック：後日グリッド実装予定\')" class="text-xs bg-white border border-slate-300 px-4 py-2 rounded-lg shadow-sm font-bold hover:bg-slate-50 text-blue-600">設定を開く</button></div></div></div>';
 
-        // 2. 優先中
         html += '<div><div class="flex items-center gap-3 mb-4"><span class="bg-amber-100 text-amber-700 font-black text-[10px] px-3 py-1 rounded-full">優先：中</span><h3 class="text-lg font-black">2. 教科の配置バランス</h3></div><div class="bg-white border border-slate-200 rounded-[24px] p-5 shadow-sm">';
         var isLimitOne = state.advancedRules.limitOneSubjectPerDay;
         html += '<label class="flex items-center justify-between cursor-pointer p-4 bg-slate-50 rounded-xl border border-slate-200 mb-6 hover:bg-slate-100 transition-colors"><span class="text-sm font-bold text-slate-700">1日に同一教科を分散させる（1日1回ルール）</span><input type="checkbox" ' + (isLimitOne?'checked':'') + ' onchange="actions.setRule(\'limitOneSubjectPerDay\', this.checked)" class="w-5 h-5 rounded text-blue-600"></label>';
@@ -741,7 +730,6 @@
         var isConsiderSp = state.advancedRules.considerSpecialistTimes;
         html += '<label class="flex items-center justify-between cursor-pointer p-4 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors"><span class="text-sm font-bold text-slate-700">専科教員の勤務可能時間を厳密に考慮する</span><input type="checkbox" ' + (isConsiderSp?'checked':'') + ' onchange="actions.setRule(\'considerSpecialistTimes\', this.checked)" class="w-5 h-5 rounded text-blue-600"></label></div></div>';
 
-        // 3. 優先低
         html += '<div><div class="flex items-center gap-3 mb-4"><span class="bg-emerald-100 text-emerald-700 font-black text-[10px] px-3 py-1 rounded-full">優先：低</span><h3 class="text-lg font-black">3. 時間帯の最適化（ソフト制約）</h3></div><div class="bg-white border border-slate-200 rounded-[24px] p-5 shadow-sm">';
         html += '<div class="mb-6 p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl"><div class="text-sm font-black mb-1 text-emerald-900">特定の時間帯への配置を避ける教科</div><p class="text-[10px] font-bold text-emerald-700 mb-3">午後の体育などを指定すると、AIがその時間帯を極力避けて配置します。</p><div class="flex flex-wrap gap-2 mb-3 items-center"><select id="rule-avoid-g" class="m3-input !w-auto border-emerald-200 shadow-sm"><option value="全学年">全学年</option>';
         GRADES.forEach(function(g){ html += '<option value="' + g + '">' + g + '年生</option>'; });
@@ -779,12 +767,101 @@
             }); });
             if(load > avail) errors.push('[教員限界] ' + t.name + ': 担当授業(' + load + 'コマ) が 勤務可能枠(' + avail + 'コマ) を超過しています。');
         });
-        Object.keys(state.classAssignments).forEach(function(cls){
-            if(!state.classAssignments[cls].homeroom) errors.push('[担任未定] ' + cls + ' の担任が設定されていません'); 
+        
+        var classNeeds = {};
+        var classAssigned = {};
+        var totalErr = 0;
+        var classes = Object.keys(state.classAssignments);
+        classes.forEach(function(cls) {
+            var grade = cls.split('-')[0];
+            state.subjects.forEach(function(s) {
+                classNeeds[cls + '-' + s.name] = parseInt(s.stdHours[grade]) || 0;
+                classAssigned[cls + '-' + s.name] = 0;
+            });
         });
-        var html = '<div class="flex flex-col h-full"><div class="mb-4 shrink-0 font-black text-xl">9. 最終点検</div><div class="flex-1 bg-slate-900 rounded-[32px] p-6 flex flex-col overflow-hidden shadow-xl"><div class="flex items-center justify-between mb-4 shrink-0"><div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full animate-pulse ' + (errors.length===0?'bg-green-500':'bg-red-500') + '"></div><h4 class="text-sm font-black text-white">プレフライト・マトリックス</h4></div><span class="text-[10px] text-slate-400">' + (errors.length===0?'✅ すべてOK':'⚠️ 修正が必要') + '</span></div><div class="flex-1 overflow-auto bg-white rounded-xl p-4">';
-        if (errors.length === 0) { html += '<div class="text-center text-green-600 font-bold mt-10">準備完了！AI生成を実行できます。</div>'; } 
-        else { html += '<div class="space-y-2">'; errors.forEach(function(e){ html += '<p class="text-red-500 font-bold text-xs">⚠️ ' + e + '</p>'; }); html += '</div>'; }
+
+        classes.forEach(function(cls) {
+            var cData = state.classAssignments[cls];
+            var grade = cls.split('-')[0];
+            if(!cData.homeroom) errors.push('[担任未定] ' + cls + ' の担任が設定されていません'); 
+            
+            state.subjects.forEach(function(s) {
+                var hours = parseInt(s.stdHours[grade]) || 0;
+                if (hours === 0) return;
+                var isSp = false;
+                if(state.specialBlocks) {
+                    for(var k=0; k<state.specialBlocks.length; k++){
+                        if(state.specialBlocks[k].subjectId === s.id && state.specialBlocks[k].targets && state.specialBlocks[k].targets.indexOf(cls) !== -1) isSp = true;
+                    }
+                }
+                if (isSp) return;
+                
+                var ovr = (cData.overrides && cData.overrides[s.id]) ? cData.overrides[s.id] : {};
+                if (ovr.allocations && ovr.allocations.length > 0) {
+                    var sumAlloc = 0;
+                    ovr.allocations.forEach(function(a) { sumAlloc += (parseInt(a.hours)||0); });
+                    classAssigned[cls + '-' + s.name] += sumAlloc;
+                } else {
+                    var tId = ovr.teacherId || cData.homeroom;
+                    if (tId) classAssigned[cls + '-' + s.name] += hours;
+                }
+            });
+        });
+
+        if (state.specialBlocks) {
+            state.specialBlocks.forEach(function(b) {
+                var subObj = null;
+                state.subjects.forEach(function(s){ if(s.id === b.subjectId) subObj = s; });
+                if (subObj && b.targets) {
+                    b.targets.forEach(function(cls) {
+                        if (classAssigned[cls + '-' + subObj.name] !== undefined) {
+                            classAssigned[cls + '-' + subObj.name] += parseInt(b.hours) || 0;
+                        }
+                    });
+                }
+            });
+        }
+
+        var html = '<div class="flex flex-col h-full"><div class="mb-4 shrink-0 flex justify-between items-center"><h2 class="text-xl font-black">9. 最終点検</h2>';
+        html += '<div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl shadow-sm border border-slate-200"><span class="text-xs font-bold text-slate-500">AI思考時間:</span><select id="relay-setting" class="m3-input !py-1 !px-2 !text-xs font-bold text-blue-600 border-none cursor-pointer"><option value="1">1分 (標準/2回)</option><option value="2">2分 (強力/4回)</option><option value="3">3分 (究極/6回)</option></select></div></div>';
+        
+        html += '<div class="flex-1 bg-slate-900 rounded-[32px] p-6 flex flex-col overflow-hidden shadow-xl relative"><div class="flex items-center justify-between mb-4 shrink-0"><div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full animate-pulse ' + (totalErr===0 && errors.length===0?'bg-green-500':'bg-red-500') + '"></div><h4 class="text-sm font-black text-white">プレフライト・マトリックス</h4></div><span class="text-[10px] text-slate-400">不足: 赤(-) / 超過: 黄(+) / 一致: 緑(✓)</span></div>';
+        
+        html += '<div class="flex-1 overflow-auto custom-scrollbar rounded-xl border border-slate-700 bg-white"><table class="w-full text-[10px] text-center border-collapse whitespace-nowrap"><thead class="bg-slate-100 border-b border-slate-200 sticky top-0 z-10"><tr><th class="p-2 border-r border-slate-200">クラス</th>';
+        state.subjects.forEach(function(s){ html += '<th class="p-2 border-r border-slate-200 font-black">' + s.name + '</th>'; });
+        html += '<th class="p-2 font-black text-slate-500">合計(実/必)</th></tr></thead><tbody>';
+        
+        classes.forEach(function(cls){
+            var cTotNeed = 0; var cTotAct = 0;
+            html += '<tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors"><td class="p-1.5 bg-slate-50 font-bold border-r border-slate-200">' + cls + '</td>';
+            state.subjects.forEach(function(s){
+                var need = classNeeds[cls + '-' + s.name] || 0;
+                var act = classAssigned[cls + '-' + s.name] || 0;
+                cTotNeed += need; cTotAct += act;
+                var diff = act - need;
+                var cellCls = 'text-slate-300'; var txt = '-';
+                if(need > 0 || act > 0) {
+                    if(diff === 0) { cellCls = 'bg-green-50 text-green-500 font-bold'; txt = '✓'; }
+                    else if(diff < 0) { cellCls = 'bg-red-100 text-red-600 font-black'; txt = diff; totalErr++; }
+                    else { cellCls = 'bg-yellow-100 text-yellow-600 font-black'; txt = '+' + diff; totalErr++; }
+                }
+                html += '<td class="p-1 border-r border-slate-100 ' + cellCls + '">' + txt + '</td>';
+            });
+            var totCls = (cTotAct-cTotNeed===0) ? 'text-slate-400' : (cTotAct-cTotNeed<0 ? 'text-red-500 font-bold' : 'text-yellow-500 font-bold');
+            html += '<td class="p-1.5 bg-slate-50 ' + totCls + '">' + cTotAct + '/' + cTotNeed + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+        
+        if (totalErr > 0) errors.push('[コマ数不整合] クラスの科目過不足が計 ' + totalErr + ' 箇所あります。ステップ6で担当を割り当ててください。');
+        
+        html += '<div class="mt-4 shrink-0">';
+        if (errors.length > 0) {
+            html += '<div class="p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-[10px] text-red-300 font-bold space-y-1 overflow-y-auto max-h-[100px]">';
+            errors.forEach(function(e){ html += '<p>⚠️ ' + e + '</p>'; });
+            html += '</div>';
+        } else {
+            html += '<div class="text-center text-green-400 font-bold text-xs">All Checks Passed. AI生成の準備が整いました。</div>';
+        }
         html += '</div></div></div>'; return html;
     }
 
@@ -803,8 +880,7 @@
         if (state.unassigned && state.unassigned.length > 0) {
             html += '<div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-3 shrink-0 shadow-sm"><div class="flex justify-between items-center flex-wrap gap-2">';
             html += '<div class="flex items-center gap-2"><span class="text-amber-600 font-black text-lg">⚠️ ' + state.unassigned.length + 'コマ未配置</span><span class="text-xs font-bold text-amber-700">（タイムアウト回避のため一時停止中）</span></div>';
-            html += '<div class="flex gap-2"><button onclick="actions.startGeneration()" class="px-4 py-2 bg-white border rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors">リセット</button>';
-            html += '<button onclick="actions.continueGeneration()" class="px-4 py-2 bg-amber-500 text-white rounded-xl text-xs font-black shadow-md animate-pulse">続きを計算する 🚀</button></div></div>';
+            html += '<div class="flex gap-2 items-center"><select id="relay-setting-dash" class="m3-input !py-1.5 !px-2 !text-[10px] font-bold text-blue-600 border-amber-200 cursor-pointer shadow-sm"><option value="1">1分追加(2回)</option><option value="2">2分追加(4回)</option><option value="3">3分追加(6回)</option></select><button onclick="actions.continueGeneration()" class="px-4 py-2 bg-amber-500 text-white rounded-xl text-xs font-black shadow-md animate-pulse">続きを計算する 🚀</button></div></div>';
             if (state.diagnostics) {
                 html += '<div class="mt-3 pt-3 border-t border-amber-200"><h4 class="text-xs font-black text-amber-800 mb-2">💡 AIからの診断レポート（配置できなかった理由の推測）</h4><div class="flex flex-wrap gap-2">';
                 var diagKeys = Object.keys(state.diagnostics);
@@ -817,6 +893,7 @@
         } else if (state.generatedSchedule) {
             html += '<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 mb-3 shrink-0 flex justify-between items-center shadow-sm"><span class="text-emerald-700 font-black text-sm">✅ すべてのコマが配置されました！</span><button onclick="actions.startGeneration()" class="px-3 py-1.5 bg-white text-slate-500 border border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors">最初からやり直す</button></div>';
         }
+        
         html += '<div class="flex justify-between items-center mb-3 bg-white border p-2 rounded-2xl shadow-sm shrink-0 gap-2"><div class="flex items-center gap-2 bg-slate-50 p-1 rounded-xl"><button onclick="actions.setDashView(\'class\')" class="px-4 py-2 rounded-lg font-black text-xs ' + (state.dashView==='class'?'bg-blue-600 text-white':'text-slate-500') + '">クラス別</button><button onclick="actions.setDashView(\'teacher\')" class="px-4 py-2 rounded-lg font-black text-xs ' + (state.dashView==='teacher'?'bg-blue-600 text-white':'text-slate-500') + '">教員別</button></div><select onchange="actions.setDashFilter(this.value)" class="m3-input !py-2 !text-sm !w-48">' + fOpts + '</select><button onclick="actions.undo()" class="text-xs px-4 py-2 border rounded-xl font-bold ' + (state.undoStack.length===0?'text-slate-300':'text-slate-700 hover:bg-slate-50') + '">操作を戻す</button></div><div id="sc-step10" class="flex-1 overflow-auto bg-white border rounded-2xl shadow-sm custom-scrollbar p-1 min-h-0"><div class="grid grid-cols-[40px_repeat(5,1fr)] min-w-[700px] h-full gap-px bg-slate-200 border border-slate-200"><div class="bg-slate-100 flex items-center justify-center font-black text-[10px] uppercase">Time</div>';
         DAYS.forEach(function(d){ html += '<div class="bg-slate-100 flex items-center justify-center font-black text-[12px] py-2">' + d + '曜</div>'; });
         PERIODS.forEach(function(p){
@@ -935,9 +1012,15 @@
         },
         pushUndo: function() { if (!state.undoStack) state.undoStack = []; state.undoStack.push(JSON.stringify(state.generatedSchedule)); if(state.undoStack.length > 15) state.undoStack.shift(); },
         undo: function() { if(state.undoStack && state.undoStack.length > 0) { state.generatedSchedule = JSON.parse(state.undoStack.pop()); state.selectedDashCell = null; render(); showToast('戻しました', 'success'); } },
+        
+        // ★ 自動リレー通信ロジック
         startGeneration: async function() {
             if (!GAS_URL || GAS_URL.indexOf("ここに") !== -1) { showToast("URL未設定です。", "error"); return; }
-            showLoading("AI自動生成中...", "初期配置と最適化を行っています（約25秒）");
+            var relayMinutes = parseInt(document.getElementById('relay-setting')?.value || 1);
+            state.maxRelayCount = relayMinutes * 2;
+            state.relayCount = 1;
+            
+            showLoading("AI自動生成中...", "初期配置と最適化を行っています（自動リレー " + state.relayCount + "/" + state.maxRelayCount + "回目）");
             state.generatedSchedule = null; state.unassigned = null; state.diagnostics = null;
             try {
                 var res = await fetch(GAS_URL, { method: 'POST', mode: 'cors', body: JSON.stringify({ action: 'generate', state: state, currentSchedule: null, unassigned: null }) });
@@ -945,25 +1028,38 @@
                 var data = await res.json();
                 if (data.success) { 
                     state.generatedSchedule = data.schedule; state.unassigned = data.unassigned; state.diagnostics = data.diagnostics;
-                    currentStep = 10; state.undoStack = []; state.selectedDashCell = null; 
-                    render(); if(data.isComplete) showToast("生成完了！", "success"); else showToast("一時停止しました。続きを計算してください。", "info");
-                } else { showToast("生成エラー: " + data.message, "error"); }
-            } catch (e) { showToast("通信エラーが発生しました。", "error"); } finally { hideLoading(); }
+                    state.currentStep = 10; state.undoStack = []; state.selectedDashCell = null; 
+                    if(data.isComplete || state.relayCount >= state.maxRelayCount) {
+                        render(); showToast(data.isComplete?"生成完了！":"指定時間で一時停止しました。", data.isComplete?"success":"info"); hideLoading();
+                    } else {
+                        actions.autoContinueGeneration();
+                    }
+                } else { showToast("生成エラー: " + data.message, "error"); hideLoading(); }
+            } catch (e) { showToast("通信エラーが発生しました。", "error"); hideLoading(); }
         },
-        continueGeneration: async function() {
-            if (!GAS_URL || GAS_URL.indexOf("ここに") !== -1) { showToast("URL未設定です。", "error"); return; }
-            showLoading("AI自動生成（継続）...", "未配置コマの押し出し最適化を行っています（約25秒）");
+        autoContinueGeneration: async function() {
+            state.relayCount++;
+            showLoading("AI継続生成中...", "未配置コマの最適化を行っています（自動リレー " + state.relayCount + "/" + state.maxRelayCount + "回目）");
             try {
                 var res = await fetch(GAS_URL, { method: 'POST', mode: 'cors', body: JSON.stringify({ action: 'generate', state: state, currentSchedule: state.generatedSchedule, unassigned: state.unassigned }) });
                 if (!res.ok) throw new Error("サーバーエラー");
                 var data = await res.json();
                 if (data.success) { 
                     state.generatedSchedule = data.schedule; state.unassigned = data.unassigned; state.diagnostics = data.diagnostics;
-                    currentStep = 10; state.undoStack = []; state.selectedDashCell = null; 
-                    render(); if(data.isComplete) showToast("生成完了！", "success"); else showToast("一時停止しました。さらに続きを計算できます。", "info");
-                } else { showToast("生成エラー: " + data.message, "error"); }
-            } catch (e) { showToast("通信エラーが発生しました。", "error"); } finally { hideLoading(); }
+                    if(data.isComplete || state.relayCount >= state.maxRelayCount) {
+                        render(); showToast(data.isComplete?"生成完了！":"指定時間で一時停止しました。", data.isComplete?"success":"info"); hideLoading();
+                    } else {
+                        actions.autoContinueGeneration();
+                    }
+                } else { showToast("生成エラー: " + data.message, "error"); render(); hideLoading(); }
+            } catch (e) { showToast("通信エラー発生。途中結果を表示します。", "error"); render(); hideLoading(); }
         },
+        continueGeneration: function() {
+            var relayMinutes = parseInt(document.getElementById('relay-setting-dash')?.value || 1);
+            state.maxRelayCount = state.relayCount + (relayMinutes * 2);
+            actions.autoContinueGeneration();
+        },
+        
         exportToSpreadsheet: async function() {
             if (!state.generatedSchedule) return; showLoading("出力中...", "複数のシートを作成しています...");
             try {
@@ -974,7 +1070,7 @@
         },
         resetData: function() { if(confirm("すべてのデータを消去してリセットしますか？")) { try { localStorage.clear(); } catch(e){} location.reload(); } },
         exportData: function() { var a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state)); a.download = "timetable.json"; a.click(); },
-        importData: function() { var i = document.createElement('input'); i.type = 'file'; i.onchange = function(e){ var r = new FileReader(); r.readAsText(e.target.files[0]); r.onload = function(ev){ try { var parsed = JSON.parse(ev.target.result); sanitizeState(parsed); forceInitState(); currentStep=1; render(); showToast("読込完了", "success"); } catch(err) { showToast("読込エラー", "error"); } } }; i.click(); }
+        importData: function() { var i = document.createElement('input'); i.type = 'file'; i.onchange = function(e){ var r = new FileReader(); r.readAsText(e.target.files[0]); r.onload = function(ev){ try { var parsed = JSON.parse(ev.target.result); sanitizeState(parsed); forceInitState(); state.currentStep=1; render(); showToast("読込完了", "success"); } catch(err) { showToast("読込エラー", "error"); } } }; i.click(); }
     };
 
     document.getElementById('btn-next').onclick = function() { 
