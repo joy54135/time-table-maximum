@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.5.5</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.5.7</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { darkMode: 'class' }</script>
 <script>
@@ -35,17 +35,17 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
     <header class="flex items-center justify-between mb-3 shrink-0 px-2">
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200 dark:shadow-none shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-            <div><h1 class="text-xl font-black tracking-tight leading-none text-slate-800 dark:text-slate-100">Smart TimeTable</h1><p class="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest leading-tight">Marathon Hybrid (Ver 15.5.5)</p></div>
+            <div><h1 class="text-xl font-black tracking-tight leading-none text-slate-800 dark:text-slate-100">Smart TimeTable</h1><p class="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest leading-tight">Marathon Hybrid (Ver 15.5.7)</p></div>
         </div>
         <div class="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
             <button onclick="actions.toggleDarkMode()" class="p-2 rounded-xl text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors mr-2" title="テーマ切替">
                 <svg class="w-5 h-5 hidden dark:block text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                 <svg class="w-5 h-5 block dark:hidden text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
             </button>
-            <button onclick="actions.openQuickSaveModal()" class="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50 rounded-lg shadow-sm hidden sm:flex items-center gap-1">💾 セーブ＆ロード</button>
-            <button onclick="actions.exportData()" class="text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:text-blue-600 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm ml-1 hidden md:block">JSON出力</button>
-            <button onclick="actions.importData()" class="text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:text-blue-600 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm hidden md:block">JSON読込</button>
-            <button onclick="actions.hardReset()" class="text-[10px] font-bold text-rose-500 dark:text-rose-400 hover:text-rose-700 px-3 py-1.5 bg-rose-50 dark:bg-rose-900/30 border border-rose-100 dark:border-rose-800/50 rounded-lg ml-1">リセット</button>
+            <button onclick="actions.openQuickSaveModal()" class="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50 rounded-lg shadow-sm hidden sm:flex items-center gap-1 transition-colors">💾 セーブ＆ロード</button>
+            <button onclick="actions.exportData()" class="text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:text-blue-600 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm ml-1 hidden md:block transition-colors">JSON出力</button>
+            <button onclick="actions.importData()" class="text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:text-blue-600 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm hidden md:block transition-colors">JSON読込</button>
+            <button onclick="actions.hardReset()" class="text-[10px] font-bold text-rose-500 dark:text-rose-400 hover:text-rose-700 px-3 py-1.5 bg-rose-50 dark:bg-rose-900/30 border border-rose-100 dark:border-rose-800/50 rounded-lg ml-1 transition-colors">リセット</button>
         </div>
     </header>
     <div class="m3-card flex-1 flex flex-col min-h-0 relative">
@@ -57,7 +57,7 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
     </div>
 </div>
 
-<div id="modal-overlay" class="fixed inset-0 z-[150] flex items-center justify-center hidden p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm"><div class="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-2xl w-full shadow-2xl flex flex-col overflow-hidden max-h-[90vh]" id="modal-body"></div></div>
+<div id="modal-overlay" class="fixed inset-0 z-[150] flex items-center justify-center hidden p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm transition-all"><div class="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-2xl w-full shadow-2xl flex flex-col overflow-hidden max-h-[90vh]" id="modal-body"></div></div>
 
 <div id="loading-overlay" class="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-[200] hidden items-center justify-center flex-col gap-4 transition-all">
     <div class="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-2 shadow-lg"></div>
@@ -85,7 +85,8 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 </div>
 
 <script>
-var GAS_URL="https://script.google.com/macros/s/AKfycbySvGeOMTAIgpCQSbzMdNrJ3KFplVnM55bq4iIsUYa4rYVCTmYmHwO94PjmdQwn_NZlRQ/exec";
+// ★ 新しいGAS URL
+var GAS_URL="https://script.google.com/macros/s/AKfycbznGEOXNkiBGy__Bmlb-8IVfLfcWjKbbTOwOSIcENekxpY21gT9EX90vo4-oM9505-IMg/exec";
 
 var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'], PERIODS=[1,2,3,4,5,6];
 var stepTitles=["1. 基本設定","2. 行事・不可枠","3. 教科と教室","4. 教員名簿","5. 特殊授業 (分散機能)","6. クラス別担当 (混合・固定)","7. 教員別確認","8. 配置ルール (排他・バッファ)","9. 最終点検","10. 司令塔(ダッシュボード)"];
@@ -161,7 +162,7 @@ function render(){
 
 function buildGrid(ngMap,gMap,actStr){return `<div class="overflow-x-auto w-full custom-scrollbar min-h-0"><table class="border-separate border-spacing-1 table-fixed w-max mx-auto"><thead><tr><th class="w-8"></th>${DAYS.map(d=>`<th class="text-center text-xs font-black text-slate-400 dark:text-slate-500 w-9">${d}</th>`).join('')}</tr></thead><tbody>${PERIODS.map(p=>`<tr><td class="text-right pr-2 text-[10px] font-bold text-slate-400 dark:text-slate-500">${p}限</td>${DAYS.map(d=>{const k=`${d}-${p}`,gl=gMap?.[k],ng=ngMap?.[k],cls=`w-8 h-8 border rounded-lg flex items-center justify-center cursor-pointer font-bold text-xs transition-colors ${gl?'bg-slate-800 dark:bg-slate-400 dark:text-slate-900 text-white shadow-md border-slate-800 dark:border-slate-400':(ng?'bg-rose-50 dark:bg-rose-900/40 border-rose-300 dark:border-rose-800/60 text-rose-500 dark:text-rose-400':'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-200 dark:text-slate-600 hover:bg-blue-50 dark:hover:bg-slate-700')}`;return `<td class="p-0"><div onclick="${actStr.replace('__KEY__',k)}" class="${cls}">${gl?'■':(ng?'✕':'〇')}</div></td>`;}).join('')}</tr>`).join('')}</tbody></table></div>`;}
 
-// --- 各ステップのビュー ---
+// --- ビュー定義 (1-9) ---
 window.viewStep1 = ()=>`<div class="flex flex-col gap-6 h-full overflow-y-auto custom-scrollbar pr-2" id="sc-step1"><div class="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-inner dark:shadow-none"><h3 class="font-black text-sm mb-3 dark:text-slate-200">学級数の設定</h3><div class="grid grid-cols-3 md:grid-cols-6 gap-3">${GRADES.map(g=>`<div class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center"><span class="text-slate-500 dark:text-slate-400 font-bold text-xs mb-2">${g}年</span><div class="flex items-center gap-2"><button onclick="actions.updateGrade(${g},-1)" class="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 font-black text-slate-500 dark:text-slate-300">-</button><input type="number" value="${state.grades?.[g]||1}" onchange="actions.setGrade(${g},this.value)" class="w-10 text-xl font-black text-blue-600 dark:text-blue-400 text-center outline-none bg-transparent" min="1" max="10"><button onclick="actions.updateGrade(${g},1)" class="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 font-black text-slate-500 dark:text-slate-300">+</button></div></div>`).join('')}</div></div><div class="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-inner dark:shadow-none"><h3 class="font-black text-sm mb-3 dark:text-slate-200">時数設定</h3><div class="overflow-x-auto"><table class="w-full text-xs text-center border-collapse min-w-[500px]"><thead><tr><th class="p-2 border-b dark:border-slate-700 text-slate-500 dark:text-slate-400">学年</th>${DAYS.map(d=>`<th class="p-2 border-b dark:border-slate-700 font-black text-slate-700 dark:text-slate-300">${d}曜</th>`).join('')}</tr></thead><tbody>${GRADES.map(g=>`<tr><td class="p-2 font-bold border-b dark:border-slate-700 text-slate-600 dark:text-slate-400">${g}年</td>${DAYS.map(d=>`<td class="p-2 border-b dark:border-slate-700"><div class="flex items-center justify-center gap-1"><button onclick="actions.updatePeriod(${g},'${d}',-1)" class="w-6 h-6 bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600 rounded-lg font-black text-slate-500 dark:text-slate-300">-</button><input type="number" value="${state.periods?.[g]?.[d]||0}" onchange="actions.setPeriod(${g},'${d}',this.value)" class="w-8 text-center font-black text-blue-600 dark:text-blue-400 outline-none bg-transparent"><button onclick="actions.updatePeriod(${g},'${d}',1)" class="w-6 h-6 bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600 rounded-lg font-black text-slate-500 dark:text-slate-300">+</button></div></td>`).join('')}</tr>`).join('')}</tbody></table></div></div></div>`;
 window.viewStep2 = ()=>`<div class="flex flex-col items-center justify-center h-full text-center space-y-4" id="sc-step2"><h2 class="text-xl font-black dark:text-slate-100">行事・全校不可枠設定</h2><div class="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 shadow-inner dark:shadow-none">${buildGrid(null,state.globalBlocks,"actions.toggleBlock('__KEY__')")}</div></div>`;
 window.viewStep3 = ()=>{const rmOpts=`<option value="通常教室">通常教室</option>`+(state.rooms||[]).map(r=>`<option value="${r.name}">${r.name}</option>`).join('');return `<div class="flex flex-col md:flex-row gap-4 h-full"><div class="w-full md:w-1/4 flex flex-col bg-slate-50 dark:bg-slate-800/50 rounded-2xl border dark:border-slate-800 p-3 h-1/3 md:h-full"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-xs dark:text-slate-200">特別教室</h3><button onclick="actions.addRoom()" class="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border dark:border-blue-800/50 px-2 py-1 rounded-md font-bold">+ 追加</button></div><div class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5">${(state.rooms||[]).map((r,i)=>`<div class="flex items-center gap-1 bg-white dark:bg-slate-800 p-1.5 rounded-lg border dark:border-slate-700 shadow-sm"><input type="text" value="${r.name}" onchange="actions.updateRoomName('${r.id}',this.value)" class="flex-1 min-w-0 text-xs font-bold outline-none dark:bg-transparent dark:text-slate-200"><button onclick="actions.removeRoom('${r.id}')" class="text-slate-300 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 font-bold px-2">✕</button></div>`).join('')}</div></div><div class="flex-1 flex flex-col bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 h-2/3 md:h-full overflow-hidden"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-xs dark:text-slate-200">科目時数</h3><button onclick="actions.addSubject('新規教科')" class="text-[10px] bg-blue-600 dark:bg-blue-500 text-white px-3 py-1.5 rounded-md font-bold">+ 新規教科</button></div><div class="flex-1 overflow-auto custom-scrollbar border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800"><table class="w-full text-xs text-center border-collapse min-w-[700px]"><thead class="sticky top-0 bg-slate-100 dark:bg-slate-700 z-10 shadow-sm"><tr><th class="w-10"></th><th class="p-2 text-left pl-3 w-28 dark:text-slate-200">科目名</th><th class="p-2 w-24 dark:text-slate-200">教室</th>${GRADES.map(g=>`<th class="p-2 dark:text-slate-200">${g}年</th>`).join('')}</tr></thead><tbody>${(state.subjects||[]).map((s,i)=>`<tr class="border-b dark:border-slate-700"><td><button onclick="actions.moveItem('subjects',${i},-1)" class="w-6 h-5 text-sm text-slate-400 dark:text-slate-500">▲</button></td><td class="p-1"><input type="text" value="${s.name}" onchange="actions.updateSubject('${s.id}','name',this.value)" class="m3-input !p-1.5 font-bold bg-transparent dark:bg-transparent border-transparent dark:border-transparent dark:text-slate-200"></td><td><select onchange="actions.updateSubject('${s.id}','defaultRoom',this.value)" class="m3-input !p-1.5 text-[10px]">${rmOpts.replace(`value="${s.defaultRoom||'通常教室'}"`,`value="${s.defaultRoom||'通常教室'}" selected`)}</select></td>${GRADES.map(g=>`<td><input type="number" value="${s.stdHours?.[g]||0}" onchange="actions.setSubjectHour('${s.id}',${g},this.value)" class="w-8 text-center font-black text-blue-600 dark:text-blue-400 bg-transparent outline-none"></td>`).join('')}</tr>`).join('')}</tbody></table></div></div></div>`;};
@@ -291,7 +292,7 @@ window.viewStep8 = ()=>{
             ${mkCard('homeroomBufferSubjects','担任裁量バッファ (延長・準備枠)','家庭科や図工など、前後に「担任の空き時間」または「担任の授業」を確保します。※4-5限間は給食があるため隣接とみなしません。','low','gs')}
             ${exPairsCard}
             ${mkCard('considerSpecialistTimes','専科等教員の勤務時間を厳密考慮','Step 4の教員✕枠の扱い。高にすると絶対に入れません。','high')}
-            ${mkCard('limitOneSubjectPerDayStrict','同日重複を禁止 (分散)','同じクラスに同じ教科が1日に2回以上入ることを防ぎます。(6時間教科は1日2コマまで)','high')}
+            ${mkCard('limitOneSubjectPerDayStrict','同日重複を禁止 (分散)','同じクラスに同じ教科が1日に2回以上入ることを防ぎます。','high')}
             ${mkCard('limitContinuousToSpecificPeriods','連続授業を「1-2, 3-4, 5-6限」のペア枠に限定','中休みなどを跨ぐ連続授業を防ぎます。','high')}
             ${mkCard('continuousClasses','連続授業（ニコイチ）の登録','2コマ連続で配置する教科を指定します。','high','gs')}
             ${mkCard('homeroomOnlyTimes','担任授業固定枠 (専科ブロック)','行事準備などで、専科の授業を入れない枠を指定します。','low','gdp')}
@@ -339,7 +340,7 @@ window.viewStep9 = ()=>{
             ${marathonGens.map(v => `<option value="${v}" ${m.maxGen===v?'selected':''}>${v===Infinity?'無制限':v+'世代'}</option>`).join('')}
         </select>
         <label class="flex items-center gap-1 cursor-pointer ml-2">
-            <input type="checkbox" ${m.ignoreFatal?'checked':''} onchange="actions.updateMarathon('ignoreFatal', this.checked)" class="w-3 h-3 text-indigo-600 dark:text-indigo-400 rounded">
+            <input type="checkbox" ${m.ignoreFatal?'checked':''} onchange="actions.updateMarathon('ignoreFatal', this.checked)" class="w-3 h-3 text-indigo-600 dark:text-indigo-400 rounded bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600">
             <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400">エラー無視</span>
         </label>
     </div></div>
@@ -363,14 +364,14 @@ window.viewStep10 = ()=>{
             
             <div class="flex items-center gap-2 bg-slate-800 dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-600 dark:border-slate-700">
                 <span class="text-[10px] font-bold text-slate-400">目標:</span>
-                <select onchange="actions.updateMarathon('target', parseInt(this.value))" class="bg-transparent text-white font-black text-[10px] outline-none cursor-pointer">
+                <select onchange="actions.updateMarathon('target', parseInt(this.value))" class="bg-transparent text-white font-black text-[10px] outline-none cursor-pointer border-b border-transparent focus:border-indigo-500 pb-0.5">
                     <option value="0" ${m.target===0?'selected':''}>未配置0まで</option>
                     <option value="1" ${m.target===1?'selected':''}>未配置1以下</option>
                     <option value="3" ${m.target===3?'selected':''}>未配置3以下</option>
                 </select>
                 <span class="text-[10px] font-bold text-slate-400 ml-1">追加:</span>
-                <select onchange="actions.updateMarathon('maxGen', parseFloat(this.value))" class="bg-transparent text-white font-black text-[10px] outline-none cursor-pointer">
-                    ${marathonGens.map(v => `<option value="${v}" ${m.maxGen===v?'selected':''}>${v===Infinity?'無制限':v+'世代'}</option>`).join('')}
+                <select id="dash-add-gen" class="bg-transparent text-white font-black text-[10px] outline-none cursor-pointer border-b border-slate-600 pb-0.5 focus:border-indigo-500 transition-colors">
+                    ${marathonGens.map(v => `<option value="${v}" ${v===10?'selected':''}>${v===Infinity?'無制限':v+'世代'}</option>`).join('')}
                 </select>
                 <label class="flex items-center gap-1 cursor-pointer ml-1">
                     <input type="checkbox" ${m.ignoreFatal?'checked':''} onchange="actions.updateMarathon('ignoreFatal', this.checked)" class="w-3 h-3 text-indigo-400 rounded bg-slate-700 border-slate-500">
@@ -390,8 +391,8 @@ window.viewStep10 = ()=>{
             ` : ''}
             
             <div class="flex gap-2">
-                <button onclick="actions.continueMarathon()" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-black shadow-md hover:bg-indigo-700 transition-all flex items-center gap-1 border border-indigo-500">🚀 継続実行</button>
-                <button onclick="actions.resetAndGenerate()" class="px-4 py-2 bg-rose-500 text-white rounded-xl text-xs font-black shadow-md hover:bg-rose-600 transition-all border border-rose-400">🔄 リセット</button>
+                <button onclick="actions.continueMarathon()" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-black shadow-md hover:bg-indigo-700 transition-all flex items-center gap-1 border border-indigo-500 active:scale-95">🚀 継続実行</button>
+                <button onclick="actions.resetAndGenerate()" class="px-4 py-2 bg-rose-500 text-white rounded-xl text-xs font-black shadow-md hover:bg-rose-600 transition-all border border-rose-400 active:scale-95">🔄 リセット</button>
             </div>
         </div>
     </div>`;
@@ -400,7 +401,7 @@ window.viewStep10 = ()=>{
         html+=`<div class="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-4 mb-3 shrink-0 shadow-sm flex flex-col gap-3 max-h-[30vh] overflow-y-auto custom-scrollbar">
             <div class="flex justify-between items-center sticky top-0 bg-amber-50 dark:bg-[#1a140a] pb-2 border-b border-amber-200/50 dark:border-amber-800/50 z-10 pt-1">
                 <span class="text-amber-800 dark:text-amber-400 font-black text-sm flex items-center gap-2">⚠️ ${state.unassigned.length}コマ未配置 (詳細な診断結果)</span>
-                <button onclick="actions.continueGeneration()" class="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-black shadow-sm hover:bg-amber-600 transition-colors">今の盤面で1回調整</button>
+                <button onclick="actions.continueGeneration()" class="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-black shadow-sm hover:bg-amber-600 transition-colors active:scale-95">今の盤面で1回調整</button>
             </div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
         `;
@@ -464,19 +465,23 @@ window.actions = {
     setDashFilter:(v)=>{state.dashFilter=v;render();},
     updateMarathon:(k,v)=>{state.marathon[k]=v;render();},
     
+    closeModal: () => {
+        document.getElementById('modal-overlay').classList.add('hidden');
+    },
+
     openReportModal:()=>{
         if(!state.scoreCard) return showToast("スコアデータがありません", "error");
         const sc = state.scoreCard;
         let html = `
-            <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-200 dark:border-slate-700">
+            <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-200 dark:border-slate-700 shrink-0">
                 <h3 class="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">📊 AI自己採点レポート</h3>
-                <button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 font-black text-xl transition-colors">✕</button>
+                <button onclick="actions.closeModal()" class="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-black text-2xl transition-colors leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">✕</button>
             </div>
-            <div class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-4">
+            <div class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-4 min-h-0">
         `;
 
         html += `
-            <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+            <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shrink-0">
                 <div class="flex justify-between items-center mb-2">
                     <span class="font-black text-sm text-slate-700 dark:text-slate-300">基礎ルール (配置完了率)</span>
                     <span class="font-black text-lg text-emerald-600 dark:text-emerald-400">${sc.basic.score}%</span>
@@ -492,7 +497,7 @@ window.actions = {
             const r = rules[k];
             const isPerfect = r.score === 100;
             html += `
-                <div class="bg-white dark:bg-slate-800 rounded-xl border ${isPerfect ? 'border-emerald-200 dark:border-emerald-800/50' : 'border-amber-300 dark:border-amber-700'} shadow-sm overflow-hidden">
+                <div class="bg-white dark:bg-slate-800 rounded-xl border ${isPerfect ? 'border-emerald-200 dark:border-emerald-800/50' : 'border-amber-300 dark:border-amber-700'} shadow-sm overflow-hidden shrink-0">
                     <div class="px-4 py-2 flex justify-between items-center ${isPerfect ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-amber-50 dark:bg-amber-900/20'} border-b ${isPerfect ? 'border-emerald-100 dark:border-emerald-800/50' : 'border-amber-200 dark:border-amber-800/50'}">
                         <span class="font-black text-xs ${isPerfect ? 'text-emerald-800 dark:text-emerald-400' : 'text-amber-800 dark:text-amber-400'}">${r.name}</span>
                         <span class="font-black text-sm ${isPerfect ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}">${r.score}%</span>
@@ -511,31 +516,130 @@ window.actions = {
 
         html += `</div>`;
         document.getElementById('modal-body').innerHTML = html;
-        document.getElementById('modal-overlay').classList.remove('hidden');
+        const overlay = document.getElementById('modal-overlay');
+        overlay.classList.remove('hidden');
+        overlay.onclick = (e) => { if(e.target === overlay) actions.closeModal(); };
     },
 
-    // ★ マラソン生成エンジン (毎回完全にリセットする方式)
+    // ★ セーブ・ロード機能の抜本的改善 (20スロット & 命名機能)
+    openQuickSaveModal: () => {
+        const slots = Array.from({length: 20}, (_, i) => i + 1);
+        let html = `
+            <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-200 dark:border-slate-700 shrink-0">
+                <h3 class="text-lg font-black text-slate-800 dark:text-slate-100">💾 セーブ/ロード <span class="text-xs font-bold text-slate-500 dark:text-slate-400 ml-2">(全20スロット)</span></h3>
+                <button onclick="actions.closeModal()" class="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-black text-2xl transition-colors leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">✕</button>
+            </div>
+            <div class="flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-2 flex-1 min-h-0 max-h-[60vh]">
+        `;
+        
+        slots.forEach(i => {
+            let meta = null;
+            try {
+                const raw = localStorage.getItem('tt_v15_save_meta_' + i);
+                if (raw) meta = JSON.parse(raw);
+                if (!meta && localStorage.getItem('tt_v15_save_' + i)) {
+                    meta = { name: "旧バージョンのデータ", time: "" };
+                }
+            } catch(e) {}
+
+            const isEmpty = !meta;
+            const nameDisp = meta ? meta.name : "空きスロット";
+            const timeDisp = meta?.time ? `<span class="text-[9px] text-slate-500 dark:text-slate-400 font-normal ml-2">${meta.time}</span>` : "";
+            const bgClass = isEmpty ? 'bg-slate-50/50 dark:bg-slate-800/30 border-dashed border-slate-300 dark:border-slate-700' : 'bg-white dark:bg-slate-800 border-solid border-slate-200 dark:border-slate-600 shadow-sm';
+            const textClass = isEmpty ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200 font-bold';
+
+            html += `
+            <div class="flex items-center justify-between p-3 border rounded-xl ${bgClass} transition-colors hover:border-blue-300 dark:hover:border-blue-500/50 shrink-0">
+                <div class="flex flex-col flex-1 min-w-0 pr-4">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-black text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded w-6 text-center">#${i}</span>
+                        <span class="text-sm truncate ${textClass}">${nameDisp}</span>
+                    </div>
+                    ${timeDisp ? `<div class="mt-0.5 ml-9">${timeDisp}</div>` : ''}
+                </div>
+                <div class="flex gap-2 shrink-0">
+                    <button onclick="actions.quickSave(${i})" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95">セーブ</button>
+                    <button onclick="actions.quickLoad(${i})" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 disabled:opacity-30 disabled:hover:bg-emerald-600 disabled:cursor-not-allowed" ${isEmpty?'disabled':''}>ロード</button>
+                </div>
+            </div>`;
+        });
+        
+        document.getElementById('modal-body').innerHTML = html + `</div>`;
+        const overlay = document.getElementById('modal-overlay');
+        overlay.classList.remove('hidden');
+        overlay.onclick = (e) => { if(e.target === overlay) actions.closeModal(); };
+    },
+    quickSave: (s) => {
+        const unassignedCount = state.unassigned ? state.unassigned.length : 0;
+        const now = new Date();
+        const yy = String(now.getFullYear()).slice(-2);
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const hh = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        const defaultName = `未配置${unassignedCount} - ${yy}/${mm}/${dd} ${hh}:${min}`;
+        
+        const saveName = prompt(`スロット ${s} に保存します。\n名前を入力してください：`, defaultName);
+        if (saveName === null) return;
+
+        const meta = { name: saveName || defaultName, time: `${yy}/${mm}/${dd} ${hh}:${min}` };
+        
+        try {
+            localStorage.setItem('tt_v15_save_' + s, JSON.stringify(state));
+            localStorage.setItem('tt_v15_save_meta_' + s, JSON.stringify(meta));
+            showToast(`スロット ${s} にセーブしました`, "success");
+            actions.openQuickSaveModal(); 
+        } catch(e) {
+            showToast("容量オーバーのため保存できませんでした", "error");
+        }
+    },
+    quickLoad: (s) => {
+        if(!confirm(`スロット ${s} のデータをロードしますか？\n※現在の未保存の編集内容は失われます`)) return;
+        const d = localStorage.getItem('tt_v15_save_' + s);
+        if(d){
+            Object.keys(state).forEach(k => delete state[k]);
+            Object.assign(state, JSON.parse(d));
+            forceInitState();
+            render();
+            showToast(`スロット ${s} をロードしました`, "success");
+            actions.closeModal();
+        } else {
+            showToast("データが見つかりません", "error");
+        }
+    },
+
+    // ★ マラソン生成エンジン
     startGeneration: async function(){
         state.marathon.active = true; state.marathon.currentGen = 1; globalStartTime = Date.now();
         state.best = {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null};
         actions.runMarathonCycle();
     },
+    
+    // ★ 世代数の継ぎ足し機能
     continueMarathon: async function(){
+        const addVal = document.getElementById('dash-add-gen')?.value;
+        const addGen = addVal ? parseFloat(addVal) : 10;
+        
         state.marathon.active = true; 
-        if(state.marathon.maxGen !== Infinity) state.marathon.maxGen += 10;
+        if(state.marathon.maxGen !== Infinity) {
+            if (addGen === Infinity) {
+                state.marathon.maxGen = Infinity;
+            } else {
+                state.marathon.maxGen += addGen;
+            }
+        }
         actions.runMarathonCycle();
     },
+    
     continueGeneration: function(){
         state.marathon.active = false;
         actions.runSingleCycle("今の盤面を元に1回だけ調整中...", false);
     },
     
-    // ★ インテリジェント・キャンセル
     cancelGeneration: () => {
         hideLoading(); 
         state.marathon.active = false; 
         
-        // 歴代ベストが保存されていれば、それをダッシュボードに復元する
         if (state.best && state.best.schedule) {
             state.generatedSchedule = state.best.schedule;
             state.unassigned = state.best.unassigned;
@@ -544,7 +648,6 @@ window.actions = {
             state.currentStep = 10;
             showToast(`生成を中止しました。最も優秀な盤面（未配置 ${state.best.unassignedCount}）を表示します。`, "info");
         } else {
-            // 1回目すら終わっていない場合はStep 9に戻る
             state.currentStep = 9;
             showToast("生成をキャンセルしました。", "info");
         }
@@ -552,6 +655,8 @@ window.actions = {
     },
 
     runMarathonCycle: async function(){
+        if (!state.marathon.active) return;
+        
         const m = state.marathon;
         startGenTimer();
         showLoading("AIマラソン中...", `第 ${m.currentGen} / ${m.maxGen===Infinity?'∞':m.maxGen} 世代`, true, `目標：未配置 ${m.target} 以下`);
@@ -567,11 +672,10 @@ window.actions = {
         }
 
         try {
-            // ★ 修正: 毎回完全に新しい盤面（null）からスタートさせる (袋小路防止)
+            // 毎回完全に新しい盤面（null）からスタートさせる (袋小路防止)
             const res = await fetch(GAS_URL, { method:'POST', mode:'cors', body:JSON.stringify({ action:'generate', state, currentSchedule: null, unassigned: null }) });
             const data = await res.json();
             
-            // キャンセルボタンが押されていたらこれ以降の処理をスキップ
             if (!state.marathon.active) return; 
 
             if(data.success){
@@ -580,7 +684,6 @@ window.actions = {
                 state.scoreCard = data.scoreCard;
                 state.reportDetails = data.reportDetails;
 
-                // 直近の結果を画面に即座に反映
                 if (bestContainer && latestRecord) {
                     bestContainer.classList.remove('hidden');
                     bestContainer.classList.add('flex');
@@ -621,7 +724,7 @@ window.actions = {
                         showToast(`最大世代到達。最も優秀な盤面（未配置 ${state.best.unassignedCount}）を表示します。`, "success");
                     }
                 } else {
-                    m.currentGen++; actions.runMarathonCycle(); // 次の世代へ
+                    m.currentGen++; actions.runMarathonCycle(); 
                 }
             } else {
                 if(m.ignoreFatal) { m.currentGen++; actions.runMarathonCycle(); } 
@@ -684,9 +787,7 @@ window.actions = {
     removeAllocRow:(i)=>{if(state.allocationModal)state.allocationModal.rows.splice(i,1);render();},
     saveAllocModal:()=>{if(!state.allocationModal)return;const m=state.allocationModal,tot=m.rows.reduce((s,r)=>s+(parseInt(r.hours)||0),0);if(tot!==m.stdHours)return showToast(`合計を${m.stdHours}にしてください`,'error');if(!state.classAssignments[m.cls].overrides)state.classAssignments[m.cls].overrides={};if(!state.classAssignments[m.cls].overrides[m.subId])state.classAssignments[m.cls].overrides[m.subId]={};if(m.rows.length===1){state.classAssignments[m.cls].overrides[m.subId].teacherId=m.rows[0].teacherId;delete state.classAssignments[m.cls].overrides[m.subId].allocations;}else{state.classAssignments[m.cls].overrides[m.subId].allocations=JSON.parse(JSON.stringify(m.rows));}state.allocationModal=null;render();},
     clearAllocations:(cls,sId)=>{if(state.classAssignments[cls].overrides[sId]){delete state.classAssignments[cls].overrides[sId].allocations; render();}},
-    openQuickSaveModal:()=>{const slots=[1,2,3];let html=`<div class="flex justify-between items-center mb-4"><h3 class="text-lg font-black dark:text-slate-100">💾 セーブ/ロード</h3><button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="text-slate-400 dark:text-slate-500 font-black">✕</button></div><div class="flex flex-col gap-3">`;slots.forEach(i=>{const d=localStorage.getItem('tt_v15_save_'+i);html+=`<div class="flex items-center justify-between p-4 border dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800"><span>スロット ${i} ${d?'<span class="text-emerald-600 dark:text-emerald-400 text-xs font-bold">(データあり)</span>':'<span class="text-slate-400 text-xs font-bold">(空)</span>'}</span><div class="flex gap-2"><button onclick="actions.quickSave(${i})" class="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg text-xs font-bold">セーブ</button><button onclick="actions.quickLoad(${i})" class="px-4 py-2 bg-emerald-600 dark:bg-emerald-500 text-white rounded-lg text-xs font-bold" ${!d?'disabled style="opacity:0.5"':''}>ロード</button></div></div>`});document.getElementById('modal-body').innerHTML=html+`</div>`;document.getElementById('modal-overlay').classList.remove('hidden');},
-    quickSave:(s)=>{localStorage.setItem('tt_v15_save_'+s,JSON.stringify(state));showToast("セーブ完了","success");actions.openQuickSaveModal();},
-    quickLoad:(s)=>{const d=localStorage.getItem('tt_v15_save_'+s);if(d){Object.assign(state,JSON.parse(d));forceInitState();render();showToast("ロード完了","success");document.getElementById('modal-overlay').classList.add('hidden');}},
+    
     exportData:()=>{const blob=new Blob([JSON.stringify(state)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`timetable_backup_${Date.now()}.json`;a.click();},
     importData:()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];const r=new FileReader();r.onload=ev=>{Object.assign(state,JSON.parse(ev.target.result));forceInitState();render();showToast("読込完了","success");};r.readAsText(f);};i.click();},
     exportToSpreadsheet: async function(){
