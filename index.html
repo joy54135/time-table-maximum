@@ -52,20 +52,14 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 <div id="modal-overlay" class="fixed inset-0 z-[150] flex items-center justify-center hidden p-4 bg-slate-900/60 backdrop-blur-sm"><div class="bg-white rounded-3xl p-6 max-w-2xl w-full shadow-2xl flex flex-col overflow-hidden max-h-[90vh]" id="modal-body"></div></div>
 <div id="allocation-modal-container"></div>
 
-<!-- ★ ローディング画面 (Ver 15.5 デュアルタイマー対応) -->
+<!-- ★ ローディング画面 -->
 <div id="loading-overlay" class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[200] hidden items-center justify-center flex-col gap-4 transition-all">
     <div class="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-2 shadow-lg shadow-indigo-500/20"></div>
     <div class="text-white text-center">
         <h3 class="text-xl font-black tracking-widest mb-1" id="loading-title">AI思考中...</h3>
-        
-        <!-- セッション（今回のリレー）ごとのタイマー -->
         <div id="loading-timer" class="text-7xl font-black text-emerald-400 font-mono tracking-widest mb-1 drop-shadow-md">0.0s</div>
-        
         <p class="text-indigo-200 font-bold text-sm" id="loading-desc">しばらくお待ちください</p>
-        
-        <!-- 累計タイマー（小さく表示） -->
         <p class="text-slate-500 font-mono text-xs mt-2" id="global-timer-display">累計経過時間: 0.0s</p>
-        
         <p class="text-amber-300 font-black text-[11px] mt-4 bg-slate-800 px-5 py-2 rounded-full border border-slate-600 shadow-inner hidden" id="loading-status"></p>
     </div>
     <button id="btn-cancel-gen" onclick="actions.cancelGeneration()" class="mt-6 px-8 py-3 bg-slate-800 text-slate-300 border border-slate-600 rounded-full text-sm font-bold hover:bg-rose-900 hover:border-rose-500 hover:text-rose-200 transition-colors hidden shadow-lg">生成をキャンセルして戻る</button>
@@ -80,27 +74,19 @@ var stepTitles=["1. 基本設定","2. 行事・不可枠","3. 教科と教室","
 var state={currentStep:1, grades:{1:3,2:3,3:3,4:3,5:3,6:3}, periods:{}, rooms:[], subjects:[], teachers:[], globalBlocks:{}, specialBlocks:[], classAssignments:{}, advancedRules:{priorities:{}, exclusivePairs:[]}, generatedSchedule:null, unassigned:[], reportDetails:{}, scoreCard:null, dashTab:'matrix', matrixAxis:'class', dashView:'class', dashFilter:'1-1', relayCount:0, maxRelayCount:0, prevUnassignedCount:9999, marathon: {active:false, target:-1, maxGen:10, currentGen:1, ignoreFatal:false}, best: {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null}, selectedTeacherId:null, editingTeacherNameId:null, selectedDashCell:null, selectedUnassignedIdx:null, subjectsUndoStack:[], undoStack:[]};
 
 let genTimerInterval = null;
-let sessionStartTime = null; // 今回のリレーの開始時間
-let globalStartTime = null;  // 全体の生成開始時間
+let sessionStartTime = null; 
+let globalStartTime = null;  
 
 function startGenTimer() {
-    sessionStartTime = Date.now(); // 毎回リセット
+    sessionStartTime = Date.now(); 
     if (!globalStartTime) globalStartTime = Date.now();
-    
     if(genTimerInterval) clearInterval(genTimerInterval);
     genTimerInterval = setInterval(() => {
         const timerEl = document.getElementById('loading-timer');
         const globalEl = document.getElementById('global-timer-display');
         const now = Date.now();
-        
-        if(timerEl && sessionStartTime) {
-            const diff = (now - sessionStartTime) / 1000;
-            timerEl.innerText = diff.toFixed(1) + 's';
-        }
-        if(globalEl && globalStartTime) {
-            const diffG = (now - globalStartTime) / 1000;
-            globalEl.innerText = `累計経過時間: ${diffG.toFixed(1)}s`;
-        }
+        if(timerEl && sessionStartTime) timerEl.innerText = ((now - sessionStartTime) / 1000).toFixed(1) + 's';
+        if(globalEl && globalStartTime) globalEl.innerText = `累計経過時間: ${((now - globalStartTime) / 1000).toFixed(1)}s`;
     }, 100);
 }
 function stopGenTimer() { clearInterval(genTimerInterval); genTimerInterval = null; }
@@ -434,6 +420,89 @@ window.actions = {
     setDashView:(v)=>{state.dashView=v;render();},
     setDashFilter:(v)=>{state.dashFilter=v;render();},
     
+    // ★ セーブ・ロード＆JSON入出力機能 (復旧)
+    openQuickSaveModal: () => {
+        const slots = [1, 2, 3];
+        const html = `
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-black">💾 クイックセーブ / ロード</h3>
+                <button onclick="document.getElementById('modal-overlay').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-black text-xl">✕</button>
+            </div>
+            <div class="flex flex-col gap-3">
+                ${slots.map(i => {
+                    const data = localStorage.getItem('tt_v15_save_slot_' + i);
+                    const info = data ? 'データあり' : '空きスロット';
+                    return `
+                    <div class="flex items-center justify-between p-4 border border-slate-200 rounded-xl bg-slate-50 shadow-sm">
+                        <span class="font-bold text-sm">スロット ${i} <span class="text-xs text-slate-500 ml-2">(${info})</span></span>
+                        <div class="flex gap-2">
+                            <button onclick="actions.quickSave(${i})" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-black shadow-sm hover:bg-blue-700 transition-colors">セーブ</button>
+                            <button onclick="actions.quickLoad(${i})" class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-black shadow-sm hover:bg-emerald-700 transition-colors" ${!data?'disabled style="opacity:0.5; cursor:not-allowed;"':''}>ロード</button>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>
+        `;
+        document.getElementById('modal-body').innerHTML = html;
+        document.getElementById('modal-overlay').classList.remove('hidden');
+    },
+    quickSave: (slot) => {
+        if(confirm(`スロット ${slot} に現在の状態をセーブしますか？`)){
+            localStorage.setItem('tt_v15_save_slot_' + slot, JSON.stringify(state));
+            showToast(`スロット ${slot} にセーブしました`, "success");
+            actions.openQuickSaveModal(); // UI更新
+        }
+    },
+    quickLoad: (slot) => {
+        if(confirm(`スロット ${slot} のデータをロードしますか？\n※現在の未保存の編集内容は失われます`)){
+            const data = localStorage.getItem('tt_v15_save_slot_' + slot);
+            if(data){
+                Object.assign(state, JSON.parse(data));
+                forceInitState();
+                render();
+                showToast(`スロット ${slot} からロードしました`, "success");
+                document.getElementById('modal-overlay').classList.add('hidden');
+            }
+        }
+    },
+    exportData: () => {
+        const blob = new Blob([JSON.stringify(state, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `SmartTimeTable_Backup_${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast("JSONファイルとして出力しました", "success");
+    },
+    importData: () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = e => {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = event => {
+                try {
+                    const parsed = JSON.parse(event.target.result);
+                    if(confirm("データを読み込みますか？\n※現在の未保存の編集内容は失われます")){
+                        // オブジェクトのディープコピー的に割り当てるためキーを一度リセット
+                        Object.keys(state).forEach(k => delete state[k]);
+                        Object.assign(state, parsed);
+                        forceInitState();
+                        render();
+                        showToast("データの読み込みに成功しました", "success");
+                    }
+                } catch(err) {
+                    showToast("ファイルの形式が正しくありません", "error");
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    },
+
     // ★ AI生成エンジン制御 (リレー方式)
     startGeneration: async function(){
         if(!GAS_URL)return showToast("URL未設定です","error");
