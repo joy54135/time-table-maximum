@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.5.9</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.6.1</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { darkMode: 'class' }</script>
 <script>
@@ -26,6 +26,11 @@ html, body { @apply h-full h-[100dvh] overflow-hidden m-0 p-0 font-sans bg-slate
 .dash-cell { @apply min-h-[50px] p-1 border-r border-b border-slate-200 dark:border-slate-700/80 flex flex-col items-center justify-center gap-0.5 relative transition-colors cursor-pointer; }
 input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .sticky-col { @apply sticky left-0 z-10 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.5)]; }
+/* ★ 不可枠の斜線パターン設定 */
+.bg-ng-pattern { background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(244,63,94,0.1) 5px, rgba(244,63,94,0.1) 10px); background-color: #fff1f2; }
+.dark .bg-ng-pattern { background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(244,63,94,0.15) 5px, rgba(244,63,94,0.15) 10px); background-color: #4c0519; }
+.bg-global-pattern { background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(148,163,184,0.2) 5px, rgba(148,163,184,0.2) 10px); background-color: #f1f5f9; }
+.dark .bg-global-pattern { background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(148,163,184,0.2) 5px, rgba(148,163,184,0.2) 10px); background-color: #1e293b; }
 }
 </style>
 </head>
@@ -35,7 +40,7 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
     <header class="flex items-center justify-between mb-3 shrink-0 px-2">
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200 dark:shadow-none shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-            <div><h1 class="text-xl font-black tracking-tight leading-none text-slate-800 dark:text-slate-100">Smart TimeTable</h1><p class="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest leading-tight">Marathon Hybrid (Ver 15.5.9)</p></div>
+            <div><h1 class="text-xl font-black tracking-tight leading-none text-slate-800 dark:text-slate-100">Smart TimeTable</h1><p class="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest leading-tight">Marathon Hybrid (Ver 15.6.1)</p></div>
         </div>
         <div class="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
             <button onclick="actions.toggleDarkMode()" class="p-2 rounded-xl text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors mr-2" title="テーマ切替">
@@ -85,7 +90,8 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 </div>
 
 <script>
-var GAS_URL="https://script.google.com/macros/s/AKfycbznGEOXNkiBGy__Bmlb-8IVfLfcWjKbbTOwOSIcENekxpY21gT9EX90vo4-oM9505-IMg/exec";
+// ★ 最新URLをデフォルト設定
+var GAS_URL="https://script.google.com/macros/s/AKfycbwQp1DUassP9XpbAQJ4nZ_aWAqomDgYDvCncI0DAkuZf2lSOcDsbYmN6VQSLdfiV_44Og/exec";
 
 var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'], PERIODS=[1,2,3,4,5,6];
 var stepTitles=["1. 基本設定","2. 行事・不可枠","3. 教科と教室","4. 教員名簿","5. 特殊授業 (分散機能)","6. クラス別担当 (混合・固定)","7. 教員別確認","8. 配置ルール (排他・バッファ)","9. 最終点検","10. 司令塔(ダッシュボード)"];
@@ -117,7 +123,19 @@ function forceInitState(){
     if(!state.dashTab) state.dashTab = 'matrix';
     if(!state.matrixAxis) state.matrixAxis = 'class';
 }
-function load(){try{const d=localStorage.getItem('tt_v15_stable');if(d){Object.assign(state,JSON.parse(d));}}catch(e){} forceInitState(); render();}
+
+function load(){
+    // ★ 起動時に古いデータのゴミを削除して容量確保
+    const oldKeys = ["tt_v14_stable", "tt_v15_temp", "tt_v15_draft"];
+    oldKeys.forEach(k => localStorage.removeItem(k));
+    for(let i=11; i<=20; i++){
+        localStorage.removeItem('tt_v15_save_' + i);
+        localStorage.removeItem('tt_v15_save_meta_' + i);
+    }
+
+    try{const d=localStorage.getItem('tt_v15_stable');if(d){Object.assign(state,JSON.parse(d));}}catch(e){} 
+    forceInitState(); render();
+}
 
 function showToast(msg,type='info'){const t=document.getElementById('toast'),m=document.getElementById('toast-msg');if(!t||!m)return; t.className=`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm z-[9999] transition-all opacity-100 ${type==='success'?'bg-emerald-600 text-white':(type==='error'?'bg-rose-600 text-white':(type==='info'?'bg-blue-600 text-white':'bg-slate-800 text-white'))}`; m.innerText=msg; setTimeout(()=>t.classList.replace('opacity-100','opacity-0'),3000);}
 function showLoading(t,d,showCancel=false, statusText=""){
@@ -131,7 +149,7 @@ function showLoading(t,d,showCancel=false, statusText=""){
 }
 function hideLoading(){ stopGenTimer(); const l=document.getElementById('loading-overlay'); if(l)l.classList.replace('flex','hidden'); }
 
-function getSubColor(s){
+function getSubjectColor(s){
   if(!s)return 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
   if(s.includes('国')||s.includes('書'))return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800/60';
   if(s.includes('算')||s.includes('数'))return 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/40 dark:text-yellow-300 dark:border-yellow-800/60';
@@ -150,14 +168,26 @@ function getSubColor(s){
 
 function getTeacherLoads(){let loads={};(state.teachers||[]).forEach(t=>loads[t.id]=0);Object.keys(state.classAssignments||{}).forEach(cls=>{const g=cls.split('-')[0],d=state.classAssignments[cls];(state.subjects||[]).forEach(sub=>{let hrs=parseInt(sub.stdHours?.[g])||0;if(hrs===0)return;if((state.specialBlocks||[]).some(b=>b.subjectId===sub.id&&b.targets?.includes(cls)))return;const ovr=d.overrides?.[sub.id]||{};if(ovr.allocations?.length>0)ovr.allocations.forEach(a=>{if(a.teacherId&&loads[a.teacherId]!==undefined)loads[a.teacherId]+=(parseInt(a.hours)||0);});else{const tid=ovr.teacherId||d.homeroom;if(tid&&loads[tid]!==undefined)loads[tid]+=hrs;}});});(state.specialBlocks||[]).forEach(b=>(b.teachers||[]).forEach(bt=>{if(bt.id&&loads[bt.id]!==undefined)loads[bt.id]+=(parseInt(bt.hours)||0);}));return loads;}
 
+// NG判定ヘルパー
+function isGlobalBlock(d, p) { return state.globalBlocks && state.globalBlocks[`${d}-${p}`]; }
+function isTeacherNG(tid, d, p) { const t = safeFind(state.teachers, 'id', tid); return t && t.ngTimes && t.ngTimes[`${d}-${p}`]; }
+function isRoomNG(rid, d, p) { const r = safeFind(state.rooms, 'name', rid); return r && r.ngTimes && r.ngTimes[`${d}-${p}`]; }
+function getClassHomeroom(cls) { return state.classAssignments?.[cls]?.homeroom; }
+
 function render(){
     try{localStorage.setItem('tt_v15_stable',JSON.stringify(state));}catch(e){}
     document.getElementById('step-title').innerText=stepTitles[state.currentStep-1]||'';
-    const nb=document.getElementById('btn-next'),nt=document.getElementById('btn-next-text');
-    if(nb&&nt){
-        nb.onclick = null; // Reset
+    
+    // ★ ボタンイベントリスナーの完全再バインド (戻るボタン不具合の解消)
+    const nb=document.getElementById('btn-next'), nt=document.getElementById('btn-next-text'), pb=document.getElementById('btn-prev');
+    if (pb) {
+        pb.style.visibility = (state.currentStep === 1 ? 'hidden' : 'visible');
+        pb.onclick = () => { if(state.currentStep > 1) { state.currentStep--; render(); } };
+    }
+
+    if(nb && nt){
+        nb.onclick = null; 
         if(state.currentStep===9){
-            // ★ 生成結果を見るボタンの完全対応
             if (state.generatedSchedule || (state.unassigned && state.unassigned.length > 0)) {
                 nt.innerText="▶ 生成結果を見る";
                 nb.className="m3-btn-primary w-[180px] bg-indigo-600 hover:bg-indigo-700 transition-colors";
@@ -170,14 +200,14 @@ function render(){
         }else if(state.currentStep===10){
             nt.innerText="スプレッドシート出力";
             nb.className="m3-btn-primary w-[180px] bg-emerald-600 hover:bg-emerald-700 transition-colors";
-            nb.onclick = () => { actions.exportToSpreadsheet(); };
+            nb.onclick = () => { actions.openExportModal(); };
         }else{
             nt.innerText="次へ進む";
             nb.className="m3-btn-primary w-[180px] transition-colors";
             nb.onclick = () => { state.currentStep++; render(); };
         }
     }
-    document.getElementById('btn-prev').style.visibility=(state.currentStep===1?'hidden':'visible');
+
     document.getElementById('progress-dots').innerHTML=Array.from({length:10},(_,i)=>`<div class="step-dot ${i+1<=state.currentStep?'active !bg-indigo-500':''}"></div>`).join('');
     const content=document.getElementById('step-content');
     if(content){try{content.innerHTML=window[`viewStep${state.currentStep}`]();}catch(e){console.error(e);}}
@@ -307,15 +337,15 @@ window.viewStep8 = ()=>{
         else { pairs.forEach((p, i) => { tags += `<span class="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 px-2 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 shadow-sm">${p.subject1} × ${p.subject2}<button onclick="actions.removeExclusivePair(${i})" class="text-red-400 hover:text-red-600 ml-1">✕</button></span>`; }); }
         tags += `</div>`; return `<div class="mt-1 p-3 bg-slate-50/50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700/50">${h}${tags}</div>`;
     };
-    const exPairsCard = `<div class="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-3 transition-all hover:shadow-md"><div class="flex justify-between items-start gap-2"><div class="flex flex-col"><span class="text-sm font-black text-slate-800 dark:text-slate-200">同日実施を避ける教科ペア (排他)</span><span class="text-[9px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">体育(中)と体育(外)など、同じ日にやりたくない組み合わせ。</span></div>${mkPrio('exclusivePairs', 'high')}</div>${mkExPairs()}</div>`;
+    const exPairsCard = `<div class="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-3 transition-all hover:shadow-md"><div class="flex justify-between items-start gap-2"><div class="flex flex-col"><span class="text-sm font-black text-slate-800 dark:text-slate-200">同日実施を避ける教科ペア (排他)</span><span class="text-[9px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">体育(中)と体育(外)など。</span></div>${mkPrio('exclusivePairs', 'high')}</div>${mkExPairs()}</div>`;
     
     return `<div class="flex flex-col h-full overflow-y-auto custom-scrollbar pr-2 space-y-4 pb-10" id="sc-step8">
         <div class="mb-2 shrink-0"><h2 class="text-xl font-black dark:text-slate-100">8. 配置ルールの詳細設定</h2><p class="text-xs text-slate-500 dark:text-slate-400 mt-1">「高(厳守)」は絶対ルール、「低(努力)」はなるべく守るルールとしてAIが計算します。</p></div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            ${mkCard('homeroomBufferSubjects','担任裁量バッファ (延長・準備枠)','家庭科や図工など、前後に「担任の空き時間」または「担任の授業」を確保します。※4-5限間は給食があるため隣接とみなしません。','low','gs')}
+            ${mkCard('homeroomBufferSubjects','担任裁量バッファ (延長・準備枠)','家庭科や図工など、前後に「担任の空き時間」または「担任の授業」を確保します。','low','gs')}
             ${exPairsCard}
             ${mkCard('considerSpecialistTimes','専科等教員の勤務時間を厳密考慮','Step 4の教員✕枠の扱い。高にすると絶対に入れません。','high')}
-            ${mkCard('limitOneSubjectPerDayStrict','同日重複を禁止 (分散)','同じクラスに同じ教科が1日に2回以上入ることを防ぎます。(6時間教科は1日2コマまで)','high')}
+            ${mkCard('limitOneSubjectPerDayStrict','同日重複を禁止 (分散)','同じクラスに同じ教科が1日に2回以上入ることを防ぎます。','high')}
             ${mkCard('limitContinuousToSpecificPeriods','連続授業を「1-2, 3-4, 5-6限」のペア枠に限定','中休みなどを跨ぐ連続授業を防ぎます。','high')}
             ${mkCard('continuousClasses','連続授業（ニコイチ）の登録','2コマ連続で配置する教科を指定します。','high','gs')}
             ${mkCard('homeroomOnlyTimes','担任授業固定枠 (専科ブロック)','行事準備などで、専科の授業を入れない枠を指定します。','low','gdp')}
@@ -331,7 +361,6 @@ window.viewStep8 = ()=>{
 window.viewStep9 = ()=>{
     let uSubs=Array.from(new Set((state.subjects||[]).map(s=>s.name))),classNeeds={},classAssigned={},classes=Object.keys(state.classAssignments||{});
     classes.forEach(cls=>{uSubs.forEach(sName=>{classNeeds[`${cls}-${sName}`]=0;classAssigned[`${cls}-${sName}`]=0;});});
-    let totalErr=0;
     classes.forEach(cls=>{
         const cData=state.classAssignments[cls],g=cls.split('-')[0];
         (state.subjects||[]).forEach(s=>{
@@ -369,536 +398,244 @@ window.viewStep9 = ()=>{
     </div></div>
     <div class="flex-1 bg-slate-900 rounded-[32px] p-6 flex flex-col overflow-hidden shadow-xl">
     <div class="flex items-center justify-between mb-4 shrink-0"><h4 class="text-sm font-black text-white">プレフライト・マトリックス</h4><span class="text-[10px] text-slate-400">不足:赤 超過:黄 一致:緑</span></div>
-    <div class="flex-1 overflow-auto custom-scrollbar rounded-xl border border-slate-700 bg-white dark:bg-slate-800"><table class="w-full text-[10px] text-center border-collapse whitespace-nowrap"><thead class="bg-slate-100 dark:bg-slate-700 border-b dark:border-slate-600 sticky top-0 z-10"><tr><th class="p-2 dark:text-slate-200">クラス</th>${uSubs.map(s=>`<th class="p-2 font-black dark:text-slate-200">${s}</th>`).join('')}</tr></thead><tbody>${classes.map(cls=>`<tr><td class="p-2 bg-slate-50 dark:bg-slate-900/50 font-bold border-r dark:border-slate-700 dark:text-slate-300">${cls}</td>${uSubs.map(s=>{let n=classNeeds[`${cls}-${s}`]||0,a=classAssigned[`${cls}-${s}`]||0,d=a-n,c='text-slate-300 dark:text-slate-600',t='-';if(n>0||a>0){if(d===0){c='bg-green-50 dark:bg-green-900/30 text-green-500 dark:text-green-400 font-bold';t='✓';}else if(d<0){c='bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 font-black';t=d;totalErr++;}else{c='bg-yellow-100 dark:bg-yellow-900/40 text-yellow-600 dark:text-yellow-400 font-black';t='+'+d;totalErr++;}}return `<td class="p-2 border-b dark:border-slate-700 border-r dark:border-slate-700 ${c}">${t}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>
+    <div class="flex-1 overflow-auto custom-scrollbar rounded-xl border border-slate-700 bg-white dark:bg-slate-800"><table class="w-full text-[10px] text-center border-collapse whitespace-nowrap"><thead class="bg-slate-100 dark:bg-slate-700 border-b dark:border-slate-600 sticky top-0 z-10"><tr><th class="p-2 dark:text-slate-200">クラス</th>${uSubs.map(s=>`<th class="p-2 font-black dark:text-slate-200">${s}</th>`).join('')}</tr></thead><tbody>${classes.map(cls=>`<tr><td class="p-2 bg-slate-50 dark:bg-slate-900/50 font-bold border-r dark:border-slate-700 dark:text-slate-300">${cls}</td>${uSubs.map(s=>{let n=classNeeds[`${cls}-${s}`]||0,a=classAssigned[`${cls}-${s}`]||0,d=a-n,c='text-slate-300 dark:text-slate-600',t='-';if(n>0||a>0){if(d===0){c='bg-green-50 dark:bg-green-900/30 text-green-500 dark:text-green-400 font-bold';t='✓';}else if(d<0){c='bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 font-black';t=d;}else{c='bg-yellow-100 dark:bg-yellow-900/40 text-yellow-600 dark:text-yellow-400 font-black';t='+'+d;}}return `<td class="p-2 border-b dark:border-slate-700 border-r dark:border-slate-700 ${c}">${t}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>
     </div></div>`;
 };
 
-// ★ マトリックスを組み込んだ Step 10
+// ★ 不可枠判定ヘルパー関数
+function isGlobalBlock(d, p) { return state.globalBlocks && state.globalBlocks[`${d}-${p}`]; }
+function isTeacherNG(tid, d, p) { const t = safeFind(state.teachers, 'id', tid); return t && t.ngTimes && t.ngTimes[`${d}-${p}`]; }
+function isRoomNG(rid, d, p) { const r = safeFind(state.rooms, 'name', rid); return r && r.ngTimes && r.ngTimes[`${d}-${p}`]; }
+function getClassHomeroom(cls) { return state.classAssignments?.[cls]?.homeroom; }
+
 window.viewStep10 = ()=>{
     if(!state.generatedSchedule && (!state.unassigned || state.unassigned.length===0)) return '<div class="flex items-center justify-center h-full text-slate-400 dark:text-slate-500 font-black">AI生成を開始してください</div>';
     
-    // ★ 表示フィルターの補正 (真っ白問題の解消)
-    if (!state.dashTab) state.dashTab = 'matrix';
-    if (!state.matrixAxis) state.matrixAxis = 'class';
-    const classes = state.classAssignments ? Object.keys(state.classAssignments) : [];
-    const teachers = state.teachers || [];
-    if (state.dashView === 'class') {
-        if (!classes.includes(state.dashFilter) && classes.length > 0) state.dashFilter = classes[0];
-    } else if (state.dashView === 'teacher') {
-        if (!teachers.some(t => t.id === state.dashFilter) && teachers.length > 0) state.dashFilter = teachers[0].id;
-    }
+    // フィルターの自動補正
+    if (!state.dashTab) state.dashTab='matrix'; if (!state.matrixAxis) state.matrixAxis='class';
+    const classes=Object.keys(state.classAssignments||{}), teachers=state.teachers||[];
+    if (state.dashView==='class' && (!classes.includes(state.dashFilter) && classes.length>0)) state.dashFilter=classes[0];
+    if (state.dashView==='teacher' && (!teachers.some(t=>t.id===state.dashFilter) && teachers.length>0)) state.dashFilter=teachers[0].id;
 
     const sc=state.scoreCard, m=state.marathon;
     let html=`<div class="flex flex-col flex-1 overflow-hidden min-h-0">`;
+    const marathonGens=[10,20,30,40,50,60,70,80,90,100,Infinity];
     
-    const marathonGens = [10,20,30,40,50,60,70,80,90,100, Infinity];
-    
-    html+=`<div class="bg-[#1e2330] dark:bg-slate-800/90 text-white p-3 rounded-2xl mb-3 flex flex-wrap justify-between items-center shadow-lg border border-slate-700 dark:border-slate-600 gap-3 shrink-0">
-        <div class="flex items-center gap-3 flex-wrap">
-            <div class="flex flex-col"><span class="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">🧬 司令塔</span><span class="text-sm font-black text-amber-400">${m.currentGen} / ${m.maxGen===Infinity?'∞':m.maxGen} 世代</span></div>
-            <div class="h-8 w-px bg-slate-700 dark:bg-slate-600 hidden sm:block"></div>
-            
-            <div class="flex items-center gap-2 bg-slate-800 dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-600 dark:border-slate-700">
-                <span class="text-[10px] font-bold text-slate-400">目標:</span>
-                <select onchange="actions.updateMarathon('target', parseInt(this.value))" class="bg-transparent text-white font-black text-[10px] outline-none cursor-pointer border-b border-transparent focus:border-indigo-500 pb-0.5">
-                    <option value="0" ${m.target===0?'selected':''}>未配置0まで</option>
-                    <option value="1" ${m.target===1?'selected':''}>未配置1以下</option>
-                    <option value="3" ${m.target===3?'selected':''}>未配置3以下</option>
-                </select>
-                <span class="text-[10px] font-bold text-slate-400 ml-1">追加:</span>
-                <select id="dash-add-gen" class="bg-transparent text-white font-black text-[10px] outline-none cursor-pointer border-b border-slate-600 pb-0.5 focus:border-indigo-500 transition-colors">
-                    ${marathonGens.map(v => `<option value="${v}" ${v===10?'selected':''}>${v===Infinity?'無制限':v+'世代'}</option>`).join('')}
-                </select>
-                <label class="flex items-center gap-1 cursor-pointer ml-1">
-                    <input type="checkbox" ${m.ignoreFatal?'checked':''} onchange="actions.updateMarathon('ignoreFatal', this.checked)" class="w-3 h-3 text-indigo-400 rounded bg-slate-700 border-slate-500">
-                    <span class="text-[10px] font-bold text-slate-400">エラー無視</span>
-                </label>
-            </div>
-        </div>
-        
-        <div class="flex items-center gap-2 flex-wrap">
-            ${sc ? `
-            <div class="flex items-center gap-2 bg-slate-800/80 dark:bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-600 dark:border-slate-700">
-                <span class="text-[10px] font-bold text-slate-400">達成度:</span>
-                <span class="text-xs font-black text-emerald-400">基礎 ${sc?.basic?.score||0}%</span>
-                <span class="text-xs font-black text-amber-400">詳細 ${sc?.advanced?.score||0}%</span>
-                <button onclick="actions.openReportModal()" class="ml-2 px-2 py-1 bg-slate-700 hover:bg-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 rounded text-[9px] font-bold transition-colors border border-slate-600">📄 レポート</button>
-            </div>
-            ` : ''}
-            
-            <div class="flex gap-2">
-                <button onclick="actions.continueMarathon()" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-black shadow-md hover:bg-indigo-700 transition-all flex items-center gap-1 border border-indigo-500 active:scale-95">🚀 継続実行</button>
-                <button onclick="actions.resetAndGenerate()" class="px-4 py-2 bg-rose-500 text-white rounded-xl text-xs font-black shadow-md hover:bg-rose-600 transition-all border border-rose-400 active:scale-95">🔄 リセット</button>
-            </div>
-        </div>
-    </div>`;
+    html+=`<div class="bg-[#1e2330] dark:bg-slate-800/90 text-white p-3 rounded-2xl mb-3 flex flex-wrap justify-between items-center shadow-lg border border-slate-700 dark:border-slate-600 gap-3 shrink-0"><div class="flex items-center gap-3 flex-wrap"><div class="flex flex-col"><span class="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">🧬 司令塔</span><span class="text-sm font-black text-amber-400">${m.currentGen} / ${m.maxGen===Infinity?'∞':m.maxGen} 世代</span></div><div class="h-8 w-px bg-slate-700 dark:bg-slate-600 hidden sm:block"></div><div class="flex items-center gap-2 bg-slate-800 dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-600 dark:border-slate-700"><span class="text-[10px] font-bold text-slate-400">目標:</span><select onchange="actions.updateMarathon('target',parseInt(this.value))" class="bg-transparent text-white font-black text-[10px] outline-none cursor-pointer border-b border-transparent focus:border-indigo-500 pb-0.5"><option value="0" ${m.target===0?'selected':''}>未配置0まで</option><option value="1" ${m.target===1?'selected':''}>未配置1以下</option><option value="3" ${m.target===3?'selected':''}>未配置3以下</option></select><span class="text-[10px] font-bold text-slate-400 ml-1">追加:</span><select id="dash-add-gen" class="bg-transparent text-white font-black text-[10px] outline-none cursor-pointer border-b border-slate-600 pb-0.5 focus:border-indigo-500 transition-colors">${marathonGens.map(v=>`<option value="${v}" ${v===10?'selected':''}>${v===Infinity?'無制限':v+'世代'}</option>`).join('')}</select><label class="flex items-center gap-1 cursor-pointer ml-1"><input type="checkbox" ${m.ignoreFatal?'checked':''} onchange="actions.updateMarathon('ignoreFatal',this.checked)" class="w-3 h-3 text-indigo-400 rounded bg-slate-700 border-slate-500"><span class="text-[10px] font-bold text-slate-400">エラー無視</span></label></div></div><div class="flex items-center gap-2 flex-wrap">${sc?`<div class="flex items-center gap-2 bg-slate-800/80 dark:bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-600 dark:border-slate-700"><span class="text-[10px] font-bold text-slate-400">達成度:</span><span class="text-xs font-black text-emerald-400">基礎 ${sc?.basic?.score||0}%</span><span class="text-xs font-black text-amber-400">詳細 ${sc?.advanced?.score||0}%</span><button onclick="actions.openReportModal()" class="ml-2 px-2 py-1 bg-slate-700 hover:bg-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 rounded text-[9px] font-bold transition-colors border border-slate-600">📄 レポート</button></div>`:''}<div class="flex gap-2"><button onclick="actions.continueMarathon()" class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-black shadow-md hover:bg-indigo-700 transition-all flex items-center gap-1 border border-indigo-500 active:scale-95">🚀 継続実行</button><button onclick="actions.resetAndGenerate()" class="px-4 py-2 bg-rose-500 text-white rounded-xl text-xs font-black shadow-md hover:bg-rose-600 transition-all border border-rose-400 active:scale-95">🔄 リセット</button></div></div></div>`;
 
     if(state.unassigned?.length>0) {
-        html+=`<div class="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-4 mb-3 shrink-0 shadow-sm flex flex-col gap-3 max-h-[30vh] overflow-y-auto custom-scrollbar">
-            <div class="flex justify-between items-center sticky top-0 bg-amber-50 dark:bg-[#1a140a] pb-2 border-b border-amber-200/50 dark:border-amber-800/50 z-10 pt-1">
-                <span class="text-amber-800 dark:text-amber-400 font-black text-sm flex items-center gap-2">⚠️ ${state.unassigned.length}コマ未配置 (詳細な診断結果)</span>
-                <button onclick="actions.continueGeneration()" class="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-black shadow-sm hover:bg-amber-600 transition-colors active:scale-95">今の盤面で1回調整</button>
-            </div>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        `;
-        
-        state.unassigned.forEach(u => {
-            const key = `${u.targets.join(',')}_${u.subject}`;
-            const details = state.reportDetails?.[key];
-            const causeHtml = details?.causes?.map(c => `
-                <div class="mt-1.5 pl-2 border-l-2 ${c.impact > 80 ? 'border-rose-400 dark:border-rose-500' : 'border-amber-400 dark:border-amber-500'}">
-                    <div class="text-[10px] font-black ${c.impact > 80 ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'}">${c.type}</div>
-                    <div class="text-[9px] font-bold text-slate-600 dark:text-slate-400 leading-tight">${c.detail}</div>
-                </div>
-            `).join('') || '<div class="text-[9px] text-slate-400 font-bold mt-1">理由データなし</div>';
-            
-            html += `
-                <div class="bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800/50 rounded-xl p-2.5 shadow-sm flex flex-col">
-                    <div class="flex justify-between items-center mb-1">
-                        <div class="flex items-center gap-1.5">
-                            <span class="px-1.5 py-0.5 rounded text-[9px] font-black border leading-none ${getSubColor(u.subject)}">${u.subject}</span>
-                            <span class="text-xs font-black text-slate-700 dark:text-slate-200">${u.targets.join(',')}</span>
-                        </div>
-                        <span class="text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">${u.teacherName||'未定'}</span>
-                    </div>
-                    ${causeHtml}
-                </div>
-            `;
-        });
-        
-        html+=`</div></div>`;
+        html+=`<div class="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-4 mb-3 shrink-0 shadow-sm flex flex-col gap-3 max-h-[30vh] overflow-y-auto custom-scrollbar"><div class="flex justify-between items-center sticky top-0 bg-amber-50 dark:bg-[#1a140a] pb-2 border-b border-amber-200/50 dark:border-amber-800/50 z-10 pt-1"><span class="text-amber-800 dark:text-amber-400 font-black text-sm flex items-center gap-2">⚠️ ${state.unassigned.length}コマ未配置 (詳細な診断結果)</span><button onclick="actions.continueGeneration()" class="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-black shadow-sm hover:bg-amber-600 transition-colors active:scale-95">今の盤面で1回調整</button></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-3">${state.unassigned.map(u=>{const key=`${u.targets.join(',')}_${u.subject}`,details=state.reportDetails?.[key];const causeHtml=details?.causes?.map(c=>`<div class="mt-1.5 pl-2 border-l-2 ${c.impact>80?'border-rose-400 dark:border-rose-500':'border-amber-400 dark:border-amber-500'}"><div class="text-[10px] font-black ${c.impact>80?'text-rose-600 dark:text-rose-400':'text-amber-600 dark:text-amber-400'}">${c.type}</div><div class="text-[9px] font-bold text-slate-600 dark:text-slate-400 leading-tight">${c.detail}</div></div>`).join('')||'<div class="text-[9px] text-slate-400 font-bold mt-1">理由データなし</div>';return `<div class="bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800/50 rounded-xl p-2.5 shadow-sm flex flex-col"><div class="flex justify-between items-center mb-1"><div class="flex items-center gap-1.5"><span class="px-1.5 py-0.5 rounded text-[9px] font-black border leading-none ${getSubColor(u.subject)}">${u.subject}</span><span class="text-xs font-black text-slate-700 dark:text-slate-200">${u.targets.join(',')}</span></div><span class="text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">${u.teacherName||'未定'}</span></div>${causeHtml}</div>`;}).join('')}</div></div>`;
     }
 
-    // ★ 表示切り替えタブ
-    html += `<div class="flex gap-2 mb-2 border-b border-slate-200 dark:border-slate-700 pb-2 shrink-0">
-        <button onclick="actions.setDashTab('matrix')" class="px-4 py-2 text-sm font-black transition-colors ${state.dashTab==='matrix'?'text-indigo-600 border-b-2 border-indigo-600':'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'} rounded-t-lg">全体マトリックス</button>
-        <button onclick="actions.setDashTab('individual')" class="px-4 py-2 text-sm font-black transition-colors ${state.dashTab==='individual'?'text-indigo-600 border-b-2 border-indigo-600':'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'} rounded-t-lg">個別ビュー</button>
-    </div>`;
+    html+=`<div class="flex gap-2 mb-2 border-b border-slate-200 dark:border-slate-700 pb-2 shrink-0"><button onclick="actions.setDashTab('matrix')" class="px-4 py-2 text-sm font-black transition-colors ${state.dashTab==='matrix'?'text-indigo-600 border-b-2 border-indigo-600':'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'} rounded-t-lg">全体マトリックス</button><button onclick="actions.setDashTab('individual')" class="px-4 py-2 text-sm font-black transition-colors ${state.dashTab==='individual'?'text-indigo-600 border-b-2 border-indigo-600':'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'} rounded-t-lg">個別ビュー</button></div>`;
 
     if (state.dashTab === 'matrix') {
-        html += `<div class="flex gap-2 mb-3 shrink-0">
-            <button onclick="actions.setMatrixAxis('class')" class="px-4 py-1.5 text-xs font-bold rounded-lg transition-colors ${state.matrixAxis==='class'?'bg-indigo-600 text-white shadow-sm':'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}">クラス軸</button>
-            <button onclick="actions.setMatrixAxis('teacher')" class="px-4 py-1.5 text-xs font-bold rounded-lg transition-colors ${state.matrixAxis==='teacher'?'bg-indigo-600 text-white shadow-sm':'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}">教員軸</button>
-            <button onclick="actions.setMatrixAxis('room')" class="px-4 py-1.5 text-xs font-bold rounded-lg transition-colors ${state.matrixAxis==='room'?'bg-indigo-600 text-white shadow-sm':'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}">教室軸</button>
-        </div>`;
-        
-        let rows = [];
-        if (state.matrixAxis === 'class') {
-            rows = Object.keys(state.classAssignments || {});
-        } else if (state.matrixAxis === 'teacher') {
-            rows = (state.teachers || []).map(t => t.id);
-        } else if (state.matrixAxis === 'room') {
-            rows = ['通常教室'].concat((state.rooms || []).map(r => r.name));
-        }
+        html+=`<div class="flex gap-2 mb-3 shrink-0"><button onclick="actions.setMatrixAxis('class')" class="px-4 py-1.5 text-xs font-bold rounded-lg transition-colors ${state.matrixAxis==='class'?'bg-indigo-600 text-white shadow-sm':'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}">クラス軸</button><button onclick="actions.setMatrixAxis('teacher')" class="px-4 py-1.5 text-xs font-bold rounded-lg transition-colors ${state.matrixAxis==='teacher'?'bg-indigo-600 text-white shadow-sm':'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}">教員軸</button><button onclick="actions.setMatrixAxis('room')" class="px-4 py-1.5 text-xs font-bold rounded-lg transition-colors ${state.matrixAxis==='room'?'bg-indigo-600 text-white shadow-sm':'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}">教室軸</button></div>`;
+        let rows=[]; if(state.matrixAxis==='class') rows=classes; else if(state.matrixAxis==='teacher') rows=teachers.map(t=>t.id); else if(state.matrixAxis==='room') rows=['通常教室'].concat((state.rooms||[]).map(r=>r.name));
 
-        html += `<div class="flex-1 overflow-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm custom-scrollbar relative min-h-0">
-            <table class="w-max border-collapse text-center table-fixed">
-                <thead class="sticky top-0 z-20">
-                    <tr class="bg-slate-100 dark:bg-slate-800 border-b dark:border-slate-700">
-                        <th class="sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 p-2 w-28 min-w-[7rem] border-r dark:border-slate-700 font-black text-xs text-slate-600 dark:text-slate-300 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.5)]">軸 \\ 曜日</th>
-                        ${DAYS.map(d => `<th colspan="6" class="p-1 border-r dark:border-slate-700 font-black text-xs text-slate-600 dark:text-slate-300">${d}曜</th>`).join('')}
-                    </tr>
-                    <tr class="bg-slate-50 dark:bg-slate-800/80 border-b dark:border-slate-700">
-                        <th class="sticky left-0 bg-slate-50 dark:bg-slate-800/80 z-30 p-1 border-r dark:border-slate-700 text-[10px] font-bold text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.5)]">時限</th>
-                        ${DAYS.map(d => PERIODS.map(p => `<th class="p-1 w-[72px] min-w-[4.5rem] border-r dark:border-slate-700 font-black text-[10px] text-slate-500 dark:text-slate-400">${p}</th>`).join('')).join('')}
-                    </tr>
-                </thead>
-                <tbody>
-                    ${rows.map(rowId => {
-                        let rowName = rowId;
-                        if (state.matrixAxis === 'teacher') rowName = state.teachers.find(t=>t.id===rowId)?.name || '不明';
-                        
-                        let tr = `<tr class="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                            <td class="sticky left-0 bg-white dark:bg-slate-900 border-r dark:border-slate-700 p-2 text-xs font-black text-slate-700 dark:text-slate-200 z-10 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.5)] whitespace-normal break-words">${rowName}</td>`;
-                        
-                        DAYS.forEach(d => {
-                            PERIODS.forEach(p => {
-                                const lessons = state.generatedSchedule?.[d]?.[p] || [];
-                                let targetLessons = [];
-                                if (state.matrixAxis === 'class') {
-                                    targetLessons = lessons.filter(l => l.targets?.includes(rowId));
-                                } else if (state.matrixAxis === 'teacher') {
-                                    targetLessons = lessons.filter(l => l.teacherIds?.includes(rowId));
-                                } else if (state.matrixAxis === 'room') {
-                                    targetLessons = lessons.filter(l => l.room === rowId);
-                                }
-                                
-                                if (targetLessons.length > 0) {
-                                    const l = targetLessons[0];
-                                    let subText = "";
-                                    if (state.matrixAxis === 'class') subText = `${l.teacherName||'未定'}`;
-                                    else if (state.matrixAxis === 'teacher') subText = `${l.targets?.join(',')||''}`;
-                                    else if (state.matrixAxis === 'room') subText = `${l.targets?.join(',')||''} ${l.teacherName||''}`;
-                                    
-                                    const conflictClass = targetLessons.length > 1 ? 'border-2 border-red-500' : 'border border-slate-200 dark:border-slate-700/50';
+        html+=`<div class="flex-1 overflow-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm custom-scrollbar relative min-h-0"><table class="w-max border-collapse text-center table-fixed"><thead class="sticky top-0 z-20"><tr class="bg-slate-100 dark:bg-slate-800 border-b dark:border-slate-700"><th class="sticky left-0 bg-slate-100 dark:bg-slate-800 z-30 p-2 w-28 min-w-[7rem] border-r dark:border-slate-700 font-black text-xs text-slate-600 dark:text-slate-300 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.5)]">軸 \\ 曜日</th>${DAYS.map(d=>`<th colspan="6" class="p-1 border-r dark:border-slate-700 font-black text-xs text-slate-600 dark:text-slate-300">${d}曜</th>`).join('')}</tr><tr class="bg-slate-50 dark:bg-slate-800/80 border-b dark:border-slate-700"><th class="sticky left-0 bg-slate-50 dark:bg-slate-800/80 z-30 p-1 border-r dark:border-slate-700 text-[10px] font-bold text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.5)]">時限</th>${DAYS.map(d=>PERIODS.map(p=>`<th class="p-1 w-[72px] min-w-[4.5rem] border-r dark:border-slate-700 font-black text-[10px] text-slate-500 dark:text-slate-400">${p}</th>`).join('')).join('')}</tr></thead><tbody>${rows.map(rowId=>{
+            let rowName=rowId; if(state.matrixAxis==='teacher') rowName=teachers.find(t=>t.id===rowId)?.name||'不明';
+            let tr=`<tr class="border-b dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"><td class="sticky left-0 bg-white dark:bg-slate-900 border-r dark:border-slate-700 p-2 text-xs font-black text-slate-700 dark:text-slate-200 z-10 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.5)] whitespace-normal break-words">${rowName}</td>`;
+            DAYS.forEach(d=>{PERIODS.forEach(p=>{
+                // ★ マトリックスの不可枠判定
+                let isNG = false; let isGlobal = isGlobalBlock(d, p);
+                if (state.matrixAxis === 'class') { let hr = getClassHomeroom(rowId); if (hr) isNG = isTeacherNG(hr, d, p); }
+                else if (state.matrixAxis === 'teacher') { isNG = isTeacherNG(rowId, d, p); }
+                else if (state.matrixAxis === 'room') { isNG = isRoomNG(rowId, d, p); }
+                let bgClass = "bg-slate-50/30 dark:bg-slate-800/20";
+                if (isGlobal) bgClass = "bg-global-pattern"; else if (isNG) bgClass = "bg-ng-pattern";
 
-                                    tr += `<td class="p-1 border-r dark:border-slate-700/50 h-full align-top">
-                                        <div class="h-full flex flex-col items-center justify-center p-1 rounded ${conflictClass} ${getSubColor(l.subject)} shadow-sm relative overflow-hidden min-h-[44px]">
-                                            ${targetLessons.length > 1 ? `<span class="absolute top-0 right-0 bg-red-500 text-white text-[8px] font-black px-1 rounded-bl shadow">重複</span>` : ''}
-                                            <div class="font-black text-[10px] w-full truncate leading-tight mb-0.5" title="${l.subject}">${l.subject}</div>
-                                            <div class="text-[8px] font-bold text-slate-500 dark:text-slate-400 w-full truncate opacity-90 leading-none" title="${subText}">${subText}</div>
-                                            ${state.matrixAxis !== 'room' && l.room !== '通常教室' ? `<div class="text-[8px] font-bold text-amber-600 dark:text-amber-400 w-full truncate opacity-90 leading-none mt-0.5" title="${l.room}">📍${l.room}</div>` : ''}
-                                        </div>
-                                    </td>`;
-                                } else {
-                                    tr += `<td class="p-1 border-r dark:border-slate-700/50 bg-slate-50/30 dark:bg-slate-800/20"></td>`;
-                                }
-                            });
-                        });
-                        tr += `</tr>`;
-                        return tr;
-                    }).join('')}
-                </tbody>
-            </table>
-        </div>`;
+                const lessons=state.generatedSchedule?.[d]?.[p]||[];
+                let targetLessons=[];
+                if(state.matrixAxis==='class') targetLessons=lessons.filter(l=>l.targets?.includes(rowId));
+                else if(state.matrixAxis==='teacher') targetLessons=lessons.filter(l=>l.teacherIds?.includes(rowId));
+                else if(state.matrixAxis==='room') targetLessons=lessons.filter(l=>l.room===rowId);
+                
+                if(targetLessons.length>0){
+                    const l=targetLessons[0]; let subText="";
+                    if(state.matrixAxis==='class') subText=`${l.teacherName||'未定'}`; else if(state.matrixAxis==='teacher') subText=`${l.targets?.join(',')||''}`; else if(state.matrixAxis==='room') subText=`${l.targets?.join(',')||''} ${l.teacherName||''}`;
+                    const conflictClass=targetLessons.length>1?'border-2 border-red-500':'border border-slate-200 dark:border-slate-700/50';
+                    tr+=`<td class="p-1 border-r dark:border-slate-700/50 h-full align-top"><div class="h-full flex flex-col items-center justify-center p-1 rounded ${conflictClass} ${getSubColor(l.subject)} shadow-sm relative overflow-hidden min-h-[44px]">${targetLessons.length>1?`<span class="absolute top-0 right-0 bg-red-500 text-white text-[8px] font-black px-1 rounded-bl shadow">重複</span>`:''}<div class="font-black text-[10px] w-full truncate leading-tight mb-0.5" title="${l.subject}">${l.subject}</div><div class="text-[8px] font-bold text-slate-500 dark:text-slate-400 w-full truncate opacity-90 leading-none" title="${subText}">${subText}</div>${state.matrixAxis!=='room'&&l.room!=='通常教室'?`<div class="text-[8px] font-bold text-amber-600 dark:text-amber-400 w-full truncate opacity-90 leading-none mt-0.5" title="${l.room}">📍${l.room}</div>`:''}</div></td>`;
+                }else{ tr+=`<td class="p-1 border-r dark:border-slate-700/50 ${bgClass}"></td>`; }
+            });}); tr+=`</tr>`; return tr;
+        }).join('')}</tbody></table></div>`;
     } else {
-        const fOpts=state.dashView==='class'?classes.map(c=>`<option value="${c}" ${c===state.dashFilter?'selected':''}>${c}</option>`).join(''):(state.teachers||[]).map(t=>`<option value="${t.id}" ${t.id===state.dashFilter?'selected':''}>${t.name}</option>`).join('');
+        const fOpts=state.dashView==='class'?classes.map(c=>`<option value="${c}" ${c===state.dashFilter?'selected':''}>${c}</option>`).join(''):teachers.map(t=>`<option value="${t.id}" ${t.id===state.dashFilter?'selected':''}>${t.name}</option>`).join('');
         html+=`<div class="flex justify-between items-center mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-2 rounded-xl shrink-0 gap-2 flex-wrap shadow-sm"><div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 p-1 rounded-lg border border-slate-200 dark:border-slate-700"><button onclick="actions.setDashView('class')" class="px-4 py-1.5 rounded-md font-black text-xs transition-colors ${state.dashView==='class'?'bg-indigo-600 dark:bg-indigo-500 text-white shadow-sm':'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}">クラス別</button><button onclick="actions.setDashView('teacher')" class="px-4 py-1.5 rounded-md font-black text-xs transition-colors ${state.dashView==='teacher'?'bg-indigo-600 dark:bg-indigo-500 text-white shadow-sm':'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}">教員別</button></div><select onchange="actions.setDashFilter(this.value)" class="m3-input !py-1.5 !text-sm !w-48 shadow-sm cursor-pointer">${fOpts}</select></div>`;
         
-        // ★ 時数統計サマリー
         let classStats = "";
         if (state.dashView === 'class') {
-            const cls = state.dashFilter;
-            const grade = cls.split('-')[0];
-            let totalNeeded = 0; let totalAssigned = 0; let subStats = [];
-            (state.subjects || []).forEach(s => {
-                let needed = parseInt(s.stdHours?.[grade]) || 0;
-                if (needed === 0) return;
-                let assigned = 0;
-                DAYS.forEach(d => {
-                    PERIODS.forEach(p => {
-                        const ls = state.generatedSchedule?.[d]?.[p] || [];
-                        ls.forEach(l => { if (l.targets?.includes(cls) && l.subject === s.name) assigned++; });
-                    });
-                });
-                totalNeeded += needed; totalAssigned += assigned;
-                subStats.push(`<span class="inline-flex items-center gap-1 ${assigned < needed ? 'text-rose-500 dark:text-rose-400' : (assigned > needed ? 'text-amber-500 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400')}"><span class="px-1.5 py-0.5 rounded text-[8px] font-black border leading-none ${getSubColor(s.name)}">${s.name}</span> ${assigned}/${needed}</span>`);
+            const cls = state.dashFilter, grade = cls.split('-')[0];
+            let totalNeeded=0, totalAssigned=0, subStats=[];
+            (state.subjects||[]).forEach(s => {
+                let needed=parseInt(s.stdHours?.[grade])||0; if(needed===0) return;
+                let assigned=0; DAYS.forEach(d=>PERIODS.forEach(p=>{ (state.generatedSchedule?.[d]?.[p]||[]).forEach(l=>{ if(l.targets?.includes(cls)&&l.subject===s.name) assigned++; }); }));
+                totalNeeded+=needed; totalAssigned+=assigned;
+                subStats.push(`<span class="inline-flex items-center gap-1 ${assigned<needed?'text-rose-500 dark:text-rose-400':(assigned>needed?'text-amber-500 dark:text-amber-400':'text-emerald-600 dark:text-emerald-400')}"><span class="px-1.5 py-0.5 rounded text-[8px] font-black border leading-none ${getSubColor(s.name)}">${s.name}</span> ${assigned}/${needed}</span>`);
             });
-            classStats = `<div class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mb-3 flex flex-col gap-2 shrink-0"><div class="flex items-center gap-3"><span class="text-sm font-black dark:text-slate-200">${cls} 時数進捗</span><span class="text-xs font-bold px-2 py-1 rounded bg-slate-100 dark:bg-slate-900 ${totalAssigned < totalNeeded ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}">全体: ${totalAssigned} / ${totalNeeded} コマ</span></div><div class="flex flex-wrap gap-2 text-xs font-bold bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-slate-100 dark:border-slate-700/50">${subStats.join('')}</div></div>`;
+            classStats=`<div class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mb-3 flex flex-col gap-2 shrink-0"><div class="flex items-center gap-3"><span class="text-sm font-black dark:text-slate-200">${cls} 時数進捗</span><span class="text-xs font-bold px-2 py-1 rounded bg-slate-100 dark:bg-slate-900 ${totalAssigned<totalNeeded?'text-rose-500 dark:text-rose-400':'text-emerald-600 dark:text-emerald-400'}">全体: ${totalAssigned} / ${totalNeeded} コマ</span></div><div class="flex flex-wrap gap-2 text-xs font-bold bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-slate-100 dark:border-slate-700/50">${subStats.join('')}</div></div>`;
         } else if (state.dashView === 'teacher') {
-            const tid = state.dashFilter;
-            const tObj = state.teachers.find(t => t.id === tid);
-            let totalNeeded = getTeacherLoads()[tid] || 0;
-            let totalAssigned = 0; let clsStatsMap = {};
-            DAYS.forEach(d => {
-                PERIODS.forEach(p => {
-                    const ls = state.generatedSchedule?.[d]?.[p] || [];
-                    ls.forEach(l => {
-                        if (l.teacherIds?.includes(tid)) {
-                            totalAssigned++;
-                            l.targets.forEach(tgt => { clsStatsMap[tgt] = (clsStatsMap[tgt] || 0) + 1; });
-                        }
-                    });
-                });
-            });
-            let clsStats = Object.entries(clsStatsMap).map(([tgt, count]) => `<span class="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400"><span class="px-1.5 py-0.5 rounded text-[8px] font-black border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/30 dark:border-indigo-800 leading-none">${tgt}</span> ${count}コマ</span>`);
-            classStats = `<div class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mb-3 flex flex-col gap-2 shrink-0"><div class="flex items-center gap-3"><span class="text-sm font-black dark:text-slate-200">${tObj?.name||''} 担当進捗</span><span class="text-xs font-bold px-2 py-1 rounded bg-slate-100 dark:bg-slate-900 ${totalAssigned < totalNeeded ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}">全体: ${totalAssigned} / ${totalNeeded} コマ</span></div><div class="flex flex-wrap gap-2 text-xs font-bold bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-slate-100 dark:border-slate-700/50">${clsStats.join('')||'<span class="text-slate-400">担当なし</span>'}</div></div>`;
+            const tid = state.dashFilter, tObj = teachers.find(t=>t.id===tid);
+            let totalNeeded = getTeacherLoads()[tid]||0, totalAssigned=0, clsStatsMap={};
+            DAYS.forEach(d=>PERIODS.forEach(p=>{ (state.generatedSchedule?.[d]?.[p]||[]).forEach(l=>{ if(l.teacherIds?.includes(tid)){ totalAssigned++; l.targets.forEach(tgt=>{ clsStatsMap[tgt]=(clsStatsMap[tgt]||0)+1; }); } }); }));
+            let clsStats=Object.entries(clsStatsMap).map(([tgt,count])=>`<span class="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400"><span class="px-1.5 py-0.5 rounded text-[8px] font-black border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/30 dark:border-indigo-800 leading-none">${tgt}</span> ${count}コマ</span>`);
+            classStats=`<div class="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mb-3 flex flex-col gap-2 shrink-0"><div class="flex items-center gap-3"><span class="text-sm font-black dark:text-slate-200">${tObj?.name||''} 担当進捗</span><span class="text-xs font-bold px-2 py-1 rounded bg-slate-100 dark:bg-slate-900 ${totalAssigned<totalNeeded?'text-rose-500 dark:text-rose-400':'text-emerald-600 dark:text-emerald-400'}">全体: ${totalAssigned} / ${totalNeeded} コマ</span></div><div class="flex flex-wrap gap-2 text-xs font-bold bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-slate-100 dark:border-slate-700/50">${clsStats.join('')||'<span class="text-slate-400">担当なし</span>'}</div></div>`;
         }
-        html += classStats;
+        html+=classStats;
         
-        html+=`<div class="flex-1 overflow-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm custom-scrollbar p-1 min-h-0 relative"><div class="grid grid-cols-[40px_repeat(5,1fr)] min-w-[700px] h-full gap-px bg-slate-200 dark:bg-slate-700 border border-slate-200 dark:border-slate-700">`;
-        html+=`<div class="bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-black text-[10px] uppercase dark:text-slate-300">Time</div>${DAYS.map(d=>`<div class="bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-black text-xs py-2 dark:text-slate-300">${d}曜</div>`).join('')}`;
+        html+=`<div class="flex-1 overflow-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm custom-scrollbar p-1 min-h-0 relative"><div class="grid grid-cols-[40px_repeat(5,1fr)] min-w-[700px] h-full gap-px bg-slate-200 dark:bg-slate-700 border border-slate-200 dark:border-slate-700"><div class="bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-black text-[10px] uppercase dark:text-slate-300">Time</div>${DAYS.map(d=>`<div class="bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-black text-xs py-2 dark:text-slate-300">${d}曜</div>`).join('')}`;
         PERIODS.forEach(p=>{
             html+=`<div class="bg-slate-50 dark:bg-slate-900 flex items-center justify-center font-black text-xs border-r dark:border-slate-700 dark:text-slate-400">${p}限</div>`;
             DAYS.forEach(d=>{
+                // ★ 個別ビューの不可枠判定
+                let isNG = false; let isGlobal = isGlobalBlock(d, p);
+                if (state.dashView === 'class') { let hr = getClassHomeroom(state.dashFilter); if (hr) isNG = isTeacherNG(hr, d, p); }
+                else if (state.dashView === 'teacher') { isNG = isTeacherNG(state.dashFilter, d, p); }
+                let bgClass = "bg-white dark:bg-slate-900";
+                if (isGlobal) bgClass = "bg-global-pattern"; else if (isNG) bgClass = "bg-ng-pattern";
+
                 const ls=(state.generatedSchedule?.[d]?.[p]||[]).filter(l=>state.dashView==='class'?l.targets?.includes(state.dashFilter):l.teacherIds?.includes(state.dashFilter));
-                html+=`<div class="dash-cell bg-white dark:bg-slate-900 border-b border-r dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">${ls.map(l=>`<div class="text-center w-full px-1 py-1 flex flex-col items-center justify-center h-full gap-0.5"><div class="px-2 py-0.5 rounded text-[10px] font-black border leading-none ${getSubColor(l.subject)} shadow-sm truncate max-w-[95%]">${l.subject}</div><div class="text-[8px] font-bold text-slate-500 dark:text-slate-400 truncate">${state.dashView==='teacher'?l.targets?.join(','):(l.teacherName||'未定')}</div></div>`).join('')}</div>`;
+                html+=`<div class="dash-cell border-b border-r dark:border-slate-700/50 transition-colors ${bgClass} ${ls.length>0?'hover:bg-slate-50 dark:hover:bg-slate-800/80':''}">${ls.map(l=>`<div class="text-center w-full px-1 py-1 flex flex-col items-center justify-center h-full gap-0.5"><div class="px-2 py-0.5 rounded text-[10px] font-black border leading-none ${getSubColor(l.subject)} shadow-sm truncate max-w-[95%]">${l.subject}</div><div class="text-[8px] font-bold text-slate-500 dark:text-slate-400 truncate">${state.dashView==='teacher'?l.targets?.join(','):(l.teacherName||'未定')}</div></div>`).join('')}</div>`;
             });
         });
         html+=`</div></div>`;
     }
-    html += `</div>`; 
-    return html;
+    html += `</div>`; return html;
 };
 
 // --- アクションロジック ---
 window.actions = {
-    toggleDarkMode: () => {
-        const html = document.documentElement;
-        html.classList.toggle('dark');
-        localStorage.setItem('tt_theme', html.classList.contains('dark') ? 'dark' : 'light');
-    },
-
+    toggleDarkMode: () => { const html = document.documentElement; html.classList.toggle('dark'); localStorage.setItem('tt_theme', html.classList.contains('dark') ? 'dark' : 'light'); },
     hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem('tt_v15_stable');location.reload();}},
     jumpToResult:()=>{state.currentStep=10;render();},
     
     setDashTab:(tab)=>{state.dashTab=tab;render();},
     setMatrixAxis:(axis)=>{state.matrixAxis=axis;render();},
-    setDashView:(v)=>{
-        state.dashView=v;
+    setDashView:(v)=>{ state.dashView=v;
         const classes = state.classAssignments ? Object.keys(state.classAssignments) : [];
-        if (v === 'class' && !classes.includes(state.dashFilter) && classes.length > 0) state.dashFilter = classes[0];
+        if (v === 'class' && (!classes.includes(state.dashFilter) && classes.length > 0)) state.dashFilter = classes[0];
         const teachers = state.teachers || [];
-        if (v === 'teacher' && !teachers.some(t => t.id === state.dashFilter) && teachers.length > 0) state.dashFilter = teachers[0].id;
+        if (v === 'teacher' && (!teachers.some(t => t.id === state.dashFilter) && teachers.length > 0)) state.dashFilter = teachers[0].id;
         render();
     },
     setDashFilter:(v)=>{state.dashFilter=v;render();},
     updateMarathon:(k,v)=>{state.marathon[k]=v;render();},
     
-    closeModal: () => {
-        document.getElementById('modal-overlay').classList.add('hidden');
-    },
+    closeModal: () => { document.getElementById('modal-overlay').classList.add('hidden'); },
 
     openReportModal:()=>{
         if(!state.scoreCard) return showToast("スコアデータがありません", "error");
         const sc = state.scoreCard;
-        let html = `
-            <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-200 dark:border-slate-700 shrink-0">
-                <h3 class="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">📊 AI自己採点レポート</h3>
-                <button onclick="actions.closeModal()" class="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-black text-2xl transition-colors leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">✕</button>
-            </div>
-            <div class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-4 min-h-0">
-        `;
-
-        html += `
-            <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shrink-0">
-                <div class="flex justify-between items-center mb-2">
-                    <span class="font-black text-sm text-slate-700 dark:text-slate-300">基礎ルール (配置完了率)</span>
-                    <span class="font-black text-lg text-emerald-600 dark:text-emerald-400">${sc.basic.score}%</span>
-                </div>
-                <div class="text-xs font-bold text-slate-600 dark:text-slate-400 space-y-1">
-                    ${sc.basic.details.map(d => `<p>・${d}</p>`).join('')}
-                </div>
-            </div>
-        `;
-
+        let html = `<div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-200 dark:border-slate-700 shrink-0"><h3 class="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">📊 AI自己採点レポート</h3><button onclick="actions.closeModal()" class="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-black text-2xl transition-colors leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">✕</button></div><div class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-4 min-h-0">`;
+        html += `<div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shrink-0"><div class="flex justify-between items-center mb-2"><span class="font-black text-sm text-slate-700 dark:text-slate-300">基礎ルール (配置完了率)</span><span class="font-black text-lg text-emerald-600 dark:text-emerald-400">${sc.basic.score}%</span></div><div class="text-xs font-bold text-slate-600 dark:text-slate-400 space-y-1">${sc.basic.details.map(d => `<p>・${d}</p>`).join('')}</div></div>`;
         const rules = sc.advanced.rules || {};
         Object.keys(rules).forEach(k => {
-            const r = rules[k];
-            const isPerfect = r.score === 100;
-            html += `
-                <div class="bg-white dark:bg-slate-800 rounded-xl border ${isPerfect ? 'border-emerald-200 dark:border-emerald-800/50' : 'border-amber-300 dark:border-amber-700'} shadow-sm overflow-hidden shrink-0">
-                    <div class="px-4 py-2 flex justify-between items-center ${isPerfect ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-amber-50 dark:bg-amber-900/20'} border-b ${isPerfect ? 'border-emerald-100 dark:border-emerald-800/50' : 'border-amber-200 dark:border-amber-800/50'}">
-                        <span class="font-black text-xs ${isPerfect ? 'text-emerald-800 dark:text-emerald-400' : 'text-amber-800 dark:text-amber-400'}">${r.name}</span>
-                        <span class="font-black text-sm ${isPerfect ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}">${r.score}%</span>
-                    </div>
-                    <div class="p-3 bg-slate-50/50 dark:bg-slate-900/30">
-                        ${r.failures && r.failures.length > 0 
-                            ? `<ul class="text-[10px] font-bold text-slate-600 dark:text-slate-400 space-y-1 pl-4 list-disc marker:text-amber-500 dark:marker:text-amber-600">
-                                ${r.failures.map(f => `<li>${f}</li>`).join('')}
-                               </ul>`
-                            : `<div class="text-[10px] font-bold text-emerald-600 dark:text-emerald-500 flex items-center gap-1">✅ 違反なし (100% 遵守)</div>`
-                        }
-                    </div>
-                </div>
-            `;
+            const r = rules[k], isPerfect = r.score === 100;
+            html += `<div class="bg-white dark:bg-slate-800 rounded-xl border ${isPerfect ? 'border-emerald-200 dark:border-emerald-800/50' : 'border-amber-300 dark:border-amber-700'} shadow-sm overflow-hidden shrink-0"><div class="px-4 py-2 flex justify-between items-center ${isPerfect ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-amber-50 dark:bg-amber-900/20'} border-b ${isPerfect ? 'border-emerald-100 dark:border-emerald-800/50' : 'border-amber-200 dark:border-amber-800/50'}"><span class="font-black text-xs ${isPerfect ? 'text-emerald-800 dark:text-emerald-400' : 'text-amber-800 dark:text-amber-400'}">${r.name}</span><span class="font-black text-sm ${isPerfect ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}">${r.score}%</span></div><div class="p-3 bg-slate-50/50 dark:bg-slate-900/30">${r.failures && r.failures.length > 0 ? `<ul class="text-[10px] font-bold text-slate-600 dark:text-slate-400 space-y-1 pl-4 list-disc marker:text-amber-500 dark:marker:text-amber-600">${r.failures.map(f => `<li>${f}</li>`).join('')}</ul>` : `<div class="text-[10px] font-bold text-emerald-600 dark:text-emerald-500 flex items-center gap-1">✅ 違反なし (100% 遵守)</div>`}</div></div>`;
         });
-
-        html += `</div>`;
-        document.getElementById('modal-body').innerHTML = html;
-        const overlay = document.getElementById('modal-overlay');
-        overlay.classList.remove('hidden');
-        overlay.onclick = (e) => { if(e.target === overlay) actions.closeModal(); };
+        document.getElementById('modal-body').innerHTML = html + `</div>`;
+        const overlay = document.getElementById('modal-overlay'); overlay.classList.remove('hidden'); overlay.onclick = (e) => { if(e.target === overlay) actions.closeModal(); };
     },
 
-    // ★ セーブ・ロード機能 (10スロット化 & 容量スリム化)
     openQuickSaveModal: () => {
         const slots = Array.from({length: 10}, (_, i) => i + 1);
-        let html = `
-            <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-200 dark:border-slate-700 shrink-0">
-                <h3 class="text-lg font-black text-slate-800 dark:text-slate-100">💾 セーブ/ロード <span class="text-xs font-bold text-slate-500 dark:text-slate-400 ml-2">(全10スロット)</span></h3>
-                <button onclick="actions.closeModal()" class="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-black text-2xl transition-colors leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">✕</button>
-            </div>
-            <div class="flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-2 flex-1 min-h-0 max-h-[60vh]">
-        `;
-        
+        let html = `<div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-200 dark:border-slate-700 shrink-0"><h3 class="text-lg font-black text-slate-800 dark:text-slate-100">💾 セーブ/ロード <span class="text-xs font-bold text-slate-500 dark:text-slate-400 ml-2">(全10スロット)</span></h3><button onclick="actions.closeModal()" class="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-black text-2xl transition-colors leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">✕</button></div><div class="flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-2 flex-1 min-h-0 max-h-[60vh]">`;
         slots.forEach(i => {
-            let meta = null;
-            try {
-                const raw = localStorage.getItem('tt_v15_save_meta_' + i);
-                if (raw) meta = JSON.parse(raw);
-                if (!meta && localStorage.getItem('tt_v15_save_' + i)) {
-                    meta = { name: "以前のデータ", time: "" };
-                }
-            } catch(e) {}
-
-            const isEmpty = !meta;
-            const nameDisp = meta ? meta.name : "空きスロット";
-            const timeDisp = meta?.time ? `<span class="text-[9px] text-slate-500 dark:text-slate-400 font-normal ml-2">${meta.time}</span>` : "";
+            let meta = null; try { const raw = localStorage.getItem('tt_v15_save_meta_' + i); if (raw) meta = JSON.parse(raw); if (!meta && localStorage.getItem('tt_v15_save_' + i)) meta = { name: "以前のデータ", time: "" }; } catch(e) {}
+            const isEmpty = !meta, nameDisp = meta ? meta.name : "空きスロット", timeDisp = meta?.time ? `<span class="text-[9px] text-slate-500 dark:text-slate-400 font-normal ml-2">${meta.time}</span>` : "";
             const bgClass = isEmpty ? 'bg-slate-50/50 dark:bg-slate-800/30 border-dashed border-slate-300 dark:border-slate-700' : 'bg-white dark:bg-slate-800 border-solid border-slate-200 dark:border-slate-600 shadow-sm';
             const textClass = isEmpty ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200 font-bold';
-
-            html += `
-            <div class="flex items-center justify-between p-3 border rounded-xl ${bgClass} transition-colors hover:border-blue-300 dark:hover:border-blue-500/50 shrink-0">
-                <div class="flex flex-col flex-1 min-w-0 pr-4">
-                    <div class="flex items-center gap-2">
-                        <span class="text-[10px] font-black text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded w-6 text-center">#${i}</span>
-                        <span class="text-sm truncate ${textClass}">${nameDisp}</span>
-                    </div>
-                    ${timeDisp ? `<div class="mt-0.5 ml-9">${timeDisp}</div>` : ''}
-                </div>
-                <div class="flex gap-2 shrink-0">
-                    <button onclick="actions.quickSave(${i})" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95">セーブ</button>
-                    <button onclick="actions.quickLoad(${i})" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 disabled:opacity-30 disabled:hover:bg-emerald-600 disabled:cursor-not-allowed" ${isEmpty?'disabled':''}>ロード</button>
-                </div>
-            </div>`;
+            html += `<div class="flex items-center justify-between p-3 border rounded-xl ${bgClass} transition-colors hover:border-blue-300 dark:hover:border-blue-500/50 shrink-0"><div class="flex flex-col flex-1 min-w-0 pr-4"><div class="flex items-center gap-2"><span class="text-[10px] font-black text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded w-6 text-center">#${i}</span><span class="text-sm truncate ${textClass}">${nameDisp}</span></div>${timeDisp ? `<div class="mt-0.5 ml-9">${timeDisp}</div>` : ''}</div><div class="flex gap-2 shrink-0"><button onclick="actions.quickSave(${i})" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95">セーブ</button><button onclick="actions.quickLoad(${i})" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 disabled:opacity-30 disabled:hover:bg-emerald-600 disabled:cursor-not-allowed" ${isEmpty?'disabled':''}>ロード</button></div></div>`;
         });
-        
         document.getElementById('modal-body').innerHTML = html + `</div>`;
-        const overlay = document.getElementById('modal-overlay');
-        overlay.classList.remove('hidden');
-        overlay.onclick = (e) => { if(e.target === overlay) actions.closeModal(); };
+        const overlay = document.getElementById('modal-overlay'); overlay.classList.remove('hidden'); overlay.onclick = (e) => { if(e.target === overlay) actions.closeModal(); };
     },
     quickSave: (s) => {
         const unassignedCount = state.unassigned ? state.unassigned.length : 0;
-        const now = new Date();
-        const yy = String(now.getFullYear()).slice(-2);
-        const mm = String(now.getMonth() + 1).padStart(2, '0');
-        const dd = String(now.getDate()).padStart(2, '0');
-        const hh = String(now.getHours()).padStart(2, '0');
-        const min = String(now.getMinutes()).padStart(2, '0');
+        const now = new Date(), yy = String(now.getFullYear()).slice(-2), mm = String(now.getMonth() + 1).padStart(2, '0'), dd = String(now.getDate()).padStart(2, '0'), hh = String(now.getHours()).padStart(2, '0'), min = String(now.getMinutes()).padStart(2, '0');
         const defaultName = `未配置${unassignedCount} - ${yy}/${mm}/${dd} ${hh}:${min}`;
-        
         const saveName = prompt(`スロット ${s} に保存します。\n名前を入力してください：`, defaultName);
         if (saveName === null) return;
-
         const meta = { name: saveName || defaultName, time: `${yy}/${mm}/${dd} ${hh}:${min}` };
         
         try {
-            // ★ 容量エラー対策：保存するデータを軽量化（数千行のデバッグレポートや不要なキャッシュを削除）
+            // ★ 容量エラー対策：保存データを軽量化（レポート等削除）
             const stateToSave = JSON.parse(JSON.stringify(state));
-            stateToSave.reportDetails = {}; 
-            stateToSave.undoStack = [];
-            stateToSave.subjectsUndoStack = [];
-            
+            stateToSave.reportDetails = {}; stateToSave.undoStack = []; stateToSave.subjectsUndoStack = [];
             localStorage.setItem('tt_v15_save_' + s, JSON.stringify(stateToSave));
             localStorage.setItem('tt_v15_save_meta_' + s, JSON.stringify(meta));
-            showToast(`スロット ${s} にセーブしました`, "success");
-            actions.openQuickSaveModal(); 
-        } catch(e) {
-            showToast("容量オーバーです。古いスロットを削除するかJSON出力を利用してください。", "error");
-        }
+            showToast(`スロット ${s} にセーブしました`, "success"); actions.openQuickSaveModal(); 
+        } catch(e) { showToast("容量オーバーです。不要なスロットを上書きするか、JSON出力を利用してください。", "error"); }
     },
     quickLoad: (s) => {
         if(!confirm(`スロット ${s} のデータをロードしますか？\n※現在の未保存の編集内容は失われます`)) return;
         const d = localStorage.getItem('tt_v15_save_' + s);
-        if(d){
-            Object.keys(state).forEach(k => delete state[k]);
-            Object.assign(state, JSON.parse(d));
-            forceInitState();
-            render();
-            showToast(`スロット ${s} をロードしました`, "success");
-            actions.closeModal();
-        } else {
-            showToast("データが見つかりません", "error");
-        }
+        if(d){ Object.keys(state).forEach(k => delete state[k]); Object.assign(state, JSON.parse(d)); forceInitState(); render(); showToast(`スロット ${s} をロードしました`, "success"); actions.closeModal(); } 
+        else { showToast("データが見つかりません", "error"); }
     },
 
-    // ★ マラソン生成エンジン
+    // ★ スプレッドシート出力
+    openExportModal: () => {
+        let html = `<div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-200 dark:border-slate-700 shrink-0"><h3 class="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">📤 スプレッドシート出力</h3><button onclick="actions.closeModal()" class="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-black text-2xl transition-colors leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">✕</button></div><div class="flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2 flex-1 min-h-0"><p class="text-sm font-bold text-slate-600 dark:text-slate-400">出力したいシートを選択してください。（複数選択可）</p><div class="flex flex-col gap-2 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700"><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors"><input type="checkbox" id="exp-mat-class" checked class="w-4 h-4 text-indigo-600 rounded bg-slate-100 border-slate-300"><span class="font-bold text-sm dark:text-slate-200">全体マトリックス (クラス軸)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors"><input type="checkbox" id="exp-mat-teacher" class="w-4 h-4 text-indigo-600 rounded bg-slate-100 border-slate-300"><span class="font-bold text-sm dark:text-slate-200">全体マトリックス (教員軸)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors"><input type="checkbox" id="exp-mat-room" class="w-4 h-4 text-indigo-600 rounded bg-slate-100 border-slate-300"><span class="font-bold text-sm dark:text-slate-200">全体マトリックス (教室軸)</span></label><div class="h-px bg-slate-200 dark:bg-slate-700 my-2"></div><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors"><input type="checkbox" id="exp-ind-class" checked class="w-4 h-4 text-indigo-600 rounded bg-slate-100 border-slate-300"><span class="font-bold text-sm dark:text-slate-200">各クラス時間割 (配布用)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors"><input type="checkbox" id="exp-ind-teacher" class="w-4 h-4 text-indigo-600 rounded bg-slate-100 border-slate-300"><span class="font-bold text-sm dark:text-slate-200">各教員時間割 (配布用)</span></label></div><div class="flex justify-end mt-2"><button onclick="actions.exportToSpreadsheetExec()" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 text-white rounded-xl font-black shadow-md transition-all active:scale-95">選択した項目を出力</button></div></div>`;
+        document.getElementById('modal-body').innerHTML = html; const overlay = document.getElementById('modal-overlay'); overlay.classList.remove('hidden'); overlay.onclick = (e) => { if(e.target === overlay) actions.closeModal(); };
+    },
+    exportToSpreadsheetExec: async function() {
+        const options = { matrixClass: document.getElementById('exp-mat-class')?.checked || false, matrixTeacher: document.getElementById('exp-mat-teacher')?.checked || false, matrixRoom: document.getElementById('exp-mat-room')?.checked || false, individualClass: document.getElementById('exp-ind-class')?.checked || false, individualTeacher: document.getElementById('exp-ind-teacher')?.checked || false };
+        if (!Object.values(options).some(v => v)) return showToast("出力する項目を選択してください", "error");
+        actions.closeModal(); showLoading("出力中...", "スプレッドシートを作成中...\n(項目が多いと数十秒かかります)");
+        try{ const res=await fetch(GAS_URL,{method:'POST',mode:'cors',body:JSON.stringify({action:'export',schedule:state.generatedSchedule,state, options})}); const data=await res.json(); 
+             if(data.success) showToast("出力完了！スプレッドシートを確認してください", "success"); else showToast("出力失敗: " + data.message, "error");
+        }catch(e){showToast("通信エラー","error");} finally {hideLoading();}
+    },
+
     startGeneration: async function(){
         state.marathon.active = true; state.marathon.currentGen = 1; globalStartTime = Date.now();
         state.best = {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null};
         actions.runMarathonCycle();
     },
-    
     continueMarathon: async function(){
-        const addVal = document.getElementById('dash-add-gen')?.value;
-        const addGen = addVal ? parseFloat(addVal) : 10;
-        
+        const addVal = document.getElementById('dash-add-gen')?.value; const addGen = addVal ? parseFloat(addVal) : 10;
         state.marathon.active = true; 
-        if(state.marathon.maxGen !== Infinity) {
-            if (addGen === Infinity) {
-                state.marathon.maxGen = Infinity;
-            } else {
-                state.marathon.maxGen += addGen;
-            }
-        }
+        if(state.marathon.maxGen !== Infinity) { if (addGen === Infinity) state.marathon.maxGen = Infinity; else state.marathon.maxGen += addGen; }
         actions.runMarathonCycle();
     },
-    
-    continueGeneration: function(){
-        state.marathon.active = false;
-        actions.runSingleCycle("今の盤面を元に1回だけ調整中...", false);
-    },
-    
+    continueGeneration: function(){ state.marathon.active = false; actions.runSingleCycle("今の盤面を元に1回だけ調整中...", false); },
     cancelGeneration: () => {
-        hideLoading(); 
-        state.marathon.active = false; 
-        
+        hideLoading(); state.marathon.active = false; 
         if (state.best && state.best.schedule) {
-            state.generatedSchedule = state.best.schedule;
-            state.unassigned = state.best.unassigned;
-            state.scoreCard = state.best.scoreCard;
-            state.reportDetails = state.best.reportDetails;
-            state.currentStep = 10;
-            showToast(`生成を中止しました。最も優秀な盤面（未配置 ${state.best.unassignedCount}）を表示します。`, "info");
-        } else {
-            state.currentStep = 9;
-            showToast("生成をキャンセルしました。", "info");
-        }
+            state.generatedSchedule = state.best.schedule; state.unassigned = state.best.unassigned; state.scoreCard = state.best.scoreCard; state.reportDetails = state.best.reportDetails;
+            state.currentStep = 10; showToast(`生成を中止しました。最も優秀な盤面（未配置 ${state.best.unassignedCount}）を表示します。`, "info");
+        } else { state.currentStep = 9; showToast("生成をキャンセルしました。", "info"); }
         render();
     },
-
     runMarathonCycle: async function(){
         if (!state.marathon.active) return;
-        
-        const m = state.marathon;
-        startGenTimer();
+        const m = state.marathon; startGenTimer();
         showLoading("AIマラソン中...", `第 ${m.currentGen} / ${m.maxGen===Infinity?'∞':m.maxGen} 世代`, true, `目標：未配置 ${m.target} 以下`);
-        
-        const bestContainer = document.getElementById('loading-best-container');
-        const bestRecord = document.getElementById('loading-best-record');
-        const latestRecord = document.getElementById('loading-latest-record');
-        
-        if (state.best && state.best.unassignedCount !== 9999 && bestContainer && bestRecord) {
-            bestContainer.classList.remove('hidden');
-            bestContainer.classList.add('flex');
-            bestRecord.innerText = `未配置 ${state.best.unassignedCount}`;
-        }
+        const bc = document.getElementById('loading-best-container'), br = document.getElementById('loading-best-record'), lr = document.getElementById('loading-latest-record');
+        if (state.best && state.best.unassignedCount !== 9999 && bc && br) { bc.classList.remove('hidden'); bc.classList.add('flex'); br.innerText = `未配置 ${state.best.unassignedCount}`; }
 
         try {
             const res = await fetch(GAS_URL, { method:'POST', mode:'cors', body:JSON.stringify({ action:'generate', state, currentSchedule: null, unassigned: null }) });
             const data = await res.json();
-            
             if (!state.marathon.active) return; 
 
             if(data.success){
-                state.generatedSchedule = data.schedule; 
-                state.unassigned = data.unassigned; 
-                state.scoreCard = data.scoreCard;
-                state.reportDetails = data.reportDetails;
-
-                if (bestContainer && latestRecord) {
-                    bestContainer.classList.remove('hidden');
-                    bestContainer.classList.add('flex');
-                    latestRecord.innerText = `未配置 ${data.unassigned.length}`;
-                }
+                state.generatedSchedule = data.schedule; state.unassigned = data.unassigned; state.scoreCard = data.scoreCard; state.reportDetails = data.reportDetails;
+                if (bc && lr) { bc.classList.remove('hidden'); bc.classList.add('flex'); lr.innerText = `未配置 ${data.unassigned.length}`; }
 
                 if(data.unassigned.length < state.best.unassignedCount) {
-                    state.best = {
-                        unassignedCount: data.unassigned.length,
-                        schedule: data.schedule,
-                        unassigned: data.unassigned,
-                        scoreCard: data.scoreCard,
-                        reportDetails: data.reportDetails
-                    };
-                    
-                    if (bestRecord) {
-                        bestRecord.innerText = `未配置 ${state.best.unassignedCount}`;
-                        bestRecord.classList.add('text-white', 'scale-110');
-                        setTimeout(() => bestRecord.classList.remove('text-white', 'scale-110'), 300);
-                    }
+                    state.best = { unassignedCount: data.unassigned.length, schedule: data.schedule, unassigned: data.unassigned, scoreCard: data.scoreCard, reportDetails: data.reportDetails };
+                    if (br) { br.innerText = `未配置 ${state.best.unassignedCount}`; br.classList.add('text-white', 'scale-110'); setTimeout(() => br.classList.remove('text-white', 'scale-110'), 300); }
                 }
 
-                const goalReached = state.best.unassignedCount <= m.target;
-                const genLimitReached = m.currentGen >= m.maxGen;
-                
+                const goalReached = state.best.unassignedCount <= m.target, genLimitReached = m.currentGen >= m.maxGen;
                 if (goalReached || genLimitReached) {
-                    state.generatedSchedule = state.best.schedule;
-                    state.unassigned = state.best.unassigned;
-                    state.scoreCard = state.best.scoreCard;
-                    state.reportDetails = state.best.reportDetails;
-
+                    state.generatedSchedule = state.best.schedule; state.unassigned = state.best.unassigned; state.scoreCard = state.best.scoreCard; state.reportDetails = state.best.reportDetails;
                     state.currentStep=10; state.marathon.active = false; render(); hideLoading();
-                    
-                    if (goalReached) {
-                        showToast(`目標達成！未配置 ${state.best.unassignedCount} で完了しました。`, "success");
-                    } else {
-                        showToast(`最大世代到達。最も優秀な盤面（未配置 ${state.best.unassignedCount}）を表示します。`, "success");
-                    }
-                } else {
-                    m.currentGen++; actions.runMarathonCycle(); 
-                }
+                    if (goalReached) showToast(`目標達成！未配置 ${state.best.unassignedCount} で完了しました。`, "success");
+                    else showToast(`最大世代到達。最も優秀な盤面（未配置 ${state.best.unassignedCount}）を表示します。`, "success");
+                } else { m.currentGen++; actions.runMarathonCycle(); }
             } else {
                 if(m.ignoreFatal) { m.currentGen++; actions.runMarathonCycle(); } 
                 else { showToast("致命的エラー: "+data.message,"error"); hideLoading(); state.marathon.active = false; }
@@ -910,17 +647,13 @@ window.actions = {
         try {
             const res = await fetch(GAS_URL, { method:'POST', mode:'cors', body:JSON.stringify({ action:'generate', state, currentSchedule: isNew?null:state.generatedSchedule, unassigned: isNew?state.unassigned:state.unassigned }) });
             const data = await res.json();
-            if(data.success) { 
-                state.generatedSchedule=data.schedule; 
-                state.unassigned=data.unassigned; 
-                state.scoreCard=data.scoreCard; 
-                state.reportDetails=data.reportDetails;
-                state.currentStep=10; render(); hideLoading(); 
-            }
+            if(data.success) { state.generatedSchedule=data.schedule; state.unassigned=data.unassigned; state.scoreCard=data.scoreCard; state.reportDetails=data.reportDetails; state.currentStep=10; render(); hideLoading(); }
             else { showToast("エラー: "+data.message,"error"); hideLoading(); }
         } catch(e) { showToast("通信エラー","error"); hideLoading(); }
     },
     resetAndGenerate:()=>{state.generatedSchedule=null; state.unassigned=[]; actions.startGeneration();},
+    exportData:()=>{const blob=new Blob([JSON.stringify(state)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`timetable_backup_${Date.now()}.json`;a.click();},
+    importData:()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];const r=new FileReader();r.onload=ev=>{Object.assign(state,JSON.parse(ev.target.result));forceInitState();render();showToast("読込完了","success");};r.readAsText(f);};i.click();},
 
     updateGrade:(g,d)=>{if(!state.grades)state.grades={};state.grades[g]=Math.max(1,Math.min(10,(state.grades[g]||1)+d));forceInitState();render();},
     setGrade:(g,v)=>{if(!state.grades)state.grades={};state.grades[g]=Math.max(1,Math.min(10,parseInt(v)||1));forceInitState();render();},
@@ -960,16 +693,6 @@ window.actions = {
     removeAllocRow:(i)=>{if(state.allocationModal)state.allocationModal.rows.splice(i,1);render();},
     saveAllocModal:()=>{if(!state.allocationModal)return;const m=state.allocationModal,tot=m.rows.reduce((s,r)=>s+(parseInt(r.hours)||0),0);if(tot!==m.stdHours)return showToast(`合計を${m.stdHours}にしてください`,'error');if(!state.classAssignments[m.cls].overrides)state.classAssignments[m.cls].overrides={};if(!state.classAssignments[m.cls].overrides[m.subId])state.classAssignments[m.cls].overrides[m.subId]={};if(m.rows.length===1){state.classAssignments[m.cls].overrides[m.subId].teacherId=m.rows[0].teacherId;delete state.classAssignments[m.cls].overrides[m.subId].allocations;}else{state.classAssignments[m.cls].overrides[m.subId].allocations=JSON.parse(JSON.stringify(m.rows));}state.allocationModal=null;render();},
     clearAllocations:(cls,sId)=>{if(state.classAssignments[cls].overrides[sId]){delete state.classAssignments[cls].overrides[sId].allocations; render();}},
-    
-    exportData:()=>{const blob=new Blob([JSON.stringify(state)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`timetable_backup_${Date.now()}.json`;a.click();},
-    importData:()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];const r=new FileReader();r.onload=ev=>{Object.assign(state,JSON.parse(ev.target.result));forceInitState();render();showToast("読込完了","success");};r.readAsText(f);};i.click();},
-    exportToSpreadsheet: async function(){
-        showLoading("出力中...", "スプレッドシートを作成中...");
-        try{
-            const res=await fetch(GAS_URL,{method:'POST',mode:'cors',body:JSON.stringify({action:'export',schedule:state.generatedSchedule,state})});
-            const data=await res.json(); if(data.success)showToast("出力成功！","success"); else showToast("出力失敗","error");
-        }catch(e){showToast("通信エラー","error");} finally {hideLoading();}
-    }
 };
 
 document.addEventListener('DOMContentLoaded',load);
