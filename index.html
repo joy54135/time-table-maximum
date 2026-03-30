@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.7.5.4</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.8.0</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { darkMode: 'class' }</script>
 <script>
@@ -36,7 +36,7 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 <div id="toast" class="fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm flex items-center gap-2 z-[9999] transition-all opacity-0 pointer-events-none"><span id="toast-msg"></span></div>
 <div id="app-container">
     <div class="m3-card flex-1 flex flex-col min-h-0 relative">
-        <!-- スリムタイトルバー (全ステップ共通、巨大ヘッダー完全排除) -->
+        <!-- スリムタイトルバー -->
         <div class="flex items-center justify-between mb-2 shrink-0 border-b border-slate-100 dark:border-slate-800 pb-2 flex-wrap gap-2">
             <div class="flex items-center gap-3">
                 <h2 id="step-title" class="text-base font-black text-slate-800 dark:text-slate-100 whitespace-nowrap tracking-tight"></h2>
@@ -52,10 +52,9 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
         <div class="relative flex justify-between items-center mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 shrink-0" id="bottom-navigation">
             <button id="btn-prev" class="m3-btn-secondary w-[100px] md:w-[120px] relative z-10">戻る</button>
             
-            <!-- アプリタイトル（控えめ中央配置・アイコンなし） -->
             <div id="modest-app-title" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
                 <div class="text-[11px] font-black text-slate-800 dark:text-slate-100 leading-none">Smart TimeTable</div>
-                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 15.7.5.4 (Marathon Hybrid)</div>
+                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 15.8.0 (Zero-Failure Architecture)</div>
             </div>
 
             <button id="btn-next" class="m3-btn-primary w-[160px] md:w-[180px] relative z-10"><span id="btn-next-text">次へ進む</span></button>
@@ -79,13 +78,18 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
         </div>
         <p class="text-amber-300 font-black text-[11px] mt-4 bg-slate-800 px-5 py-2 rounded-full border border-slate-600 hidden mx-auto" id="loading-status"></p>
     </div>
-    <button id="btn-cancel-gen" onclick="actions.cancelGeneration()" class="mt-6 px-8 py-3 bg-slate-800 text-slate-300 border border-slate-600 rounded-full text-sm font-bold hover:bg-rose-900 transition-colors hidden">生成をキャンセル</button>
+    <button id="btn-cancel-gen" onclick="actions.cancelGeneration()" class="mt-6 px-8 py-3 bg-slate-800 text-slate-300 border border-slate-600 rounded-full text-sm font-bold hover:bg-rose-900 transition-colors hidden">生成を中断・結果を見る</button>
 </div>
 
 <script>
-var GAS_URL="https://script.google.com/macros/s/AKfycbzroFhG1DdlVy7Wx185J3TqyHyRZjO2Tull0JoVqRQaacii3RvagWjc5yRu9cfoBS42dw/exec";
+// =========================================
+// 新デプロイURL (Ver 15.8 バックエンド)
+// =========================================
+var GAS_URL="https://script.google.com/macros/s/AKfycbxgtPfPhnJE7daFRG5UkuX2muyJNiDXttUfrGuXnmjM26x0LTI3E_pBxfnt5FqnZjXfTQ/exec";
+
 var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'], PERIODS=[1,2,3,4,5,6];
 var stepTitles=["1. 基本設定","2. 行事・不可枠","3. 教科と教室設定","4. 教員名簿と不可枠","5. 特殊授業ビルダー","6. クラス別担当設定","7. 教員別 持ち時数確認","8. 配置ルール詳細","9. 最終点検","10. 司令塔(ダッシュボード)"];
+var marathonGens = [10, 30, 50, 100, Infinity];
 
 const step8Packages = [
   { id: "pkg1", title: "【基本構造】 パズルの骨組み", desc: "授業の分散や連続設定など、時間割の骨格を定義します。",
@@ -131,7 +135,7 @@ function forceInitState(){
     if(!state.openSpecialEdits) state.openSpecialEdits={}; if(!state.subjectsUndoStack) state.subjectsUndoStack=[]; if(!state.rulesUndoStack) state.rulesUndoStack=[];
 }
 
-function load(){ try{const d=localStorage.getItem('tt_v15_final_v5');if(d){Object.assign(state,JSON.parse(d));}}catch(e){} forceInitState(); render(); }
+function load(){ try{const d=localStorage.getItem('tt_v15_8_0');if(d){Object.assign(state,JSON.parse(d));}}catch(e){} forceInitState(); render(); }
 function showToast(msg,type='info'){const t=document.getElementById('toast'),m=document.getElementById('toast-msg');if(!t||!m)return; t.className=`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm z-[9999] transition-all opacity-100 ${type==='success'?'bg-emerald-600 text-white':(type==='error'?'bg-rose-600 text-white':'bg-blue-600 text-white')}`; m.innerText=msg; setTimeout(()=>t.classList.replace('opacity-100','opacity-0'),3000);}
 function showLoading(t,d,showCancel=false, statusText=""){ const l=document.getElementById('loading-overlay'), cBtn=document.getElementById('btn-cancel-gen'), stEl=document.getElementById('loading-status'); if(l){ document.getElementById('loading-title').innerText=t; document.getElementById('loading-desc').innerText=d; if(statusText) { stEl.innerText=statusText; stEl.classList.remove('hidden'); stEl.classList.add('block'); } else { stEl.classList.add('hidden'); } if(showCancel)cBtn.classList.remove('hidden');else cBtn.classList.add('hidden'); l.classList.replace('hidden','flex'); } }
 function hideLoading(){ stopGenTimer(); const l=document.getElementById('loading-overlay'); if(l)l.classList.replace('flex','hidden'); }
@@ -172,13 +176,12 @@ function getTeacherLoadDetails(){
     });
     return loads;
 }
-function getTeacherLoads(){ let l={}; const dets=getTeacherLoadDetails(); Object.keys(dets).forEach(k=>l[k]=dets[k].total); return l; }
 
 function render(){
     const scrollEl = document.getElementById('step-content');
     const scrollPos = scrollEl ? scrollEl.scrollTop : 0;
     const currentStep = state.currentStep;
-    try{localStorage.setItem('tt_v15_final_v5',JSON.stringify(state));}catch(e){}
+    try{localStorage.setItem('tt_v15_8_0',JSON.stringify(state));}catch(e){}
     
     const headerUtils = document.getElementById('step-header-utils');
     if (headerUtils) {
@@ -201,7 +204,7 @@ function render(){
     if (pb) { pb.style.visibility = (state.currentStep === 1 ? 'hidden' : 'visible'); pb.onclick = () => { if(state.currentStep > 1) { state.currentStep--; render(); } }; }
     if(nb && nt){
         nb.onclick = null;
-        if(state.currentStep===9){ nb.style.display = 'none'; // Step9では独自のマラソンボタンを使う
+        if(state.currentStep===9){ nb.style.display = 'none'; 
         }else if(state.currentStep===10){ nb.style.display = 'flex'; nt.innerText="完了して終了"; nb.className="m3-btn-primary w-[160px] md:w-[180px]"; nb.onclick = () => { if(confirm("設定を保存して終了しますか？")) window.close(); };
         }else{ nb.style.display = 'flex'; nt.innerText="次へ進む"; nb.className="m3-btn-primary w-[160px] md:w-[180px]"; nb.onclick = () => { state.currentStep++; render(); }; }
     }
@@ -209,7 +212,6 @@ function render(){
     const content=document.getElementById('step-content');
     if(content){try{content.innerHTML=window[`viewStep${state.currentStep}`]();}catch(e){console.error(e);}}
     
-    // スクロール位置の復元 (同じステップ内での再描画時)
     if (scrollEl && state.currentStep === currentStep) { requestAnimationFrame(() => { scrollEl.scrollTop = scrollPos; }); } else if (scrollEl) { scrollEl.scrollTop = 0; }
 }
 
@@ -219,13 +221,13 @@ function buildGrid(ngMap,gMap,actStr){return `<div class="overflow-x-auto w-full
 window.viewStep1 = ()=>`<div class="flex flex-col gap-5 h-full" id="sc-step1"><div class="bg-white dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm"><h3 class="font-black text-sm mb-3 dark:text-slate-200">学級数の設定</h3><div class="grid grid-cols-3 md:grid-cols-6 gap-3">${GRADES.map(g=>`<div class="bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center"><span class="text-slate-500 dark:text-slate-400 font-bold text-xs mb-2">${g}年</span><div class="flex items-center gap-2"><button onclick="actions.updateGrade(${g},-1)" class="w-6 h-6 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm font-black text-slate-500">-</button><input type="number" value="${state.grades?.[g]||1}" onchange="actions.setGrade(${g},this.value)" class="w-10 text-xl font-black text-blue-600 dark:text-blue-400 text-center outline-none bg-transparent" min="1" max="10"><button onclick="actions.updateGrade(${g},1)" class="w-6 h-6 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm font-black text-slate-500">+</button></div></div>`).join('')}</div></div><div class="bg-white dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm"><h3 class="font-black text-sm mb-3 dark:text-slate-200">日ごとのコマ数 (最大6限)</h3><div class="overflow-x-auto custom-scrollbar"><table class="w-full text-xs text-center border-collapse min-w-[500px]"><thead><tr><th class="p-2 border-b dark:border-slate-700 text-slate-500">学年</th>${DAYS.map(d=>`<th class="p-2 border-b dark:border-slate-700 font-black text-slate-700 dark:text-slate-300">${d}曜</th>`).join('')}</tr></thead><tbody>${GRADES.map(g=>`<tr><td class="p-2 font-bold border-b dark:border-slate-700 dark:text-slate-400">${g}年</td>${DAYS.map(d=>`<td class="p-2 border-b dark:border-slate-700"><div class="flex items-center justify-center gap-1"><button onclick="actions.updatePeriod(${g},'${d}',-1)" class="w-6 h-6 bg-slate-100 dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600 rounded-lg font-black text-slate-500">-</button><input type="number" value="${state.periods?.[g]?.[d]||0}" onchange="actions.setPeriod(${g},'${d}',this.value)" class="w-8 text-center font-black text-blue-600 dark:text-blue-400 outline-none bg-transparent appearance-none"><button onclick="actions.updatePeriod(${g},'${d}',1)" class="w-6 h-6 bg-slate-100 dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600 rounded-lg font-black text-slate-500">+</button></div></td>`).join('')}</tr>`).join('')}</tbody></table></div></div></div>`;
 window.viewStep2 = ()=>`<div class="flex flex-col items-center justify-center h-full text-center space-y-4" id="sc-step2"><div class="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-[32px] p-6 shadow-sm"><h2 class="text-xl font-black dark:text-slate-100 mb-2">行事・全校不可枠設定</h2><p class="text-[10px] font-bold text-slate-500 mb-4 uppercase tracking-widest">Global Unavailable Slots (■)</p>${buildGrid(null,state.globalBlocks,"actions.toggleBlock('__KEY__')")}</div></div>`;
 
-// --- Step 3 (教科と教室): 並び替え＆教室分岐 ＆ アンドゥ ---
+// --- Step 3 ---
 window.viewStep3 = ()=>{
     const rmOpts=`<option value="通常教室">通常教室</option>`+(state.rooms||[]).map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
     return `<div class="flex flex-col md:flex-row gap-4 h-full"><div class="w-full md:w-1/4 flex flex-col bg-slate-100 dark:bg-slate-800/50 rounded-2xl border dark:border-slate-800 p-3 min-h-[200px]"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-xs dark:text-slate-200">特別教室</h3><button onclick="actions.addRoom()" class="text-[10px] bg-blue-600 text-white px-2 py-1.5 rounded-lg font-bold shadow-sm">+ 追加</button></div><div class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1">${(state.rooms||[]).map((r,i)=>`<div class="flex items-center gap-1 bg-white dark:bg-slate-900 p-1.5 rounded-lg border dark:border-slate-800 shadow-sm"><div class="flex flex-col gap-0.5 mr-1"><button onclick="actions.moveItem('rooms',${i},-1)" class="w-4 h-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded flex items-center justify-center text-[8px] text-slate-400 hover:text-blue-500">▲</button><button onclick="actions.moveItem('rooms',${i},1)" class="w-4 h-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded flex items-center justify-center text-[8px] text-slate-400 hover:text-blue-500">▼</button></div><input type="text" value="${r.name}" onblur="actions.updateRoomName('${r.id}',this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="flex-1 min-w-0 text-xs font-bold outline-none dark:bg-transparent dark:text-slate-200 px-1 border-b border-transparent focus:border-blue-300"><button onclick="actions.removeRoom('${r.id}')" class="text-slate-300 hover:text-rose-500 font-bold px-2">✕</button></div>`).join('')}</div></div><div class="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 overflow-hidden shadow-sm"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-xs dark:text-slate-200">科目時数と教室分岐</h3><div class="flex gap-2"><button onclick="actions.undoSubjects()" class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-blue-600 transition-colors" title="元に戻す">↩️</button><button onclick="actions.addSubject('新規教科')" class="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded-lg font-bold shadow-sm hover:bg-blue-700">+ 新規教科</button></div></div><div class="flex-1 overflow-auto custom-scrollbar border border-slate-100 dark:border-slate-800 rounded-xl"><table class="w-full text-xs text-center border-collapse min-w-[800px]"><thead class="sticky top-0 bg-slate-50 dark:bg-slate-800 z-10 shadow-sm border-b dark:border-slate-700"><tr><th class="w-8"></th><th class="p-2 text-left pl-3 w-28 dark:text-slate-200">科目名</th><th class="p-2 w-28 dark:text-slate-200">基本教室</th>${GRADES.map(g=>`<th class="p-2 dark:text-slate-200 w-[70px]">${g}年</th>`).join('')}<th class="w-8"></th></tr></thead><tbody>${(state.subjects||[]).map((s,i)=>`<tr class="border-b dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"><td><div class="flex flex-col gap-0.5 items-center"><button onclick="actions.moveItem('subjects',${i},-1)" class="w-4 h-4 text-[10px] text-slate-300 hover:text-blue-500">▲</button><button onclick="actions.moveItem('subjects',${i},1)" class="w-4 h-4 text-[10px] text-slate-300 hover:text-blue-500">▼</button></div></td><td class="p-1"><input type="text" value="${s.name}" onblur="actions.updateSubject('${s.id}','name',this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="m3-input !p-1.5 !text-sm font-black bg-transparent border-transparent dark:text-slate-100"></td><td><select onchange="actions.updateSubject('${s.id}','defaultRoom',this.value)" class="m3-input !p-1.5 text-[10px] shadow-sm">${rmOpts.replace(`value="${s.defaultRoom||'通常教室'}"`,`value="${s.defaultRoom||'通常教室'}" selected`)}</select></td>${GRADES.map(g=>{const isEdit = state.editingSubjectId === s.id && state.editingHourGrade === g; return `<td class="p-1"><div class="flex flex-col items-center gap-1 bg-slate-50 dark:bg-slate-800 p-1.5 rounded-lg border dark:border-slate-700"><div class="flex items-center gap-1">${isEdit ? `<input type="number" value="${s.stdHours?.[g]||0}" onblur="actions.setSubjectHour('${s.id}',${g},this.value); state.editingSubjectId=null; state.editingHourGrade=null; render();" onkeydown="if(event.key==='Enter')this.blur()" class="w-10 text-center font-black text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-900 border rounded appearance-none" autofocus>` : `<button onclick="actions.setSubjectHour('${s.id}',${g},Math.max(0,(parseInt(${s.stdHours?.[g]||0})-1)))" class="w-4 h-4 text-slate-400 hover:text-blue-600 font-bold">-</button><span onclick="state.editingSubjectId='${s.id}'; state.editingHourGrade=${g}; render();" class="w-6 text-center font-black text-blue-600 dark:text-blue-400 cursor-pointer">${s.stdHours?.[g]||0}</span><button onclick="actions.setSubjectHour('${s.id}',${g},parseInt(${s.stdHours?.[g]||0})+1)" class="w-4 h-4 text-slate-400 hover:text-blue-600 font-bold">+</button>`}</div><select onchange="actions.updateGradeRoom('${s.id}',${g},this.value)" class="text-[8px] w-full border-none outline-none text-slate-400 font-bold cursor-pointer rounded text-center truncate bg-transparent"><option value="">同左</option>${rmOpts.replace(`value="${s.gradeRooms?.[g]||''}"`,`value="${s.gradeRooms?.[g]||''}" selected`)}</select></div></td>`;}).join('')}<td><button onclick="actions.removeSubject('${s.id}')" class="text-slate-300 hover:text-rose-500 font-black px-2">✕</button></td></tr>`).join('')}</tbody></table></div></div></div>`;
 };
 
-// --- Step 4 (教員名簿): Wクリック編集 & シングルクリック選択 & 並び替え ---
+// --- Step 4 ---
 window.viewStep4 = ()=>{
     if(!state.selectedTeacherId&&state.teachers?.length>0)state.selectedTeacherId=state.teachers[0].id;
     const t=safeFind(state.teachers,'id',state.selectedTeacherId);
@@ -251,7 +253,7 @@ window.viewStep4 = ()=>{
         </div>`;}).join('')}</div></div><div class="flex-1 flex flex-col bg-slate-100/50 dark:bg-slate-800/30 border dark:border-slate-800 p-4 min-h-[300px] items-center rounded-2xl shadow-inner">${t?`<div class="w-full bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-4 mb-4 shadow-lg flex items-center justify-between text-white"><div class="flex items-center gap-3"><span class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-xl">👤</span><h3 class="font-black text-lg tracking-tight">${t.name} <span class="text-sm font-bold opacity-80">先生の設定</span></h3></div><span class="text-[9px] font-black bg-black/20 px-3 py-1.5 rounded-full uppercase tracking-widest border border-white/20">Unavailable Slots</span></div>${buildGrid(t.ngTimes,state.globalBlocks,`actions.toggleTeacherNG('${t.id}','__KEY__')`)}`:'<div class="flex-1 flex items-center justify-center text-slate-400 text-sm font-black">左のリストから先生を選択してください</div>'}</div></div>`;
 };
 
-// --- Step 5 (特殊授業): クイックビルダー ＆ コンパクトサマリー ---
+// --- Step 5 ---
 window.viewStep5 = ()=>{
     const sb = state.specialBuilder;
     const sOpts=(state.subjects||[]).map(s=>`<option value="${s.id}" ${sb.subjectId===s.id?'selected':''}>${s.name}</option>`).join('');
@@ -339,7 +341,7 @@ window.viewStep5 = ()=>{
     </div>`;
 };
 
-// --- Step 6 (担当設定): クラス切替修正 & 特殊固定ボタン ---
+// --- Step 6 ---
 window.viewStep6 = ()=>{
     const classes=state.classAssignments?Object.keys(state.classAssignments):[];
     if(classes.length===0)return '<div class="p-4 text-center font-bold text-slate-400">クラス設定がありません</div>';
@@ -405,7 +407,7 @@ window.viewStep6 = ()=>{
     </div>`;
 };
 
-// --- Step 7 (教員別確認): 担当授業一覧グリッド表示 ---
+// --- Step 7 ---
 window.viewStep7 = ()=>{
     const details=getTeacherLoadDetails();
     return `<div class="flex flex-col h-full"><div class="flex-1 overflow-y-auto custom-scrollbar grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-10 content-start">${(state.teachers||[]).map(t=>{
@@ -415,7 +417,7 @@ window.viewStep7 = ()=>{
     }).join('')}</div></div>`;
 };
 
-// --- Step 8 (配置ルール): 複数選択 ＆ 明色プレビュー ＆ アンドゥ ＆ スクロール修正 ---
+// --- Step 8 ---
 window.viewStep8 = () => {
     const uSubs = Array.from(new Set((state.subjects||[]).map(s=>s.name)));
     let html = `<div class="flex flex-col lg:flex-row h-full overflow-hidden gap-4" id="sc-step8">`;
@@ -472,7 +474,7 @@ window.viewStep8 = () => {
     });
     html += `</div>`;
     
-    // 右側: ミニプレビューパネル (Sticky & 明色カラー)
+    // 右側: ミニプレビューパネル
     html += `<div class="hidden lg:flex flex-col w-1/3 min-w-[280px] h-fit sticky top-0 bg-white dark:bg-[#1a2035] rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0">`;
     html += `<div class="flex items-center gap-3 mb-4"><div class="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 ring-2 ring-blue-100 shadow-inner"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg></div><div><h3 class="text-sm font-black text-slate-800 dark:text-white">ミニ・プレビュー</h3><p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Constraints Heatmap</p></div></div>`;
     html += `<div class="bg-slate-50 dark:bg-slate-900 rounded-2xl p-3 border border-slate-100 dark:border-slate-800 shadow-inner"><table class="w-full text-center table-fixed border-collapse"><thead><tr><th class="w-6"></th>${DAYS.map(d=>`<th class="text-[10px] font-black text-slate-400 pb-2">${d}</th>`).join('')}</tr></thead><tbody>`;
@@ -490,7 +492,7 @@ window.viewStep8 = () => {
     return html;
 };
 
-// --- Step 9 (最終点検): 大改良されたコントロールセンター ---
+// --- Step 9 ---
 window.viewStep9 = ()=>{
     let uSubs=Array.from(new Set((state.subjects||[]).map(s=>s.name))),classNeeds={},classAssigned={},classes=Object.keys(state.classAssignments||{}), m=state.marathon;
     classes.forEach(cls=>{uSubs.forEach(sName=>{classNeeds[`${cls}-${sName}`]=0;classAssigned[`${cls}-${sName}`]=0;});});
@@ -523,18 +525,26 @@ window.viewStep9 = ()=>{
     </div>`;
 };
 
-// --- Step 10 (ダッシュボード): 広域レイアウト ＆ 出力・セーブ修正 ---
+// --- Step 10 ---
 window.viewStep10 = ()=>{
     if(!state.generatedSchedule && (!state.unassigned || state.unassigned.length===0)) return '<div class="flex items-center justify-center h-full text-slate-400 font-black">計算結果がありません</div>';
     const sc=state.scoreCard, m=state.marathon, classes=Object.keys(state.classAssignments||{}), teachers=state.teachers||[];
     if(!state.dashFilter || (state.dashView==='class' && !classes.includes(state.dashFilter))) state.dashFilter=classes[0];
     
     let html=`<div class="flex flex-col flex-1 overflow-hidden h-full">`;
-    // 上部コントロールバー (スリム化)
+    // 上部コントロールバー
     html+=`<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-2 rounded-xl mb-2 flex flex-wrap justify-between items-center shadow-sm gap-2 shrink-0"><div class="flex items-center gap-4"><div class="flex flex-col px-2"><span class="text-[9px] font-black text-blue-600 uppercase tracking-widest">Dashboard</span><span class="text-sm font-black text-slate-800 dark:text-white">${m.currentGen} 世代目の結果</span></div><div class="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div><div class="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border dark:border-slate-700"><button onclick="actions.setDashTab('matrix')" class="px-4 py-1.5 rounded-md font-black text-xs transition-all ${state.dashTab==='matrix'?'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400':'text-slate-500 hover:text-slate-700'}">全体</button><button onclick="actions.setDashTab('individual')" class="px-4 py-1.5 rounded-md font-black text-xs transition-all ${state.dashTab==='individual'?'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400':'text-slate-500 hover:text-slate-700'}">個別</button></div></div><div class="flex items-center gap-2">${sc?`<div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border dark:border-slate-700"><span class="text-[9px] font-bold text-slate-500 uppercase">Score:</span><span class="text-xs font-black text-emerald-600 dark:text-emerald-400">${sc?.basic?.score||0}%</span><button onclick="actions.openReportModal()" class="ml-1 px-2 py-0.5 bg-white dark:bg-slate-700 rounded text-[9px] font-bold border dark:border-slate-600 shadow-sm text-slate-600 dark:text-slate-300">採点レポート</button></div>`:''}<button onclick="actions.continueMarathon()" class="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-black shadow-sm hover:bg-blue-100 transition-all active:scale-95">🚀 あと10世代 継続</button><button onclick="actions.openExportModal()" class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-black shadow-sm hover:bg-emerald-700 transition-all active:scale-95">📤 スプレッドシートに出力</button></div></div>`;
     
-    // 未配置アラート
-    if(state.unassigned?.length>0) html+=`<div class="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-xl p-2 mb-2 shrink-0 flex items-center justify-between gap-3 shadow-sm px-4"><span class="text-amber-800 dark:text-amber-400 font-black text-xs">⚠️ ${state.unassigned.length}コマ未配置があります</span><button onclick="actions.continueGeneration()" class="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-black shadow-sm active:scale-95 hover:bg-amber-600">今の盤面で微調整</button></div>`;
+    // ★ 未配置アラート ＆ 理由可視化ボタン
+    if(state.unassigned?.length>0) {
+        html+=`<div class="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-xl p-2 mb-2 shrink-0 flex items-center justify-between gap-3 shadow-sm px-4">
+            <span class="text-amber-800 dark:text-amber-400 font-black text-xs">⚠️ ${state.unassigned.length}コマ未配置があります</span>
+            <div class="flex gap-2 items-center">
+                ${state.reportDetails && Object.keys(state.reportDetails).length > 0 ? `<button onclick="actions.openUnassignedReasonModal()" class="px-3 py-1.5 bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50 rounded-lg text-[10px] font-black shadow-sm active:scale-95 hover:bg-rose-50 dark:hover:bg-rose-900/30 flex items-center gap-1">🔍 なぜ置けない？</button>` : ''}
+                <button onclick="actions.continueGeneration()" class="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-black shadow-sm active:scale-95 hover:bg-amber-600">今の盤面で微調整</button>
+            </div>
+        </div>`;
+    }
 
     if (state.dashTab === 'matrix') {
         html+=`<div class="flex gap-1 mb-2 shrink-0 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit border dark:border-slate-700"><button onclick="actions.setMatrixAxis('class')" class="px-4 py-1.5 text-xs font-black rounded-lg transition-all ${state.matrixAxis==='class'?'bg-white dark:bg-slate-700 shadow-sm text-blue-600':'text-slate-500 hover:text-slate-700'}">クラス軸</button><button onclick="actions.setMatrixAxis('teacher')" class="px-4 py-1.5 text-xs font-black rounded-lg transition-all ${state.matrixAxis==='teacher'?'bg-white dark:bg-slate-700 shadow-sm text-blue-600':'text-slate-500 hover:text-slate-700'}">教員軸</button><button onclick="actions.setMatrixAxis('room')" class="px-4 py-1.5 text-xs font-black rounded-lg transition-all ${state.matrixAxis==='room'?'bg-white dark:bg-slate-700 shadow-sm text-blue-600':'text-slate-500 hover:text-slate-700'}">教室軸</button></div>`;
@@ -563,13 +573,13 @@ window.viewStep10 = ()=>{
     } html += `</div>`; return html;
 };
 
-// --- アクションロジック (Ver 15.7.5.4 大規模改善版) ---
+// --- アクションロジック ---
 window.actions = {
     toggleDarkMode: () => { const h = document.documentElement; h.classList.toggle('dark'); localStorage.setItem('tt_theme', h.classList.contains('dark') ? 'dark' : 'light'); },
-    hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem('tt_v15_final_v5');location.reload();}},
+    hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem('tt_v15_8_0');location.reload();}},
     jumpToResult:()=>{state.currentStep=10;render();},
     
-    // 教科管理 & アンドゥ
+    // 教科・教員・特殊授業等のアクション群
     pushUndoSubjects:()=>{ state.subjectsUndoStack.push(JSON.stringify(state.subjects)); if(state.subjectsUndoStack.length>10) state.subjectsUndoStack.shift(); },
     undoSubjects:()=>{ if(state.subjectsUndoStack.length>0){ state.subjects=JSON.parse(state.subjectsUndoStack.pop()); render(); showToast("教科設定を戻しました"); }else showToast("戻せる履歴がありません","error"); },
     addSubject:(n)=>{ actions.pushUndoSubjects(); state.subjects.push({id:'s_'+Date.now(),name:n,stdHours:{1:0,2:0,3:0,4:0,5:0,6:0},defaultRoom:'通常教室',gradeRooms:{}}); render(); },
@@ -577,8 +587,6 @@ window.actions = {
     setSubjectHour:(id,g,v)=>{ const s=safeFind(state.subjects,'id',id); if(s){ s.stdHours[g]=parseInt(v)||0; render(); }},
     updateSubject:(id,k,v)=>{ const s=safeFind(state.subjects,'id',id); if(s){ s[k]=v; render(); }},
     updateGradeRoom:(sid, g, val)=>{ const s=safeFind(state.subjects,'id',sid); if(s){ if(!s.gradeRooms)s.gradeRooms={}; s.gradeRooms[g]=val; render(); }},
-
-    // 教員名簿 ＆ Wクリック修正
     handleTeacherClick:(id)=>{ state.selectedTeacherId=id; render(); },
     startEditTeacher:(id)=>{ state.editingTeacherId=id; render(); setTimeout(()=>document.getElementById('edit-t-name')?.select(),10); },
     stopEditTeacher:()=>{ state.editingTeacherId=null; render(); },
@@ -587,8 +595,6 @@ window.actions = {
     updateTeacher:(id,k,v)=>{ const t=safeFind(state.teachers,'id',id); if(t){ t[k]=v; render(); }},
     updateTeacherHomeroom:(tid,cls)=>{ const t=safeFind(state.teachers,'id',tid); if(t)t.homeroom=cls; render(); },
     toggleTeacherNG:(id,k)=>{ const t=safeFind(state.teachers,'id',id); if(t){ t.ngTimes[k]=!t.ngTimes[k]; render(); }},
-
-    // 特殊授業ビルダー (Step 5)
     updateBuilder:(k,v)=>{ state.specialBuilder[k]=v; render(); },
     toggleBuilderTarget:(cls)=>{ const arr=state.specialBuilder.targets; const idx=arr.indexOf(cls); if(idx>-1) arr.splice(idx,1); else arr.push(cls); render(); },
     toggleBuilderTeacher:(tid)=>{ const arr=state.specialBuilder.teachers; const idx=arr.indexOf(tid); if(idx>-1) arr.splice(idx,1); else arr.push(tid); render(); },
@@ -600,7 +606,7 @@ window.actions = {
     toggleSpecialTarget:(id,cls)=>{ const b=safeFind(state.specialBlocks,'id',id); if(b){ const i=b.targets.indexOf(cls); if(i>-1)b.targets.splice(i,1); else b.targets.push(cls); render(); }},
     toggleSpecialTeacher:(id,tid)=>{ const b=safeFind(state.specialBlocks,'id',id); if(b){ const i=b.teachers.findIndex(x=>x.id===tid); if(i>-1)b.teachers.splice(i,1); else b.teachers.push({id:tid,hours:b.hours}); render(); }},
 
-    // Step 8 & アンドゥ
+    // ルール操作
     pushUndoRules:()=>{ state.rulesUndoStack.push(JSON.stringify(state.advancedRules)); if(state.rulesUndoStack.length>10) state.rulesUndoStack.shift(); },
     undoRules:()=>{ if(state.rulesUndoStack.length>0){ state.advancedRules=JSON.parse(state.rulesUndoStack.pop()); render(); showToast("ルールを戻しました"); }else showToast("戻せる履歴がありません","error"); },
     togglePkg:(id)=>{ Object.keys(state.openPkgs).forEach(k=>state.openPkgs[k]=false); state.openPkgs[id]=true; render(); },
@@ -623,45 +629,179 @@ window.actions = {
     removeRuleNew:(k,i)=>{ actions.pushUndoRules(); state.advancedRules[k].splice(i,1); render(); },
     applyPreset:(type)=>{ actions.pushUndoRules(); if(type==='reset') state.advancedRules={priorities:{}}; else if(type==='standard') { state.advancedRules.limitOneSubjectPerDayStrict=true; state.advancedRules.limitContinuousToSpecificPeriods=true; state.advancedRules.priorities.limitOneSubjectPerDayStrict='high'; state.advancedRules.priorities.limitContinuousToSpecificPeriods='high'; } else if(type==='child') { state.advancedRules.limitOneSubjectPerDayStrict=true; state.advancedRules.amPrioritySubjects=[{targets:["全学年"],subjects:["国語"]},{targets:["全学年"],subjects:["算数"]}]; state.advancedRules.priorities.limitOneSubjectPerDayStrict='high'; state.advancedRules.priorities.amPrioritySubjects='low'; } render(); },
     resetPackage:(id)=>{ const pkg=step8Packages.find(p=>p.id===id); if(pkg){ pkg.items.forEach(i=>{ delete state.advancedRules[i.key]; delete state.advancedRules.priorities[i.key]; }); render(); }},
-
-    // 明色プレビュー表示ロジック
+    
+    // プレビュー表示
     calculateActiveBlocks: () => { let b={}; const r=state.advancedRules||{}; if(r.amPrioritySubjects?.length) DAYS.forEach(d=>[5,6].forEach(p=>b[`${d}-${p}`]=true)); if(r.lastPeriodSubjects?.length) DAYS.forEach(d=>[1,2,3,4,5].forEach(p=>b[`${d}-${p}`]=true)); ['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].forEach(k=>{ if(r[k]) r[k].forEach(v=>{ const dys=v.days||(v.day?[v.day]:DAYS), pds=v.periods?v.periods.map(p=>parseInt(p)):(v.period?[v.period]:PERIODS); dys.forEach(d=>pds.forEach(p=>b[`${d}-${p}`]=true)); })}); return b; },
     applyPreviewUI: (aB, hB, d) => { const dEl=document.getElementById('preview-desc'); if(dEl) dEl.innerText=d; DAYS.forEach(d=>{ PERIODS.forEach(p=>{ const el=document.getElementById(`pv-${d}-${p}`); if(el){ if(hB[`${d}-${p}`]) el.className="h-6 w-full rounded-[4px] border transition-colors bg-rose-500/30 border-rose-400 bg-[repeating-linear-gradient(45deg,transparent,transparent_2px,rgba(244,63,94,0.2)_2px,rgba(244,63,94,0.2)_4px)] shadow-inner"; else if(aB[`${d}-${p}`]) el.className="h-6 w-full rounded-[4px] border transition-colors bg-rose-100 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800/50"; else el.className="h-6 w-full rounded-[4px] border transition-colors bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm"; } })}); },
     clearPreview: () => { actions.applyPreviewUI(actions.calculateActiveBlocks(), {}, "設定済みのルールは薄く、編集中の項目は濃く表示されます。"); },
     updatePreviewFromEditor: (rk) => { const aB=actions.calculateActiveBlocks(); let hB={}; let d="編集中項目のシミュレーション"; const ed=state.ruleEditor[rk]||{}; if(rk==='amPrioritySubjects'){ DAYS.forEach(d=>[5,6].forEach(p=>hB[`${d}-${p}`]=true)); d="午前優先: 午後のコマが抑制されます。"; } else if (rk==='lastPeriodSubjects') { DAYS.forEach(d=>[1,2,3,4,5].forEach(p=>hB[`${d}-${p}`]=true)); d="最終コマ優先: 最終コマ以外の枠が抑制されます。"; } else if (['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].includes(rk)) { const dys=ed.days?.length?ed.days:DAYS, pds=ed.periods?.length?ed.periods.map(p=>parseInt(p.replace('限',''))):PERIODS; if(ed.days?.length||ed.periods?.length){ dys.forEach(d=>pds.forEach(p=>hB[`${d}-${p}`]=true)); d=`指定された ${dys.join('')}曜 ${pds.join(',')}限 の配置を禁止します。`; } } else if (rk==='limitContinuousToSpecificPeriods') { DAYS.forEach(d=>[2,4,6].forEach(p=>hB[`${d}-${p}`]=true)); d="ニコイチ制限: 中休み・昼休みを跨ぐペアが禁止されます。"; } actions.applyPreviewUI(aB, hB, d); },
     hoverRule: (k) => { if(state.advancedRules[k]) actions.updatePreviewFromEditor(k); },
-    hoverListRule: (k,i) => { const aB=actions.calculateActiveBlocks(); let hB={}; let d="選択中のルール範囲"; const r=state.advancedRules[k][i]; if(k==='amPrioritySubjects'){ DAYS.forEach(d=>[5,6].forEach(p=>hB[`${d}-${p}`]=true)); } else if(['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].includes(k)){ const dys=r.days||(r.day?[r.day]:DAYS), pds=r.periods?r.periods.map(p=>parseInt(p.replace('限',''))):(r.period?[v.period]:PERIODS); dys.forEach(d=>pds.forEach(p=>hB[`${d}-${p}`]=true)); } actions.applyPreviewUI(aB, hB, d); },
+    hoverListRule: (k,i) => { const aB=actions.calculateActiveBlocks(); let hB={}; let d="選択中のルール範囲"; const r=state.advancedRules[k][i]; if(k==='amPrioritySubjects'){ DAYS.forEach(d=>[5,6].forEach(p=>hB[`${d}-${p}`]=true)); } else if(['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].includes(k)){ const dys=r.days||(r.day?[r.day]:DAYS), pds=r.periods?r.periods.map(p=>parseInt(p.replace('限',''))):(r.period?[r.period]:PERIODS); dys.forEach(d=>pds.forEach(p=>hB[`${d}-${p}`]=true)); } actions.applyPreviewUI(aB, hB, d); },
 
-    // ステップ10専用
+    // 基本データ管理 UI操作
     setDashTab:(t)=>{ state.dashTab=t; render(); },
     setDashView:(v)=>{ state.dashView=v; render(); },
     setDashFilter:(f)=>{ state.dashFilter=f; render(); },
     setMatrixAxis:(a)=>{ state.matrixAxis=a; render(); },
-
-    // セーブ ＆ ロード
+    updateGrade:(g,d)=>{state.grades[g]=Math.max(1,(parseInt(state.grades[g])||0)+d); render();},
+    setGrade:(g,v)=>{state.grades[g]=Math.max(1,parseInt(v)||1); render();},
+    updatePeriod:(g,d,v)=>{if(!state.periods[g])state.periods[g]={}; state.periods[g][d]=Math.max(0,Math.min(6,(parseInt(state.periods[g][d])||0)+v)); render();},
+    setPeriod:(g,d,v)=>{if(!state.periods[g])state.periods[g]={}; state.periods[g][d]=Math.max(0,Math.min(6,parseInt(v)||0)); render();},
+    toggleBlock:(k)=>{state.globalBlocks[k]=!state.globalBlocks[k]; render();},
+    
+    // セーブ・ロード
     openQuickSaveModal: () => { const slots=Array.from({length:10},(_,i)=>i+1); let h=`<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0"><h3 class="text-lg font-black text-blue-900">💾 セーブ/ロード (全10スロット)</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold">✕</button></div><div class="flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-1 flex-1">`;
-        slots.forEach(i=>{ let m=null; try{m=JSON.parse(localStorage.getItem('tt_v15_save_meta_'+i));}catch(e){} const isEmpty=!m;
+        slots.forEach(i=>{ let m=null; try{m=JSON.parse(localStorage.getItem('tt_v15_8_0_meta_'+i));}catch(e){} const isEmpty=!m;
             h+=`<div class="flex items-center justify-between p-3 border rounded-xl ${isEmpty?'bg-slate-50 border-dashed':'bg-white shadow-sm'}"><div class="flex flex-col"><span class="text-[10px] font-black text-slate-400">Slot ${i}</span><span class="text-xs font-bold ${isEmpty?'text-slate-300':'text-slate-700'}">${isEmpty?'空きスロット':m.name}</span><span class="text-[8px] text-slate-400">${isEmpty?'':m.time}</span></div><div class="flex gap-1"><button onclick="actions.quickSave(${i})" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold">セーブ</button><button onclick="actions.quickLoad(${i})" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-bold ${isEmpty?'opacity-30 cursor-not-allowed':''}" ${isEmpty?'disabled':''}>ロード</button></div></div>`;
         }); h+=`</div>`; document.getElementById('modal-body').innerHTML=h; document.getElementById('modal-overlay').classList.remove('hidden'); },
-    quickSave: (s) => { const un=state.unassigned?.length||0, n=prompt("保存名を入力してください", `未配置${un} - ${new Date().toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}`); if(!n)return; const meta={name:n,time:new Date().toLocaleString()}; try{ localStorage.setItem('tt_v15_save_'+s,JSON.stringify(state)); localStorage.setItem('tt_v15_save_meta_'+s,JSON.stringify(meta)); showToast("保存しました","success"); actions.openQuickSaveModal(); }catch(e){showToast("保存容量不足","error");} },
-    quickLoad: (s) => { if(confirm("データを読み込みますか？")){ const d=localStorage.getItem('tt_v15_save_'+s); if(d){ Object.assign(state,JSON.parse(d)); forceInitState(); render(); showToast("読み込み完了","success"); actions.closeModal(); } } },
+    quickSave: (s) => { const un=state.unassigned?.length||0, n=prompt("保存名を入力してください", `未配置${un} - ${new Date().toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}`); if(!n)return; const meta={name:n,time:new Date().toLocaleString()}; try{ localStorage.setItem('tt_v15_8_0_save_'+s,JSON.stringify(state)); localStorage.setItem('tt_v15_8_0_meta_'+s,JSON.stringify(meta)); showToast("保存しました","success"); actions.openQuickSaveModal(); }catch(e){showToast("保存容量不足","error");} },
+    quickLoad: (s) => { if(confirm("データを読み込みますか？")){ const d=localStorage.getItem('tt_v15_8_0_save_'+s); if(d){ Object.assign(state,JSON.parse(d)); forceInitState(); render(); showToast("読み込み完了","success"); actions.closeModal(); } } },
 
-    // スプレッドシート出力モーダル
+    // スプレッドシート出力
     openExportModal: () => { let html = `<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0"><h3 class="text-lg font-black text-blue-900">📤 スプレッドシートに出力</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold">✕</button></div><div class="flex flex-col gap-4 overflow-y-auto pr-1 flex-1 min-h-0"><div class="flex flex-col gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-200"><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white rounded-xl transition-colors"><input type="checkbox" id="exp-mat-class" checked class="w-5 h-5 text-blue-600"><span class="font-black text-sm">全体マトリックス (クラス軸)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white rounded-xl transition-colors"><input type="checkbox" id="exp-mat-teacher" class="w-5 h-5 text-blue-600"><span class="font-black text-sm">全体マトリックス (教員軸)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white rounded-xl transition-colors"><input type="checkbox" id="exp-mat-room" class="w-5 h-5 text-blue-600"><span class="font-black text-sm">全体マトリックス (教室軸)</span></label><div class="h-px bg-slate-200 my-2"></div><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white rounded-xl transition-colors"><input type="checkbox" id="exp-ind-class" checked class="w-5 h-5 text-blue-600"><span class="font-black text-sm">各クラス用時間割 (配布用)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white rounded-xl transition-colors"><input type="checkbox" id="exp-ind-teacher" class="w-5 h-5 text-blue-600"><span class="font-black text-sm">各教員用時間割 (配布用)</span></label></div><div class="flex justify-end mt-2"><button onclick="actions.exportToSpreadsheetExec()" class="m3-btn-primary px-10">実行して出力</button></div></div>`; document.getElementById('modal-body').innerHTML = html; document.getElementById('modal-overlay').classList.remove('hidden'); },
     exportToSpreadsheetExec: async function() { const opts = { matrixClass: document.getElementById('exp-mat-class')?.checked||false, matrixTeacher: document.getElementById('exp-mat-teacher')?.checked||false, matrixRoom: document.getElementById('exp-mat-room')?.checked||false, individualClass: document.getElementById('exp-ind-class')?.checked||false, individualTeacher: document.getElementById('exp-ind-teacher')?.checked||false }; actions.closeModal(); showLoading("出力中", "作成には数十秒かかります。"); try{ const res=await fetch(GAS_URL,{method:'POST',mode:'cors',body:JSON.stringify({action:'export',schedule:state.generatedSchedule,state:actions.preparePayload(), options:opts})}); const data=await res.json(); if(data.success) showToast("出力成功！","success"); else showToast("出力失敗","error"); }catch(e){showToast("エラー","error");} finally {hideLoading();} },
 
-    // AIマラソン
+    // ★ AI マラソン & 生成ロジック
+    updateMarathon: (k,v) => { state.marathon[k] = v; render(); },
     startGeneration: async function(){ state.marathon.active = true; state.marathon.currentGen = 1; globalStartTime = Date.now(); state.best = {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}; actions.runMarathonCycle(); },
-    continueMarathon: async function(){ const addGen = parseInt(document.getElementById('dash-add-gen')?.value)||10; state.marathon.active = true; if(state.marathon.maxGen !== Infinity) state.marathon.maxGen += addGen; actions.runMarathonCycle(); },
+    continueMarathon: async function(){ const addGen = 10; state.marathon.active = true; if(state.marathon.maxGen !== Infinity) state.marathon.maxGen += addGen; actions.runMarathonCycle(); },
     continueGeneration: function(){ state.marathon.active = false; actions.runSingleCycle("今の盤面を元に再調整中...", false); },
     cancelGeneration: () => { hideLoading(); state.marathon.active = false; if (state.best.schedule) { state.generatedSchedule = state.best.schedule; state.unassigned = state.best.unassigned; state.scoreCard = state.best.scoreCard; state.reportDetails = state.best.reportDetails; state.currentStep = 10; showToast(`ベスト盤面を表示します。`, "info"); } else { state.currentStep = 9; } render(); },
-    runMarathonCycle: async function(){ if (!state.marathon.active) return; const m = state.marathon; startGenTimer(); showLoading("AIマラソン中", `第 ${m.currentGen} / ${m.maxGen===Infinity?'∞':m.maxGen} 世代`, true, `目標:未配置${m.target}以下`); try { const res = await fetch(GAS_URL, { method:'POST', mode:'cors', body:JSON.stringify({ action:'generate', state: actions.preparePayload(), currentSchedule: null, unassigned: null }) }); const data = await res.json(); if (!state.marathon.active) return; if(data.success){ state.generatedSchedule = data.schedule; state.unassigned = data.unassigned; state.scoreCard = data.scoreCard; state.reportDetails = data.reportDetails; const bc = document.getElementById('loading-best-container'), br = document.getElementById('loading-best-record'), lr = document.getElementById('loading-latest-record'); if(bc && lr){ bc.classList.remove('hidden'); bc.classList.add('flex'); lr.innerText = data.unassigned.length; } if(data.unassigned.length < state.best.unassignedCount) { state.best = { unassignedCount: data.unassigned.length, schedule: data.schedule, unassigned: data.unassigned, scoreCard: data.scoreCard, reportDetails: data.reportDetails }; if (br) br.innerText = state.best.unassignedCount; } const goalReached = state.best.unassignedCount <= m.target, genLimitReached = m.currentGen >= m.maxGen; if (goalReached || genLimitReached) { state.generatedSchedule = state.best.schedule; state.unassigned = state.best.unassigned; state.scoreCard = state.best.scoreCard; state.reportDetails = state.best.reportDetails; state.currentStep=10; state.marathon.active = false; render(); hideLoading(); if (goalReached) showToast(`目標達成！未配置${state.best.unassignedCount}`, "success"); else showToast(`最大世代に到達。`, "success"); } else { m.currentGen++; actions.runMarathonCycle(); } } else { if(m.ignoreFatal) { m.currentGen++; actions.runMarathonCycle(); } else { showToast("矛盾エラー","error"); hideLoading(); state.marathon.active = false; } } } catch(e) { showToast("通信エラー","error"); hideLoading(); state.marathon.active = false; } },
-    runSingleCycle: async function(status, isNew){ startGenTimer(); showLoading("計算中", status, true); try { const res = await fetch(GAS_URL, { method:'POST', mode:'cors', body:JSON.stringify({ action:'generate', state: actions.preparePayload(), currentSchedule: isNew?null:state.generatedSchedule, unassigned: state.unassigned }) }); const data = await res.json(); if(data.success) { state.generatedSchedule=data.schedule; state.unassigned=data.unassigned; state.scoreCard=data.scoreCard; state.reportDetails=data.reportDetails; state.currentStep=10; render(); hideLoading(); } else { showToast("エラー","error"); hideLoading(); } } catch(e) { showToast("通信エラー","error"); hideLoading(); } },
     
-    // ユーティリティ
+    runMarathonCycle: async function(){ 
+        if (!state.marathon.active) return; 
+        const m = state.marathon; 
+        startGenTimer(); 
+        showLoading("AIマラソン中", `第 ${m.currentGen} / ${m.maxGen===Infinity?'∞':m.maxGen} 世代`, true, `目標:未配置${m.target}以下`); 
+        try { 
+            const res = await fetch(GAS_URL, { method:'POST', mode:'cors', body:JSON.stringify({ action:'generate', state: actions.preparePayload(), currentSchedule: null, unassigned: null }) }); 
+            const data = await res.json(); 
+            if (!state.marathon.active) return; 
+            
+            if(data.schedule) state.generatedSchedule = data.schedule; 
+            if(data.unassigned) state.unassigned = data.unassigned; 
+            if(data.scoreCard) state.scoreCard = data.scoreCard; 
+            if(data.reportDetails) state.reportDetails = data.reportDetails;
+
+            // 致命的な矛盾 (プリソルバー等) の検知
+            if(data.fatalError && !m.ignoreFatal) {
+                showToast("致命的な矛盾を検知しました", "error");
+                hideLoading();
+                state.marathon.active = false;
+                state.currentStep = 10;
+                render();
+                setTimeout(actions.openUnassignedReasonModal, 500); // 理由を直接開く
+                return;
+            }
+
+            if(data.success){ 
+                const bc = document.getElementById('loading-best-container'), br = document.getElementById('loading-best-record'), lr = document.getElementById('loading-latest-record'); 
+                if(bc && lr){ bc.classList.remove('hidden'); bc.classList.add('flex'); lr.innerText = data.unassigned.length; } 
+                if(data.unassigned.length < state.best.unassignedCount) { 
+                    state.best = { unassignedCount: data.unassigned.length, schedule: data.schedule, unassigned: data.unassigned, scoreCard: data.scoreCard, reportDetails: data.reportDetails }; 
+                    if (br) br.innerText = state.best.unassignedCount; 
+                } 
+                const goalReached = state.best.unassignedCount <= m.target, genLimitReached = m.currentGen >= m.maxGen; 
+                if (goalReached || genLimitReached) { 
+                    state.generatedSchedule = state.best.schedule; 
+                    state.unassigned = state.best.unassigned; 
+                    state.scoreCard = state.best.scoreCard; 
+                    state.reportDetails = state.best.reportDetails; 
+                    state.currentStep=10; 
+                    state.marathon.active = false; 
+                    render(); 
+                    hideLoading(); 
+                    if (goalReached) showToast(`目標達成！未配置${state.best.unassignedCount}`, "success"); 
+                    else showToast(`最大世代に到達。`, "success"); 
+                } else { 
+                    m.currentGen++; 
+                    actions.runMarathonCycle(); 
+                } 
+            } else { 
+                if(m.ignoreFatal) { 
+                    m.currentGen++; 
+                    actions.runMarathonCycle(); 
+                } else { 
+                    showToast("エラー発生","error"); 
+                    hideLoading(); 
+                    state.marathon.active = false; 
+                } 
+            } 
+        } catch(e) { 
+            showToast("通信エラー","error"); 
+            hideLoading(); 
+            state.marathon.active = false; 
+        } 
+    },
+    
+    runSingleCycle: async function(status, isNew){ 
+        startGenTimer(); 
+        showLoading("計算中", status, true); 
+        try { 
+            const res = await fetch(GAS_URL, { method:'POST', mode:'cors', body:JSON.stringify({ action:'generate', state: actions.preparePayload(), currentSchedule: isNew?null:state.generatedSchedule, unassigned: state.unassigned }) }); 
+            const data = await res.json(); 
+            if(data.schedule) state.generatedSchedule=data.schedule; 
+            if(data.unassigned) state.unassigned=data.unassigned; 
+            if(data.scoreCard) state.scoreCard=data.scoreCard; 
+            if(data.reportDetails) state.reportDetails=data.reportDetails; 
+            
+            if(data.fatalError && !state.marathon.ignoreFatal) {
+                showToast("致命的な矛盾を検知しました", "error");
+                hideLoading();
+                state.currentStep = 10;
+                render();
+                setTimeout(actions.openUnassignedReasonModal, 500);
+                return;
+            }
+
+            if(data.success) { 
+                state.currentStep=10; 
+                render(); 
+                hideLoading(); 
+            } else { 
+                showToast("エラー","error"); 
+                hideLoading(); 
+            } 
+        } catch(e) { 
+            showToast("通信エラー","error"); 
+            hideLoading(); 
+        } 
+    },
+    
+    // ユーティリティ・その他UIモーダル
     moveItem:(k,i,d)=>{ const arr=state[k]; if(i+d<0||i+d>=arr.length)return; const t=arr[i]; arr[i]=arr[i+d]; arr[i+d]=t; render(); },
     preparePayload: () => { const pS = JSON.parse(JSON.stringify(state)); if (pS.advancedRules) { Object.keys(pS.advancedRules).forEach(k => { if (k === 'priorities') return; const oR = pS.advancedRules[k]; if (!Array.isArray(oR)) return; const exR = []; oR.forEach(r => { if (k === 'exclusivePairs') { const s1s = r.subjects1 || [r.subject1]; const s2s = r.subjects2 || [r.subject2]; s1s.forEach(s1 => s2s.forEach(s2 => { if(s1 !== s2) exR.push({subject1: s1, subject2: s2}); })); } else { const tgs = (r.targets?.length) ? r.targets : [undefined]; const excs = (r.excludes?.length) ? r.excludes : [undefined]; const subs = (r.subjects?.length) ? r.subjects : [undefined]; const dys = (r.days?.length) ? r.days : [undefined]; const pds = (r.periods?.length) ? r.periods : [undefined]; tgs.forEach(tg => excs.forEach(ex => subs.forEach(su => dys.forEach(dy => pds.forEach(pd => { let nr = {}; if (tg) nr.grade = tg; if (ex) nr.exclude = ex; if (su) nr.subject = su; if (dy) nr.day = dy; if (pd) nr.period = parseInt(pd.toString().replace('限','')); exR.push(nr); }))))); } }); pS.advancedRules[k] = exR; }); } return pS; },
+    
     openReportModal:()=>{ const sc = state.scoreCard; let h = `<div class="flex justify-between items-center mb-4 border-b pb-2"><h3 class="text-lg font-black text-blue-900">📊 AI自己採点レポート</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold text-xl">✕</button></div><div class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-4">`; h += `<div class="bg-blue-50 dark:bg-slate-800 p-4 rounded-xl border border-blue-200 shrink-0"><div class="flex justify-between items-center mb-2"><span class="font-black text-sm text-blue-900 dark:text-blue-300">基礎ルール (配置率)</span><span class="font-black text-lg text-blue-600">${sc.basic.score}%</span></div></div>`; const rules = sc.advanced.rules || {}; Object.keys(rules).forEach(k => { const r = rules[k], isP = r.score === 100; h += `<div class="bg-white dark:bg-slate-900 rounded-xl border ${isP ? 'border-emerald-200 shadow-emerald-50' : 'border-amber-300 shadow-amber-50'} shadow-sm overflow-hidden"><div class="px-4 py-2 flex justify-between items-center ${isP ? 'bg-emerald-50' : 'bg-amber-50'} border-b dark:border-slate-800"><span class="font-black text-xs ${isP ? 'text-emerald-800' : 'text-amber-800'}">${r.name}</span><span class="font-black text-sm">${r.score}%</span></div><div class="p-3">${r.failures?.length > 0 ? `<ul class="text-[10px] font-bold text-slate-600 dark:text-slate-400 space-y-1 list-disc pl-4">${r.failures.map(f => `<li>${f}</li>`).join('')}</ul>` : `<div class="text-[10px] font-bold text-emerald-600">✅ 遵守されています</div>`}</div></div>`; }); document.getElementById('modal-body').innerHTML = h + `</div>`; document.getElementById('modal-overlay').classList.remove('hidden'); },
+    
+    // ★ 追加: 未配置理由モーダル (コンフリクト・ダッシュボードの一部)
+    openUnassignedReasonModal: () => {
+        let h = `<div class="flex justify-between items-center mb-4 border-b dark:border-slate-800 pb-2 shrink-0"><h3 class="text-lg font-black text-rose-600 dark:text-rose-400 flex items-center gap-2">⚠️ なぜ置けない？ (分析レポート)</h3><button onclick="actions.closeModal()" class="text-slate-400 hover:text-slate-600 font-bold text-xl transition-colors">✕</button></div><div class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-4 min-h-0">`;
+        const details = state.reportDetails || {};
+        const keys = Object.keys(details);
+        
+        if (keys.length === 0) {
+            h += `<div class="text-center text-slate-500 font-bold p-4">レポートデータがありません。</div>`;
+        } else {
+            keys.forEach(k => {
+                const d = details[k];
+                h += `<div class="bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-800/50 rounded-xl p-4 shadow-sm">`;
+                h += `<h4 class="font-black text-sm text-slate-800 dark:text-slate-200 mb-2 border-b dark:border-slate-800 pb-1">${d.target} - <span class="text-blue-600 dark:text-blue-400">${d.subject}</span></h4>`;
+                h += `<ul class="space-y-3">`;
+                (d.causes||[]).forEach(c => {
+                    h += `<li class="bg-rose-50 dark:bg-rose-900/20 p-3 rounded-lg border border-rose-100 dark:border-rose-800/30">
+                            <div class="font-black text-rose-700 dark:text-rose-400 text-xs mb-1.5 flex items-center gap-1">🚫 ${c.type}</div>
+                            <div class="text-[10px] font-bold text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">${c.detail}</div>
+                          </li>`;
+                });
+                h += `</ul></div>`;
+            });
+        }
+        h += `</div>`;
+        document.getElementById('modal-body').innerHTML = h;
+        document.getElementById('modal-overlay').classList.remove('hidden');
+    },
+
     importData:()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];const r=new FileReader();r.onload=ev=>{Object.assign(state,JSON.parse(ev.target.result));forceInitState();render();showToast("読み込み完了","success");};r.readAsText(f);};i.click();},
     closeModal: () => { document.getElementById('modal-overlay').classList.add('hidden'); },
     updateRoomName:(id,v)=>{const r=safeFind(state.rooms,'id',id);if(r)r.name=v;render();},
