@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 15.7.5.5</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 16.0.1</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { darkMode: 'class' }</script>
 <script>
@@ -18,16 +18,12 @@ html, body { @apply h-full h-[100dvh] overflow-hidden m-0 p-0 font-sans bg-slate
 #app-container { @apply h-full h-[100dvh] flex flex-col p-2 md:p-3 pb-[max(12px,env(safe-area-inset-bottom))] max-w-[1800px] mx-auto w-full box-border overflow-hidden; }
 .custom-scrollbar::-webkit-scrollbar { @apply w-1.5 h-1.5; } .custom-scrollbar::-webkit-scrollbar-thumb { @apply bg-slate-300 dark:bg-slate-600 rounded-full; }
 .m3-card { @apply bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-3 md:p-5 flex flex-col overflow-hidden min-h-0 transition-colors duration-300; }
-.m3-btn-primary { @apply bg-blue-600 text-white px-5 py-2.5 rounded-xl font-black hover:bg-blue-700 active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 text-sm whitespace-nowrap; }
+.m3-btn-primary { @apply bg-blue-600 text-white px-5 py-2.5 rounded-xl font-black hover:bg-blue-700 active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 text-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed; }
 .m3-btn-secondary { @apply bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700 px-5 py-2.5 rounded-xl font-black hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center gap-2 text-sm whitespace-nowrap; }
 .m3-input { @apply p-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-blue-500 focus:bg-white font-bold text-xs transition-colors w-full dark:text-slate-100; }
 .step-dot { @apply h-1.5 w-1.5 rounded-full transition-all duration-300 bg-slate-200 dark:bg-slate-700; } .step-dot.active { @apply bg-blue-600 dark:bg-blue-500 w-6; }
-.fade-in { animation: fadeIn 0.15s ease-out forwards; } @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn 0.1s ease-out forwards; } @keyframes fadeIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
 .dash-cell { @apply min-h-[50px] p-1 border-r border-b border-slate-200 dark:border-slate-700/80 flex flex-col items-center justify-center gap-0.5 relative transition-colors cursor-pointer; }
-.bg-ng-pattern { background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(244,63,94,0.06) 5px, rgba(244,63,94,0.06) 10px); background-color: #fff5f5; }
-.dark .bg-ng-pattern { background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(244,63,94,0.1) 5px, rgba(244,63,94,0.1) 10px); background-color: #2d1a1a; }
-.bg-global-pattern { background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(100,116,139,0.08) 5px, rgba(100,116,139,0.08) 10px); background-color: #f8fafc; }
-.dark .bg-global-pattern { background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(100,116,139,0.15) 5px, rgba(100,116,139,0.15) 10px); background-color: #1e293b; }
 input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 }
 </style>
@@ -48,12 +44,10 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 
         <div class="relative flex justify-between items-center mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 shrink-0" id="bottom-navigation">
             <button id="btn-prev" class="m3-btn-secondary w-[100px] md:w-[120px] relative z-10">戻る</button>
-            
             <div id="modest-app-title" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
                 <div class="text-[11px] font-black text-slate-800 dark:text-slate-100 leading-none">Smart TimeTable</div>
-                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 15.7.5.5 (Proactive Validation & Heatmap)</div>
+                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 16.0.1 (Stability First)</div>
             </div>
-
             <button id="btn-next" class="m3-btn-primary w-[160px] md:w-[180px] relative z-10"><span id="btn-next-text">次へ進む</span></button>
         </div>
     </div>
@@ -79,45 +73,44 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 
 <script>
 // =========================================
-// 安定版URL (Ver 15.7.5 バックエンド)
+// 最新版URL (Ver 16.0 バックエンド対応済)
 // =========================================
-var GAS_URL="https://script.google.com/macros/s/AKfycbzroFhG1DdlVy7Wx185J3TqyHyRZjO2Tull0JoVqRQaacii3RvagWjc5yRu9cfoBS42dw/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwyj6u8AVqqc_ETzR_RVcqE2Wk9pW-4Tgjis7cCcb9IAjwEYrKsq_q3ZPdYU18gLGpQKA/exec";
 
-var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'], PERIODS=[1,2,3,4,5,6];
-var stepTitles=["1. 基本設定","2. 行事・不可枠","3. 教科と教室設定","4. 教員名簿と不可枠","5. 特殊授業ビルダー","6. クラス別担当設定","7. 教員別 持ち時数確認","8. 配置ルール詳細","9. 最終点検","10. 司令塔(ダッシュボード)"];
-var marathonGens = [10, 30, 50, 100, Infinity];
+const GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'], PERIODS=[1,2,3,4,5,6];
+const stepTitles=["1. 基本設定","2. 行事・不可枠","3. 教科と教室設定","4. 教員名簿と不可枠","5. 特殊授業ビルダー","6. クラス別担当設定","7. 教員別 持ち時数確認","8. 配置ルール詳細","9. 最終点検","10. 司令塔(ダッシュボード)"];
+const marathonGens = [10, 30, 50, 100, Infinity];
 
 const step8Packages = [
   { id: "pkg1", title: "【基本構造】 パズルの骨組み", desc: "授業の分散や連続設定など、時間割の骨格を定義します。",
     items: [
       { key: "limitOneSubjectPerDayStrict", type: "boolean", title: "同日重複を禁止 (分散)", desc: "同じクラスに同じ教科が1日に2回以上入ることを防ぐ", tip: "児童の集中力維持と、毎日の学習習慣定着のために重要です。" },
-      { key: "limitContinuousToSpecificPeriods", type: "boolean", title: "連続授業を「1-2, 3-4, 5-6限」に限定", desc: "中休みや昼休みを跨ぐ連続授業を防止する", tip: "休み時間による活動の中断を防ぎます。" },
-      { key: "continuousClasses", type: "array", fields: ['target', 'exclude', 'subject'], format: "[target] ただし [exclude] を除く の [subject] を2コマ連続にする", title: "連続授業（ニコイチ）", desc: "図工や家庭科など、2コマ連続で配置したい教科を指定する", tip: "準備や片付けに時間がかかる教科の効率を高めます。" },
+      { key: "continuousClasses", type: "array", fields: ['target', 'exclude', 'subject'], format: "[target] ただし [exclude] を除く の [subject] を2コマ連続にする", title: "連続授業（ニコイチ）", desc: "図工や家庭科など、2コマ連続で配置したい教科と枠固定の妥協範囲を設定します。", tip: "教科ごとに「1-2, 3-4, 5-6限のみに固定するか」と「優先度」を選べます。" },
       { key: "exclusivePairs", type: "array", fields: ['subject1', 'subject2'], format: "[subject1] と [subject2] を同じ日にしない", title: "同日実施回避 (排他ペア)", desc: "体育(中)と体育(外)など、重なると負担が大きい教科を指定する", tip: "児童の肉体的負担を分散させます。" },
       { key: "maxIntervalSubjects", type: "array", fields: ['target', 'exclude', 'subject'], format: "[target] ただし [exclude] を除く の [subject] は連日配置を避ける", title: "実施日を離す教科 (等間隔)", desc: "体育などが連日にならないよう、前日・翌日を避ける", tip: "体力回復や学習の定着期間を確保します。" }
     ]
   },
-  { id: "pkg2", title: "【教員連携・外部対応】 チームワーク同期", desc: "学年会議、若手フォロー、外部支援員などの予定を同期します。",
+  { id: "pkg2", title: "【教員連携・外部対応】", desc: "会議や出張、若手フォローなどの予定を同期します。",
     items: [
-      { key: "homeroomOnlyTimes", type: "array", fields: ['target', 'exclude', 'day', 'period'], format: "[target] ただし [exclude] を除く の [day]曜 [period]限 は専科を入れない", title: "担任授業固定枠 (専科ブロック)", desc: "行事準備等で専科を入れない枠を指定する", tip: "学年一斉の活動時間を確保しやすくします。" },
-      { key: "avoidSpecialistTimes", type: "array", fields: ['day', 'period'], format: "全校の [day]曜 [period]限 は専科授業を避ける", title: "専科回避指定枠", desc: "会議や出張が多い時間帯に専科授業を避ける", tip: "専科教員の校務分掌時間を確保します。" }
+      { key: "homeroomOnlyTimes", type: "array", fields: ['target', 'exclude', 'day', 'period'], title: "担任授業固定枠 (専科ブロック)" },
+      { key: "avoidSpecialistTimes", type: "array", fields: ['day', 'period'], title: "専科回避指定枠" }
     ]
   },
-  { id: "pkg3", title: "【児童配慮】 学習リズムと集中力", desc: "児童の脳の活性化度や疲労度に合わせた教科配置を行います。",
+  { id: "pkg3", title: "【児童配慮】 学習リズム", desc: "児童の脳の活性化度や疲労度に合わせた教科配置を行います。",
     items: [
-      { key: "amPrioritySubjects", type: "array", fields: ['target', 'exclude', 'subject'], format: "[target] ただし [exclude] を除く の [subject] は午前に優先配置", title: "午前に優先して配置する教科", desc: "国語や算数など、主要教科を1〜4限に集める", tip: "脳が最も活性化している時間帯に重要単元を学習させます。" },
-      { key: "lastPeriodSubjects", type: "array", fields: ['target', 'exclude', 'subject'], format: "[target] ただし [exclude] を除く の [subject] は最終コマに配置", title: "最終コマに優先して配置する教科", desc: "クラブ、委員会、総合など", tip: "活動的な授業を午後の最後に配置し、メリハリをつけます。" }
+      { key: "amPrioritySubjects", type: "array", fields: ['target', 'exclude', 'subject'], title: "午前に優先配置する教科" },
+      { key: "lastPeriodSubjects", type: "array", fields: ['target', 'exclude', 'subject'], title: "最終コマに優先配置する教科" }
     ]
   },
-  { id: "pkg4", title: "【安全・円滑】 生活動線とバッファ", desc: "移動・着替え・片付けなどの時間を確保し、トラブルを防ぎます。",
+  { id: "pkg4", title: "【安全・円滑】 生活動線", desc: "移動・着替え・片付けなどの時間を確保し、トラブルを防ぎます。",
     items: [
-      { key: "avoidSpecificTimes", type: "array", fields: ['target', 'exclude', 'subject', 'day', 'period'], format: "[target] ただし [exclude] を除く の [subject] は [day]曜 [period]限 を避ける", title: "特定の時間帯への配置を避ける", desc: "「午後の体育」など、ピンポイントで避ける", tip: "熱中症対策や、直後の移動混雑を防ぎます。" },
-      { key: "homeroomBufferSubjects", type: "array", fields: ['target', 'exclude', 'subject'], format: "[target] ただし [exclude] を除く の [subject] の前後に担任バッファを確保", title: "担任裁量バッファ (延長・準備枠)", desc: "家庭科や図工等の前後に「担任の空き」か「担任授業」を確保する", tip: "片付けの延長に柔軟に対応し、トラブルを防ぎます。" }
+      { key: "avoidSpecificTimes", type: "array", fields: ['target', 'exclude', 'subject', 'day', 'period'], title: "特定の時間帯への配置を避ける" },
+      { key: "homeroomBufferSubjects", type: "array", fields: ['target', 'exclude', 'subject'], title: "担任裁量バッファ (準備枠)" }
     ]
   }
 ];
 
-var state={currentStep:1, grades:{1:3,2:3,3:3,4:3,5:3,6:3}, periods:{}, rooms:[], subjects:[], teachers:[], globalBlocks:{}, specialBlocks:[], classAssignments:{}, advancedRules:{priorities:{}}, ruleEditor:{}, openPkgs:{pkg1:true}, generatedSchedule:null, unassigned:[], reportDetails:{}, scoreCard:null, dashTab:'matrix', matrixAxis:'class', dashView:'class', dashFilter:'', marathon: {active:false, target:0, maxGen:10, currentGen:1, relaxRules:false}, best: {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}, selectedTeacherId:null, editingTeacherId:null, editingSubjectId:null, editingTeacherLimitId:null, specialBuilder: {type:'joint', subjectId:'', hours:1, room:'通常教室', targets:[], teachers:[]}, openSpecialEdits:{}, subjectsUndoStack:[], rulesUndoStack:[], heatmapLesson:null};
+let state={currentStep:1, grades:{1:3,2:3,3:3,4:3,5:3,6:3}, periods:{}, rooms:[], subjects:[], teachers:[], globalBlocks:{}, specialBlocks:[], classAssignments:{}, advancedRules:{priorities:{}}, ruleEditor:{}, openPkgs:{pkg1:true}, generatedSchedule:null, unassigned:[], reportDetails:{}, scoreCard:null, dashTab:'matrix', matrixAxis:'class', dashView:'class', dashFilter:'', marathon: {active:false, target:0, maxGen:10, currentGen:1, relaxRules:false}, best: {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}, heatmapLesson:null};
 
 function safeFind(arr,k,v){return (arr||[]).find(x=>x[k]===v);}
 function forceInitState(){
@@ -131,9 +124,10 @@ function forceInitState(){
     if(!state.openSpecialEdits) state.openSpecialEdits={}; if(!state.subjectsUndoStack) state.subjectsUndoStack=[]; if(!state.rulesUndoStack) state.rulesUndoStack=[];
     if(typeof state.marathon.relaxRules === 'undefined') state.marathon.relaxRules = false;
     state.heatmapLesson = null;
+    if(!state.best) state.best = {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null};
 }
 
-function load(){ try{const d=localStorage.getItem('tt_v15_7_5_5');if(d){Object.assign(state,JSON.parse(d));}}catch(e){} forceInitState(); render(); }
+function load(){ try{const d=localStorage.getItem('tt_v16_0_1');if(d){Object.assign(state,JSON.parse(d));}}catch(e){} forceInitState(); render(); }
 function showToast(msg,type='info'){const t=document.getElementById('toast'),m=document.getElementById('toast-msg');if(!t||!m)return; t.className=`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm z-[9999] transition-all opacity-100 ${type==='success'?'bg-emerald-600 text-white':(type==='error'?'bg-rose-600 text-white':'bg-blue-600 text-white')}`; m.innerText=msg; setTimeout(()=>t.classList.replace('opacity-100','opacity-0'),3000);}
 function showLoading(t,d,showCancel=false, statusText=""){ const l=document.getElementById('loading-overlay'), cBtn=document.getElementById('btn-cancel-gen'), stEl=document.getElementById('loading-status'); if(l){ document.getElementById('loading-title').innerText=t; document.getElementById('loading-desc').innerText=d; if(statusText) { stEl.innerText=statusText; stEl.classList.remove('hidden'); stEl.classList.add('block'); } else { stEl.classList.add('hidden'); } if(showCancel)cBtn.classList.remove('hidden');else cBtn.classList.add('hidden'); l.classList.replace('hidden','flex'); } }
 function hideLoading(){ stopGenTimer(); const l=document.getElementById('loading-overlay'); if(l)l.classList.replace('flex','hidden'); }
@@ -177,11 +171,38 @@ function getTeacherLoadDetails(){
 
 function getTeacherLoads(){ let l={}; const dets=getTeacherLoadDetails(); Object.keys(dets).forEach(k=>l[k]=dets[k].total); return l; }
 
+// =========================================
+// 無重力プロトコル (フォーカス＆スクロール維持)
+// =========================================
+let focusState = { id: null, start: 0, end: 0 };
+let scrollState = { content: 0 };
+
+function saveUIState() {
+    const el = document.activeElement;
+    if (el && el.id && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) {
+        focusState = { id: el.id, start: el.selectionStart || 0, end: el.selectionEnd || 0 };
+    } else { focusState = { id: null }; }
+    const sc = document.getElementById('step-content');
+    scrollState.content = sc ? sc.scrollTop : 0;
+}
+
+function restoreUIState() {
+    const sc = document.getElementById('step-content');
+    if (sc) sc.scrollTop = scrollState.content;
+    if (focusState.id) {
+        const el = document.getElementById(focusState.id);
+        if (el) {
+            el.focus();
+            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                try { el.setSelectionRange(focusState.start, focusState.end); } catch(e){}
+            }
+        }
+    }
+}
+
 function render(){
-    const scrollEl = document.getElementById('step-content');
-    const scrollPos = scrollEl ? scrollEl.scrollTop : 0;
-    const currentStep = state.currentStep;
-    try{localStorage.setItem('tt_v15_7_5_5',JSON.stringify(state));}catch(e){}
+    saveUIState();
+    try{localStorage.setItem('tt_v16_0_1',JSON.stringify(state));}catch(e){}
     
     const headerUtils = document.getElementById('step-header-utils');
     if (headerUtils) {
@@ -212,228 +233,36 @@ function render(){
     const content=document.getElementById('step-content');
     if(content){try{content.innerHTML=window[`viewStep${state.currentStep}`]();}catch(e){console.error(e);}}
     
-    if (scrollEl && state.currentStep === currentStep) { requestAnimationFrame(() => { scrollEl.scrollTop = scrollPos; }); } else if (scrollEl) { scrollEl.scrollTop = 0; }
+    requestAnimationFrame(() => restoreUIState());
 }
 
 function buildGrid(ngMap,gMap,actStr){return `<div class="overflow-x-auto w-full custom-scrollbar min-h-0"><table class="border-separate border-spacing-1 table-fixed w-max mx-auto"><thead><tr><th class="w-8"></th>${DAYS.map(d=>`<th class="text-center text-xs font-black text-slate-400 dark:text-slate-500 w-9">${d}</th>`).join('')}</tr></thead><tbody>${PERIODS.map(p=>`<tr><td class="text-right pr-2 text-[10px] font-bold text-slate-400 dark:text-slate-500">${p}限</td>${DAYS.map(d=>{const k=`${d}-${p}`,gl=gMap?.[k],ng=ngMap?.[k],cls=`w-8 h-8 border rounded-lg flex items-center justify-center cursor-pointer font-bold text-xs transition-colors ${gl?'bg-slate-700 dark:bg-slate-400 dark:text-slate-900 text-white shadow-md border-slate-700':(ng?'bg-rose-50 dark:bg-rose-900/40 border-rose-200 dark:border-rose-800/60 text-rose-500':'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-200 dark:text-slate-600 hover:bg-blue-50 dark:hover:bg-slate-700')}`;return `<td class="p-0"><div onclick="${actStr.replace('__KEY__',k)}" class="${cls}">${gl?'■':(ng?'✕':'〇')}</div></td>`;}).join('')}</tr>`).join('')}</tbody></table></div>`;}
 
-// --- Step 1-2 ---
-window.viewStep1 = ()=>`<div class="flex flex-col gap-5 h-full" id="sc-step1"><div class="bg-white dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm"><h3 class="font-black text-sm mb-3 dark:text-slate-200">学級数の設定</h3><div class="grid grid-cols-3 md:grid-cols-6 gap-3">${GRADES.map(g=>`<div class="bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center"><span class="text-slate-500 dark:text-slate-400 font-bold text-xs mb-2">${g}年</span><div class="flex items-center gap-2"><button onclick="actions.updateGrade(${g},-1)" class="w-6 h-6 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm font-black text-slate-500">-</button><input type="number" value="${state.grades?.[g]||1}" onchange="actions.setGrade(${g},this.value)" class="w-10 text-xl font-black text-blue-600 dark:text-blue-400 text-center outline-none bg-transparent" min="1" max="10"><button onclick="actions.updateGrade(${g},1)" class="w-6 h-6 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm font-black text-slate-500">+</button></div></div>`).join('')}</div></div><div class="bg-white dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm"><h3 class="font-black text-sm mb-3 dark:text-slate-200">日ごとのコマ数 (最大6限)</h3><div class="overflow-x-auto custom-scrollbar"><table class="w-full text-xs text-center border-collapse min-w-[500px]"><thead><tr><th class="p-2 border-b dark:border-slate-700 text-slate-500">学年</th>${DAYS.map(d=>`<th class="p-2 border-b dark:border-slate-700 font-black text-slate-700 dark:text-slate-300">${d}曜</th>`).join('')}</tr></thead><tbody>${GRADES.map(g=>`<tr><td class="p-2 font-bold border-b dark:border-slate-700 dark:text-slate-400">${g}年</td>${DAYS.map(d=>`<td class="p-2 border-b dark:border-slate-700"><div class="flex items-center justify-center gap-1"><button onclick="actions.updatePeriod(${g},'${d}',-1)" class="w-6 h-6 bg-slate-100 dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600 rounded-lg font-black text-slate-500">-</button><input type="number" value="${state.periods?.[g]?.[d]||0}" onchange="actions.setPeriod(${g},'${d}',this.value)" class="w-8 text-center font-black text-blue-600 dark:text-blue-400 outline-none bg-transparent appearance-none"><button onclick="actions.updatePeriod(${g},'${d}',1)" class="w-6 h-6 bg-slate-100 dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600 rounded-lg font-black text-slate-500">+</button></div></td>`).join('')}</tr>`).join('')}</tbody></table></div></div></div>`;
+// ---------------------------------------------------------
+// 各ステップのビュー生成関数 (Step 1〜10)
+// ---------------------------------------------------------
+
+window.viewStep1 = ()=>`<div class="flex flex-col gap-5 h-full" id="sc-step1"><div class="bg-white dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm"><h3 class="font-black text-sm mb-3 dark:text-slate-200">学級数の設定</h3><div class="grid grid-cols-3 md:grid-cols-6 gap-3">${GRADES.map(g=>`<div class="bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center"><span class="text-slate-500 dark:text-slate-400 font-bold text-xs mb-2">${g}年</span><div class="flex items-center gap-2"><button onclick="actions.updateGrade(${g},-1)" class="w-6 h-6 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm font-black text-slate-500">-</button><input id="g-num-${g}" type="number" value="${state.grades?.[g]||1}" onchange="actions.setGrade(${g},this.value)" class="w-10 text-xl font-black text-blue-600 dark:text-blue-400 text-center outline-none bg-transparent" min="1" max="10"><button onclick="actions.updateGrade(${g},1)" class="w-6 h-6 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm font-black text-slate-500">+</button></div></div>`).join('')}</div></div><div class="bg-white dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm"><h3 class="font-black text-sm mb-3 dark:text-slate-200">日ごとのコマ数 (最大6限)</h3><div class="overflow-x-auto custom-scrollbar"><table class="w-full text-xs text-center border-collapse min-w-[500px]"><thead><tr><th class="p-2 border-b dark:border-slate-700 text-slate-500">学年</th>${DAYS.map(d=>`<th class="p-2 border-b dark:border-slate-700 font-black text-slate-700 dark:text-slate-300">${d}曜</th>`).join('')}</tr></thead><tbody>${GRADES.map(g=>`<tr><td class="p-2 font-bold border-b dark:border-slate-700 dark:text-slate-400">${g}年</td>${DAYS.map(d=>`<td class="p-2 border-b dark:border-slate-700"><div class="flex items-center justify-center gap-1"><button onclick="actions.updatePeriod(${g},'${d}',-1)" class="w-6 h-6 bg-slate-100 dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600 rounded-lg font-black text-slate-500">-</button><input id="p-num-${g}-${d}" type="number" value="${state.periods?.[g]?.[d]||0}" onchange="actions.setPeriod(${g},'${d}',this.value)" class="w-8 text-center font-black text-blue-600 dark:text-blue-400 outline-none bg-transparent appearance-none"><button onclick="actions.updatePeriod(${g},'${d}',1)" class="w-6 h-6 bg-slate-100 dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600 rounded-lg font-black text-slate-500">+</button></div></td>`).join('')}</tr>`).join('')}</tbody></table></div></div></div>`;
 window.viewStep2 = ()=>`<div class="flex flex-col items-center justify-center h-full text-center space-y-4" id="sc-step2"><div class="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-[32px] p-6 shadow-sm"><h2 class="text-xl font-black dark:text-slate-100 mb-2">行事・全校不可枠設定</h2><p class="text-[10px] font-bold text-slate-500 mb-4 uppercase tracking-widest">Global Unavailable Slots (■)</p>${buildGrid(null,state.globalBlocks,"actions.toggleBlock('__KEY__')")}</div></div>`;
+window.viewStep3 = ()=>{ const rmOpts=`<option value="通常教室">通常教室</option>`+(state.rooms||[]).map(r=>`<option value="${r.name}">${r.name}</option>`).join(''); return `<div class="flex flex-col md:flex-row gap-4 h-full"><div class="w-full md:w-1/4 flex flex-col bg-slate-100 dark:bg-slate-800/50 rounded-2xl border dark:border-slate-800 p-3 min-h-[200px]"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-xs dark:text-slate-200">特別教室</h3><button onclick="actions.addRoom()" class="text-[10px] bg-blue-600 text-white px-2 py-1.5 rounded-lg font-bold shadow-sm">+ 追加</button></div><div class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1">${(state.rooms||[]).map((r,i)=>`<div class="flex items-center gap-1 bg-white dark:bg-slate-900 p-1.5 rounded-lg border dark:border-slate-800 shadow-sm"><div class="flex flex-col gap-0.5 mr-1"><button onclick="actions.moveItem('rooms',${i},-1)" class="w-4 h-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded flex items-center justify-center text-[8px] text-slate-400 hover:text-blue-500">▲</button><button onclick="actions.moveItem('rooms',${i},1)" class="w-4 h-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded flex items-center justify-center text-[8px] text-slate-400 hover:text-blue-500">▼</button></div><input id="rm-name-${r.id}" type="text" value="${r.name}" onblur="actions.updateRoomName('${r.id}',this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="flex-1 min-w-0 text-xs font-bold outline-none dark:bg-transparent dark:text-slate-200 px-1 border-b border-transparent focus:border-blue-300"><button onclick="actions.removeRoom('${r.id}')" class="text-slate-300 hover:text-rose-500 font-bold px-2">✕</button></div>`).join('')}</div></div><div class="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 overflow-hidden shadow-sm"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-xs dark:text-slate-200">科目時数と教室分岐</h3><div class="flex gap-2"><button onclick="actions.undoSubjects()" class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-blue-600 transition-colors" title="元に戻す">↩️</button><button onclick="actions.addSubject('新規教科')" class="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded-lg font-bold shadow-sm hover:bg-blue-700">+ 新規教科</button></div></div><div class="flex-1 overflow-auto custom-scrollbar border border-slate-100 dark:border-slate-800 rounded-xl"><table class="w-full text-xs text-center border-collapse min-w-[800px]"><thead class="sticky top-0 bg-slate-50 dark:bg-slate-800 z-10 shadow-sm border-b dark:border-slate-700"><tr><th class="w-8"></th><th class="p-2 text-left pl-3 w-28 dark:text-slate-200">科目名</th><th class="p-2 w-28 dark:text-slate-200">基本教室</th>${GRADES.map(g=>`<th class="p-2 dark:text-slate-200 w-[70px]">${g}年</th>`).join('')}<th class="w-8"></th></tr></thead><tbody>${(state.subjects||[]).map((s,i)=>`<tr class="border-b dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"><td><div class="flex flex-col gap-0.5 items-center"><button onclick="actions.moveItem('subjects',${i},-1)" class="w-4 h-4 text-[10px] text-slate-300 hover:text-blue-500">▲</button><button onclick="actions.moveItem('subjects',${i},1)" class="w-4 h-4 text-[10px] text-slate-300 hover:text-blue-500">▼</button></div></td><td class="p-1"><input id="sub-name-${s.id}" type="text" value="${s.name}" onblur="actions.updateSubject('${s.id}','name',this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="m3-input !p-1.5 !text-sm font-black bg-transparent border-transparent dark:text-slate-100"></td><td><select id="sub-def-rm-${s.id}" onchange="actions.updateSubject('${s.id}','defaultRoom',this.value)" class="m3-input !p-1.5 text-[10px] shadow-sm">${rmOpts.replace(`value="${s.defaultRoom||'通常教室'}"`,`value="${s.defaultRoom||'通常教室'}" selected`)}</select></td>${GRADES.map(g=>{const isEdit = state.editingSubjectId === s.id && state.editingHourGrade === g; return `<td class="p-1"><div class="flex flex-col items-center gap-1 bg-slate-50 dark:bg-slate-800 p-1.5 rounded-lg border dark:border-slate-700"><div class="flex items-center gap-1">${isEdit ? `<input id="sub-hr-${s.id}-${g}" type="number" value="${s.stdHours?.[g]||0}" onblur="actions.setSubjectHour('${s.id}',${g},this.value); state.editingSubjectId=null; state.editingHourGrade=null; render();" onkeydown="if(event.key==='Enter')this.blur()" class="w-10 text-center font-black text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-900 border rounded appearance-none" autofocus>` : `<button onclick="actions.setSubjectHour('${s.id}',${g},Math.max(0,(parseInt(${s.stdHours?.[g]||0})-1)))" class="w-4 h-4 text-slate-400 hover:text-blue-600 font-bold">-</button><span onclick="state.editingSubjectId='${s.id}'; state.editingHourGrade=${g}; render();" class="w-6 text-center font-black text-blue-600 dark:text-blue-400 cursor-pointer">${s.stdHours?.[g]||0}</span><button onclick="actions.setSubjectHour('${s.id}',${g},parseInt(${s.stdHours?.[g]||0})+1)" class="w-4 h-4 text-slate-400 hover:text-blue-600 font-bold">+</button>`}</div><select id="sub-gr-rm-${s.id}-${g}" onchange="actions.updateGradeRoom('${s.id}',${g},this.value)" class="text-[8px] w-full border-none outline-none text-slate-400 font-bold cursor-pointer rounded text-center truncate bg-transparent"><option value="">同左</option>${rmOpts.replace(`value="${s.gradeRooms?.[g]||''}"`,`value="${s.gradeRooms?.[g]||''}" selected`)}</select></div></td>`;}).join('')}<td><button onclick="actions.removeSubject('${s.id}')" class="text-slate-300 hover:text-rose-500 font-black px-2">✕</button></td></tr>`).join('')}</tbody></table></div></div></div>`; };
+window.viewStep4 = ()=>{ if(!state.selectedTeacherId&&state.teachers?.length>0)state.selectedTeacherId=state.teachers[0].id; const t=safeFind(state.teachers,'id',state.selectedTeacherId); const hrOpts=`<option value="">専科等</option>`+GRADES.map(g=>Array.from({length:parseInt(state.grades?.[g])||1},(_,i)=>`<option value="${g}-${i+1}">${g}年${i+1}組</option>`).join('')).join(''); return `<div class="flex flex-col md:flex-row gap-4 h-full"><div class="w-full md:w-1/2 flex flex-col bg-white dark:bg-slate-800/50 border dark:border-slate-800 p-3 min-h-[300px] rounded-2xl shadow-sm"><div class="flex justify-between items-center mb-2"><h3 class="font-black text-xs dark:text-slate-200 uppercase tracking-tighter">教員名簿 <span class="text-slate-400 font-normal ml-1">(Wタップで名前編集)</span></h3><button onclick="actions.addTeacher()" class="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded-lg font-bold shadow-md hover:bg-blue-700">+ 教員を追加</button></div><div class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1">${(state.teachers||[]).map((tc, i)=>{const isSel=String(tc.id)===String(state.selectedTeacherId),isEdit=String(tc.id)===String(state.editingTeacherId),maxH=tc.maxHours||24; return `<div onclick="actions.handleTeacherClick('${tc.id}')" class="flex items-center gap-1 p-2 rounded-xl border transition-all ${isSel?'bg-blue-50 dark:bg-blue-900/40 border-blue-400 dark:border-blue-600 shadow-md ring-1 ring-blue-100':'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'}"><div class="flex flex-col gap-0.5"><button onclick="event.stopPropagation(); actions.moveItem('teachers',${i},-1)" class="w-4 h-4 text-[9px] text-slate-300 hover:text-blue-600">▲</button><button onclick="event.stopPropagation(); actions.moveItem('teachers',${i},1)" class="w-4 h-4 text-[9px] text-slate-300 hover:text-blue-600">▼</button></div><div class="flex-1 min-w-0 px-2" ondblclick="event.stopPropagation(); actions.startEditTeacher('${tc.id}')">${isEdit ? `<input type="text" id="edit-t-name-${tc.id}" value="${tc.name}" onblur="actions.updateTeacher('${tc.id}','name',this.value); actions.stopEditTeacher()" onkeydown="if(event.key==='Enter')this.blur()" class="m3-input !p-1 !text-sm font-bold w-full shadow-inner" autofocus>` : `<span class="text-sm font-black dark:text-slate-200 truncate block select-none pointer-events-none">${tc.name}</span>`}</div><select id="t-hr-${tc.id}" onchange="actions.updateTeacherHomeroom('${tc.id}',this.value)" onclick="event.stopPropagation()" class="text-[10px] font-bold py-1 px-1 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-lg max-w-[85px] dark:text-slate-300 outline-none">${tc.homeroom?hrOpts.replace(`value="${tc.homeroom}"`,`value="${tc.homeroom}" selected`):hrOpts}</select><div class="flex items-center gap-1 ml-1 bg-white dark:bg-slate-800 border dark:border-slate-700 p-1 rounded-lg" onclick="event.stopPropagation()">${state.editingTeacherLimitId === tc.id ? `<input id="t-max-${tc.id}" type="number" value="${maxH}" onblur="actions.updateTeacher('${tc.id}','maxHours',parseInt(this.value)||0); state.editingTeacherLimitId=null; render();" onkeydown="if(event.key==='Enter')this.blur()" class="w-8 text-center font-black text-blue-600 bg-slate-100 dark:bg-slate-900 rounded outline-none appearance-none" autofocus>` : `<button onclick="actions.updateTeacher('${tc.id}','maxHours',Math.max(0,${maxH}-1))" class="w-4 h-4 text-slate-400 hover:text-blue-600 font-black">-</button><span onclick="state.editingTeacherLimitId='${tc.id}'; render();" class="w-6 text-center font-black text-blue-600 dark:text-blue-400 text-xs cursor-pointer">${maxH}</span><button onclick="actions.updateTeacher('${tc.id}','maxHours',${maxH}+1)" class="w-4 h-4 text-slate-400 hover:text-blue-600 font-black">+</button>`}</div><button onclick="event.stopPropagation();actions.removeTeacher('${tc.id}')" class="text-slate-300 hover:text-rose-500 px-2 ml-1 transition-colors">✕</button></div>`;}).join('')}</div></div><div class="flex-1 flex flex-col bg-slate-100/50 dark:bg-slate-800/30 border dark:border-slate-800 p-4 min-h-[300px] items-center rounded-2xl shadow-inner">${t?`<div class="w-full bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-4 mb-4 shadow-lg flex items-center justify-between text-white"><div class="flex items-center gap-3"><span class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-xl">👤</span><h3 class="font-black text-lg tracking-tight">${t.name} <span class="text-sm font-bold opacity-80">先生の設定</span></h3></div><span class="text-[9px] font-black bg-black/20 px-3 py-1.5 rounded-full uppercase tracking-widest border border-white/20">Unavailable Slots</span></div>${buildGrid(t.ngTimes,state.globalBlocks,`actions.toggleTeacherNG('${t.id}','__KEY__')`)}`:'<div class="flex-1 flex items-center justify-center text-slate-400 text-sm font-black">左のリストから先生を選択してください</div>'}</div></div>`; };
+window.viewStep5 = ()=>{ const sb = state.specialBuilder; const sOpts=(state.subjects||[]).map(s=>`<option value="${s.id}" ${sb.subjectId===s.id?'selected':''}>${s.name}</option>`).join(''); const rOpts=`<option value="通常教室" ${sb.room==='通常教室'?'selected':''}>通常教室</option>`+(state.rooms||[]).map(r=>`<option value="${r.name}" ${sb.room===r.name?'selected':''}>${r.name}</option>`).join(''); const clsKeys=state.classAssignments?Object.keys(state.classAssignments):[]; return `<div class="flex flex-col h-full gap-4"><div class="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 border border-indigo-200 dark:border-indigo-800/50 rounded-2xl p-4 shrink-0 shadow-sm"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-indigo-900 dark:text-indigo-300 text-sm flex items-center gap-2">🛠️ 特殊授業ビルダー <span class="text-[9px] font-normal text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full">中身を決めてから作成</span></h3><button onclick="actions.buildSpecialBlock()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs px-6 py-2 rounded-xl shadow-md transition-transform active:scale-95 flex items-center gap-1">+ 作成する</button></div><div class="flex flex-col gap-3"><div class="flex flex-wrap gap-2 items-center bg-white dark:bg-slate-900 p-2 rounded-xl border dark:border-slate-700 shadow-sm"><select id="sb-type" onchange="actions.updateBuilder('type',this.value)" class="m3-input !w-auto !py-1.5 !bg-slate-50 dark:!bg-slate-800 border-none font-bold text-indigo-700"><option value="joint" ${sb.type==='joint'?'selected':''}>🤝 合同</option><option value="split" ${sb.type==='split'?'selected':''}>✂️ 分割</option></select><select id="sb-subj" onchange="actions.updateBuilder('subjectId',this.value)" class="m3-input !w-auto !py-1.5 !bg-slate-50 dark:!bg-slate-800 border-none font-black">${sOpts}</select><div class="flex items-center gap-1 bg-slate-50 dark:bg-slate-800 px-1 py-0.5 rounded-lg shrink-0"><button onclick="actions.updateBuilder('hours',Math.max(1,${sb.hours}-1))" class="w-6 h-6 font-black rounded text-slate-500 hover:bg-slate-200">-</button><input id="sb-hours" type="number" value="${sb.hours}" onblur="actions.updateBuilder('hours',Math.max(1,parseInt(this.value)||1))" onkeydown="if(event.key==='Enter')this.blur()" class="w-8 text-center font-black outline-none text-indigo-600 dark:text-indigo-400 bg-transparent text-sm appearance-none"><button onclick="actions.updateBuilder('hours',${sb.hours}+1)" class="w-6 h-6 font-black rounded text-slate-500 hover:bg-slate-200">+</button></div><select id="sb-room" onchange="actions.updateBuilder('room',this.value)" class="m3-input !w-auto !py-1.5 !bg-slate-50 dark:!bg-slate-800 border-none font-bold">${rOpts}</select></div><div class="grid grid-cols-1 md:grid-cols-2 gap-3"><div class="bg-white dark:bg-slate-900 p-2.5 rounded-xl border dark:border-slate-700 shadow-sm"><div class="text-[9px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">対象クラス</div><div class="flex flex-wrap gap-1">${clsKeys.map(cls=>{const isTgt=sb.targets.includes(cls);return `<button onclick="actions.toggleBuilderTarget('${cls}')" class="px-2 py-1 rounded-lg text-[10px] font-black border transition-colors ${isTgt?'bg-blue-600 text-white border-blue-700 shadow-sm':'bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-200 hover:bg-slate-100'}">${cls}</button>`;}).join('')}</div></div><div class="bg-white dark:bg-slate-900 p-2.5 rounded-xl border dark:border-slate-700 shadow-sm"><div class="text-[9px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">担当教員</div><div class="flex flex-wrap gap-1">${(state.teachers||[]).map(t=>{const isTgt=sb.teachers.includes(t.id);return `<button onclick="actions.toggleBuilderTeacher('${t.id}')" class="px-2 py-1 rounded-lg text-[10px] font-black border transition-colors ${isTgt?'bg-blue-600 text-white border-blue-700 shadow-sm':'bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-200 hover:bg-slate-100'}">${t.name}</button>`;}).join('')}</div></div></div></div></div><div class="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1 pb-10">${(!state.specialBlocks||state.specialBlocks.length===0)?'<div class="flex items-center justify-center h-full text-slate-400 text-sm font-black">作成されたブロックはありません</div>':state.specialBlocks.map((b,i)=>{ const subName=safeFind(state.subjects,'id',b.subjectId)?.name||'特殊'; const isExpanded = state.openSpecialEdits[b.id]; const tNames=b.teachers?.length?b.teachers.map(bt=>safeFind(state.teachers,'id',bt.id)?.name||'?').join('・'):'未設定'; const clsNames=b.targets?.length?b.targets.join('・'):'未設定'; let compactView = `<div class="flex items-center justify-between p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm cursor-pointer hover:border-indigo-300 transition-colors ${isExpanded?'rounded-b-none border-b-0':''}" onclick="actions.toggleSpecialEdit('${b.id}')"><div class="flex items-center gap-3 min-w-0"><span class="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 font-black text-[9px] rounded uppercase shrink-0">${b.type==='joint'?'合同':'分割'}</span><div class="flex flex-col min-w-0"><div class="flex items-baseline gap-2"><span class="font-black text-sm dark:text-slate-200 truncate">${subName}</span><span class="text-xs font-black text-blue-600 dark:text-blue-400">${b.hours}コマ</span><span class="text-[9px] font-bold text-slate-400">📍${b.room}</span></div><div class="flex gap-2 text-[10px] font-bold text-slate-500 mt-0.5 truncate"><span class="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded truncate">クラス: ${clsNames}</span><span class="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded truncate">教員: ${tNames}</span></div></div></div><div class="flex items-center gap-2 shrink-0">${b.limitOnePerDay?'<span class="text-[9px] font-black text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">1日1コマ</span>':''}${b.fixedTimes?.some(x=>x)?'<span class="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">時間固定あり</span>':''}<span class="text-slate-400 transform transition-transform ${isExpanded?'rotate-180':''}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div></div>`; let editView = ''; if(isExpanded) { const rOptsSel=b.room&&b.room!=='通常教室'?rOpts.replace(`value="${b.room}"`,`value="${b.room}" selected`):rOpts; let fixedHtml = `<div class="flex flex-wrap gap-1 mt-2 p-1.5 bg-slate-100 dark:bg-slate-800/50 rounded-lg border dark:border-slate-700"><span class="text-[9px] font-bold text-slate-500 w-full mb-0.5">📍 時間固定 (ピン留め)</span>`; for(let fi=0; fi<b.hours; fi++) { fixedHtml += `<select id="sp-fix-${b.id}-${fi}" onchange="actions.updateSpecialFixedTime('${b.id}', ${fi}, this.value)" class="text-[9px] p-1 rounded border ${b.fixedTimes?.[fi]?'bg-amber-100 border-amber-300 text-amber-800 font-bold shadow-sm':'bg-white dark:bg-slate-900 text-slate-400'} outline-none cursor-pointer"><option value="">自動配置</option>${DAYS.map(d=>PERIODS.map(p=>`<option value="${d}-${p}" ${b.fixedTimes?.[fi]===`${d}-${p}`?'selected':''}>${d}${p}固定</option>`).join('')).join('')}</select>`; } fixedHtml += `</div>`; editView = `<div class="bg-slate-50 dark:bg-slate-800/30 border border-t-0 border-slate-200 dark:border-slate-700 rounded-b-xl p-3 shadow-inner flex flex-col gap-3 relative"><button onclick="actions.removeSpecialBlock(${i})" class="absolute top-3 right-3 text-xs font-black text-rose-500 hover:text-rose-700 bg-white dark:bg-slate-800 px-2 py-1 rounded shadow-sm border border-rose-100">🗑️ 削除</button><div class="flex flex-wrap items-center gap-2"><div class="flex items-center gap-1 border dark:border-slate-700 bg-white dark:bg-slate-900 px-1 py-1 rounded-lg"><span class="text-[9px] font-bold text-slate-400 ml-1">時数</span><button onclick="actions.updateSpecialBlock('${b.id}','hours',Math.max(1,${b.hours}-1))" class="w-5 h-5 bg-slate-100 dark:bg-slate-800 rounded text-slate-500 font-black text-xs">-</button><input id="sp-b-hr-${b.id}" type="number" value="${b.hours}" onblur="actions.updateSpecialBlock('${b.id}','hours',this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="w-6 text-center font-black text-blue-600 text-xs outline-none bg-transparent appearance-none"><button onclick="actions.updateSpecialBlock('${b.id}','hours',${b.hours}+1)" class="w-5 h-5 bg-slate-100 dark:bg-slate-800 rounded text-slate-500 font-black text-xs">+</button></div><select id="sp-b-rm-${b.id}" onchange="actions.updateSpecialBlock('${b.id}','room',this.value)" class="text-xs font-bold border dark:border-slate-700 rounded-lg p-1.5 outline-none bg-white dark:bg-slate-900 dark:text-slate-200 shadow-sm">${rOptsSel}</select><label class="flex items-center gap-1 bg-white dark:bg-slate-900 border ${b.limitOnePerDay?'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/30':'border-slate-200 dark:border-slate-700'} px-2 py-1.5 rounded-lg cursor-pointer shadow-sm"><input type="checkbox" class="hidden" ${b.limitOnePerDay?'checked':''} onchange="actions.updateSpecialBlock('${b.id}','limitOnePerDay',this.checked)"><span class="text-[10px] font-bold ${b.limitOnePerDay?'text-indigo-700 dark:text-indigo-300':'text-slate-500'}">🚫 1日1コマ厳守</span></label></div><div class="grid grid-cols-1 md:grid-cols-2 gap-3"><div class="bg-white dark:bg-slate-900 p-2 rounded-xl border dark:border-slate-700"><div class="text-[9px] font-black text-slate-400 mb-1">対象クラス</div><div class="flex flex-wrap gap-1">${clsKeys.map(cls=>{const isTgt=b.targets?.includes(cls);return `<label class="flex items-center gap-1 border ${isTgt?'border-blue-400 bg-blue-600 text-white shadow-sm':'border-slate-200 bg-slate-50 text-slate-500'} px-2 py-1 rounded-lg cursor-pointer transition-colors"><input type="checkbox" class="hidden" ${isTgt?'checked':''} onchange="actions.toggleSpecialTarget('${b.id}','${cls}')"><span class="text-[10px] font-black">${cls}</span></label>`;}).join('')}</div></div><div class="bg-white dark:bg-slate-900 p-2 rounded-xl border dark:border-slate-700"><div class="text-[9px] font-black text-slate-400 mb-1">担当教員</div><div class="flex flex-wrap gap-1">${(state.teachers||[]).map(t=>{const bt=b.teachers?.find(x=>x.id===t.id);return `<label class="flex items-center gap-1 border ${bt?'border-blue-400 bg-blue-600 text-white shadow-sm':'border-slate-200 bg-slate-50 text-slate-500'} px-2 py-1 rounded-lg cursor-pointer transition-colors"><input type="checkbox" class="hidden" ${bt?'checked':''} onchange="actions.toggleSpecialTeacher('${b.id}','${t.id}')"><span class="text-[10px] font-black">${t.name}</span></label>`;}).join('')}</div></div></div>${fixedHtml}</div>`; } return `<div class="flex flex-col">${compactView}${editView}</div>`; }).join('')}</div></div>`; };
+window.viewStep6 = ()=>{ const classes=state.classAssignments?Object.keys(state.classAssignments):[]; if(classes.length===0)return '<div class="p-4 text-center font-bold text-slate-400">クラス設定がありません</div>'; if(!state.dashFilter || !classes.includes(state.dashFilter)) state.dashFilter=classes[0]; const activeCls=state.dashFilter, cData=state.classAssignments[activeCls]||{}, grade=activeCls.split('-')[0]; let totalClassHrs = 0; (state.subjects||[]).forEach(s => totalClassHrs += (parseInt(s.stdHours?.[grade])||0)); let tOpts='<option value="">-- 未設定 --</option>'+(state.teachers||[]).map(t=>`<option value="${t.id}">${t.name}</option>`).join(''); const tOptsSel=cData.homeroom?tOpts.replace(`value="${cData.homeroom}"`,`value="${cData.homeroom}" selected`):tOpts; const hrName=safeFind(state.teachers,'id',cData.homeroom)?.name||'未設定'; return `<div class="flex flex-col lg:flex-row h-full gap-3 md:gap-4 overflow-hidden"><div class="w-full lg:w-1/6 min-w-[120px] bg-slate-100 dark:bg-slate-800 rounded-2xl flex flex-col overflow-hidden h-1/4 lg:h-full border dark:border-slate-800"><div class="p-2 border-b dark:border-slate-700 font-black text-[10px] text-slate-500 dark:text-slate-400 flex justify-center items-center bg-slate-50 dark:bg-slate-900">クラス一覧</div><div class="flex-1 overflow-y-auto p-2 space-y-1.5 flex lg:flex-col flex-wrap lg:flex-nowrap gap-1 custom-scrollbar">${classes.map(c=>{ const isSel=c===activeCls, tN=safeFind(state.teachers,'id',state.classAssignments[c]?.homeroom)?.name||'(未定)'; return `<button onclick="actions.setDashFilter('${c}')" class="p-2 rounded-xl text-left border transition-all ${isSel?'bg-blue-600 text-white border-blue-700 shadow-md':'bg-white dark:bg-slate-900 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-blue-50'} flex flex-col min-w-[80px] w-full"><span class="font-black text-sm">${c}</span><span class="text-[9px] truncate ${isSel?'text-blue-100 opacity-80':'text-slate-400'}">${tN}</span></button>`; }).join('')}</div></div><div class="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col overflow-hidden shadow-sm"><div class="p-3 bg-blue-50/50 dark:bg-blue-900/10 border-b dark:border-slate-800 flex justify-between items-center flex-wrap gap-2"><div class="flex items-center gap-3"><h3 class="text-base font-black text-blue-900 dark:text-blue-300 tracking-tight">${activeCls} 担当割</h3><span class="px-2.5 py-1 bg-white dark:bg-slate-800 rounded-full shadow-sm text-[10px] font-black border dark:border-slate-700">合計: <span class="text-blue-600 text-sm">${totalClassHrs}</span> コマ</span></div><div class="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border dark:border-slate-700 shadow-sm"><span class="text-[10px] font-bold text-slate-500">担任:</span><select id="cls-hr-${activeCls}" onchange="actions.updateHomeroom('${activeCls}',this.value)" class="m3-input !p-0 !text-sm border-none font-black text-blue-700 dark:text-blue-400 w-32 !bg-transparent">${tOptsSel}</select></div></div><div class="flex-1 overflow-y-auto p-2 md:p-4 custom-scrollbar space-y-1.5 pb-20">${(state.subjects||[]).map(s=>{ const stdH=parseInt(s.stdHours?.[grade])||0; if(stdH<=0) return ''; const spBlocks=(state.specialBlocks||[]).filter(b=>b.subjectId===s.id&&b.targets?.includes(activeCls)); const spH = spBlocks.reduce((sum, b) => sum + (parseInt(b.hours)||0), 0); const normH = stdH - spH; let rowsHtml = ''; spBlocks.forEach(b=>{ const tNames=b.teachers?.length?b.teachers.map(bt=>`${safeFind(state.teachers,'id',bt.id)?.name||'?'}`).join(','):'未設定'; let spFixedHtml = `<div class="col-span-4 flex flex-wrap gap-1 px-2 pb-1.5 pt-0.5">`; for(let fi=0; fi<b.hours; fi++) { spFixedHtml += `<select id="cls-sp-fix-${b.id}-${fi}" onchange="actions.updateSpecialFixedTime('${b.id}', ${fi}, this.value)" class="text-[9px] p-0.5 rounded border ${b.fixedTimes?.[fi]?'bg-amber-100 border-amber-400 text-amber-800 font-bold shadow-sm':'bg-white dark:bg-slate-800 text-slate-400 dark:border-slate-700'} outline-none cursor-pointer"><option value="">自動配置</option>${DAYS.map(d=>PERIODS.map(p=>`<option value="${d}-${p}" ${b.fixedTimes?.[fi]===`${d}-${p}`?'selected':''}>${d}${p}固定</option>`).join('')).join('')}</select>`; } spFixedHtml += `</div>`; rowsHtml+=`<div class="bg-indigo-50/20 dark:bg-indigo-900/10 rounded-xl mb-1 border-l-4 border-indigo-400 border border-slate-100 dark:border-slate-800"><div class="grid grid-cols-[1.5fr_50px_2fr_1fr] gap-2 p-1.5 pt-2 items-center"><div class="font-black text-xs pl-1 text-indigo-900 dark:text-indigo-300 flex items-center gap-1">🤝 ${s.name}<span class="text-[8px] bg-indigo-100 dark:bg-indigo-800 px-1 rounded">特殊</span></div><div class="text-center font-black text-indigo-600 text-xs">${b.hours}</div><div class="text-[10px] font-bold text-indigo-700 bg-white dark:bg-slate-800 p-1.5 rounded-lg border dark:border-slate-700 truncate shadow-sm">🔒 ${tNames}</div><div class="text-[10px] font-bold text-slate-400 bg-white dark:bg-slate-800 p-1.5 rounded-lg border dark:border-slate-700 truncate text-center">📍${b.room}</div></div>${spFixedHtml}</div>`; }); if(normH > 0){ const ovr=cData.overrides?.[s.id]||{}, defR = (s.gradeRooms?.[grade]||s.defaultRoom||'通常教室'); let rmOptsStr=`<option value="">${defR}</option>`+(state.rooms||[]).map(r=>`<option value="${r.name}">${r.name}</option>`).join(''); if(ovr.room) rmOptsStr=rmOptsStr.replace(`value="${ovr.room}"`,`value="${ovr.room}" selected`); let tOptsSub=`<option value="">担任 (${hrName})</option>`+(state.teachers||[]).map(t=>`<option value="${t.id}">${t.name}</option>`).join(''); if(ovr.teacherId) tOptsSub=tOptsSub.replace(`value="${ovr.teacherId}"`,`value="${ovr.teacherId}" selected`); let teacherArea = ovr.allocations?.length>0 ? `<div class="flex items-center gap-1"><div onclick="actions.openAllocModal('${activeCls}','${s.id}',${normH})" class="text-[10px] bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg border border-blue-200 font-bold truncate flex-1 cursor-pointer">🔗 分割済み</div><button onclick="actions.clearAllocations('${activeCls}','${s.id}')" class="text-slate-300 font-black px-1.5 hover:text-rose-500">✕</button></div>` : `<div class="flex items-center gap-1"><select id="cls-ovr-t-${activeCls}-${s.id}" onchange="actions.updateSubjectOverride('${activeCls}','${s.id}','teacherId',this.value)" class="m3-input w-full !p-1.5 !bg-white dark:!bg-slate-900">${tOptsSub}</select><button onclick="actions.openAllocModal('${activeCls}','${s.id}',${normH})" class="bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[10px] whitespace-nowrap shadow-sm border dark:border-slate-600">分割</button></div>`; let fixedHtml = `<div class="col-span-4 flex flex-wrap gap-1 px-2 pb-1.5 pt-0.5">`; for(let fi=0; fi<normH; fi++) { fixedHtml += `<select id="cls-ovr-fix-${activeCls}-${s.id}-${fi}" onchange="actions.updateSubjectFixedTime('${activeCls}', '${s.id}', ${fi}, this.value)" class="text-[9px] p-0.5 rounded border ${ovr.fixedTimes?.[fi]?'bg-amber-100 border-amber-300 text-amber-800 font-bold shadow-sm':'bg-white dark:bg-slate-900 text-slate-400 dark:border-slate-700'} outline-none cursor-pointer"><option value="">自動配置</option>${DAYS.map(d=>PERIODS.map(p=>`<option value="${d}-${p}" ${ovr.fixedTimes?.[fi]===`${d}-${p}`?'selected':''}>${d}${p}固定</option>`).join('')).join('')}</select>`; } fixedHtml += `</div>`; rowsHtml += `<div class="bg-slate-50 dark:bg-slate-800/80 rounded-xl mb-1 border dark:border-slate-700 transition-colors hover:bg-white dark:hover:bg-slate-800"><div class="grid grid-cols-[1.5fr_50px_2fr_1fr] gap-2 p-1.5 pt-2 items-center"><div class="font-black text-xs pl-2 dark:text-slate-200">${s.name}</div><div class="text-center font-black text-blue-600 dark:text-blue-400 text-xs">${normH}</div><div>${teacherArea}</div><div><select id="cls-ovr-rm-${activeCls}-${s.id}" onchange="actions.updateSubjectOverride('${activeCls}','${s.id}','room',this.value)" class="m3-input !p-1.5 w-full !bg-white dark:!bg-slate-900 !text-[10px]">${rmOptsStr}</select></div></div>${fixedHtml}</div>`; } return rowsHtml; }).join('')}</div></div></div>`; };
+window.viewStep7 = ()=>{ const details=getTeacherLoadDetails(); return `<div class="flex flex-col h-full"><div class="flex-1 overflow-y-auto custom-scrollbar grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-10 content-start">${(state.teachers||[]).map(t=>{ const loadInfo=details[t.id], load=loadInfo.total||0, max=t.maxHours||24, isOver=load>max; const itemsHtml = loadInfo.items.length > 0 ? loadInfo.items.map(item => `<div class="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded border dark:border-slate-700 ${item.sp?'border-l-2 border-l-indigo-400':''}"><span class="text-[10px] font-bold text-slate-600 dark:text-slate-300 truncate"><span class="mr-1 text-slate-400">${item.cls}</span>${item.sub}</span><span class="text-[10px] font-black text-blue-600 dark:text-blue-400">${item.hrs}</span></div>`).join('') : `<div class="text-[10px] text-slate-400 text-center py-2 font-bold">担当授業がありません</div>`; return `<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col gap-3 transition-transform hover:scale-[1.01] ${isOver?'ring-1 ring-rose-300 dark:ring-rose-800/50 shadow-rose-100 dark:shadow-none':''}"><div class="flex justify-between items-center border-b dark:border-slate-800 pb-2"><span class="font-black text-base text-blue-900 dark:text-blue-300">${t.name}</span><span class="text-sm font-black ${isOver?'text-rose-500':'text-slate-600 dark:text-slate-300'} bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg">${load} / ${max} コマ</span></div><div class="flex-1 overflow-y-auto custom-scrollbar max-h-[120px] space-y-1 pr-1">${itemsHtml}</div><div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden mt-1 shadow-inner"><div class="h-full rounded-full transition-all duration-500 ${isOver?'bg-rose-500':'bg-gradient-to-r from-blue-500 to-indigo-500'}" style="width:${Math.min(100,(load/max)*100)}%"></div></div></div>`; }).join('')}</div></div>`; };
 
-// --- Step 3 ---
-window.viewStep3 = ()=>{
-    const rmOpts=`<option value="通常教室">通常教室</option>`+(state.rooms||[]).map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
-    return `<div class="flex flex-col md:flex-row gap-4 h-full"><div class="w-full md:w-1/4 flex flex-col bg-slate-100 dark:bg-slate-800/50 rounded-2xl border dark:border-slate-800 p-3 min-h-[200px]"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-xs dark:text-slate-200">特別教室</h3><button onclick="actions.addRoom()" class="text-[10px] bg-blue-600 text-white px-2 py-1.5 rounded-lg font-bold shadow-sm">+ 追加</button></div><div class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1">${(state.rooms||[]).map((r,i)=>`<div class="flex items-center gap-1 bg-white dark:bg-slate-900 p-1.5 rounded-lg border dark:border-slate-800 shadow-sm"><div class="flex flex-col gap-0.5 mr-1"><button onclick="actions.moveItem('rooms',${i},-1)" class="w-4 h-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded flex items-center justify-center text-[8px] text-slate-400 hover:text-blue-500">▲</button><button onclick="actions.moveItem('rooms',${i},1)" class="w-4 h-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded flex items-center justify-center text-[8px] text-slate-400 hover:text-blue-500">▼</button></div><input type="text" value="${r.name}" onblur="actions.updateRoomName('${r.id}',this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="flex-1 min-w-0 text-xs font-bold outline-none dark:bg-transparent dark:text-slate-200 px-1 border-b border-transparent focus:border-blue-300"><button onclick="actions.removeRoom('${r.id}')" class="text-slate-300 hover:text-rose-500 font-bold px-2">✕</button></div>`).join('')}</div></div><div class="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 overflow-hidden shadow-sm"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-xs dark:text-slate-200">科目時数と教室分岐</h3><div class="flex gap-2"><button onclick="actions.undoSubjects()" class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-blue-600 transition-colors" title="元に戻す">↩️</button><button onclick="actions.addSubject('新規教科')" class="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded-lg font-bold shadow-sm hover:bg-blue-700">+ 新規教科</button></div></div><div class="flex-1 overflow-auto custom-scrollbar border border-slate-100 dark:border-slate-800 rounded-xl"><table class="w-full text-xs text-center border-collapse min-w-[800px]"><thead class="sticky top-0 bg-slate-50 dark:bg-slate-800 z-10 shadow-sm border-b dark:border-slate-700"><tr><th class="w-8"></th><th class="p-2 text-left pl-3 w-28 dark:text-slate-200">科目名</th><th class="p-2 w-28 dark:text-slate-200">基本教室</th>${GRADES.map(g=>`<th class="p-2 dark:text-slate-200 w-[70px]">${g}年</th>`).join('')}<th class="w-8"></th></tr></thead><tbody>${(state.subjects||[]).map((s,i)=>`<tr class="border-b dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"><td><div class="flex flex-col gap-0.5 items-center"><button onclick="actions.moveItem('subjects',${i},-1)" class="w-4 h-4 text-[10px] text-slate-300 hover:text-blue-500">▲</button><button onclick="actions.moveItem('subjects',${i},1)" class="w-4 h-4 text-[10px] text-slate-300 hover:text-blue-500">▼</button></div></td><td class="p-1"><input type="text" value="${s.name}" onblur="actions.updateSubject('${s.id}','name',this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="m3-input !p-1.5 !text-sm font-black bg-transparent border-transparent dark:text-slate-100"></td><td><select onchange="actions.updateSubject('${s.id}','defaultRoom',this.value)" class="m3-input !p-1.5 text-[10px] shadow-sm">${rmOpts.replace(`value="${s.defaultRoom||'通常教室'}"`,`value="${s.defaultRoom||'通常教室'}" selected`)}</select></td>${GRADES.map(g=>{const isEdit = state.editingSubjectId === s.id && state.editingHourGrade === g; return `<td class="p-1"><div class="flex flex-col items-center gap-1 bg-slate-50 dark:bg-slate-800 p-1.5 rounded-lg border dark:border-slate-700"><div class="flex items-center gap-1">${isEdit ? `<input type="number" value="${s.stdHours?.[g]||0}" onblur="actions.setSubjectHour('${s.id}',${g},this.value); state.editingSubjectId=null; state.editingHourGrade=null; render();" onkeydown="if(event.key==='Enter')this.blur()" class="w-10 text-center font-black text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-900 border rounded appearance-none" autofocus>` : `<button onclick="actions.setSubjectHour('${s.id}',${g},Math.max(0,(parseInt(${s.stdHours?.[g]||0})-1)))" class="w-4 h-4 text-slate-400 hover:text-blue-600 font-bold">-</button><span onclick="state.editingSubjectId='${s.id}'; state.editingHourGrade=${g}; render();" class="w-6 text-center font-black text-blue-600 dark:text-blue-400 cursor-pointer">${s.stdHours?.[g]||0}</span><button onclick="actions.setSubjectHour('${s.id}',${g},parseInt(${s.stdHours?.[g]||0})+1)" class="w-4 h-4 text-slate-400 hover:text-blue-600 font-bold">+</button>`}</div><select onchange="actions.updateGradeRoom('${s.id}',${g},this.value)" class="text-[8px] w-full border-none outline-none text-slate-400 font-bold cursor-pointer rounded text-center truncate bg-transparent"><option value="">同左</option>${rmOpts.replace(`value="${s.gradeRooms?.[g]||''}"`,`value="${s.gradeRooms?.[g]||''}" selected`)}</select></div></td>`;}).join('')}<td><button onclick="actions.removeSubject('${s.id}')" class="text-slate-300 hover:text-rose-500 font-black px-2">✕</button></td></tr>`).join('')}</tbody></table></div></div></div>`;
-};
-
-// --- Step 4 ---
-window.viewStep4 = ()=>{
-    if(!state.selectedTeacherId&&state.teachers?.length>0)state.selectedTeacherId=state.teachers[0].id;
-    const t=safeFind(state.teachers,'id',state.selectedTeacherId);
-    const hrOpts=`<option value="">専科等</option>`+GRADES.map(g=>Array.from({length:parseInt(state.grades?.[g])||1},(_,i)=>`<option value="${g}-${i+1}">${g}年${i+1}組</option>`).join('')).join('');
-    return `<div class="flex flex-col md:flex-row gap-4 h-full"><div class="w-full md:w-1/2 flex flex-col bg-white dark:bg-slate-800/50 border dark:border-slate-800 p-3 min-h-[300px] rounded-2xl shadow-sm"><div class="flex justify-between items-center mb-2"><h3 class="font-black text-xs dark:text-slate-200 uppercase tracking-tighter">教員名簿 <span class="text-slate-400 font-normal ml-1">(Wタップで名前編集)</span></h3><button onclick="actions.addTeacher()" class="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded-lg font-bold shadow-md hover:bg-blue-700">+ 教員を追加</button></div><div class="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1">${(state.teachers||[]).map((tc, i)=>{const isSel=String(tc.id)===String(state.selectedTeacherId),isEdit=String(tc.id)===String(state.editingTeacherId),maxH=tc.maxHours||24;
-        return `<div onclick="actions.handleTeacherClick('${tc.id}')" class="flex items-center gap-1 p-2 rounded-xl border transition-all ${isSel?'bg-blue-50 dark:bg-blue-900/40 border-blue-400 dark:border-blue-600 shadow-md ring-1 ring-blue-100':'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'}">
-            <div class="flex flex-col gap-0.5">
-                <button onclick="event.stopPropagation(); actions.moveItem('teachers',${i},-1)" class="w-4 h-4 text-[9px] text-slate-300 hover:text-blue-600">▲</button>
-                <button onclick="event.stopPropagation(); actions.moveItem('teachers',${i},1)" class="w-4 h-4 text-[9px] text-slate-300 hover:text-blue-600">▼</button>
-            </div>
-            <div class="flex-1 min-w-0 px-2" ondblclick="event.stopPropagation(); actions.startEditTeacher('${tc.id}')">
-                ${isEdit ? `<input type="text" id="edit-t-name" value="${tc.name}" onblur="actions.updateTeacher('${tc.id}','name',this.value); actions.stopEditTeacher()" onkeydown="if(event.key==='Enter')this.blur()" class="m3-input !p-1 !text-sm font-bold w-full shadow-inner" autofocus>` 
-                : `<span class="text-sm font-black dark:text-slate-200 truncate block select-none pointer-events-none">${tc.name}</span>`}
-            </div>
-            <select onchange="actions.updateTeacherHomeroom('${tc.id}',this.value)" onclick="event.stopPropagation()" class="text-[10px] font-bold py-1 px-1 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-lg max-w-[85px] dark:text-slate-300 outline-none">${tc.homeroom?hrOpts.replace(`value="${tc.homeroom}"`,`value="${tc.homeroom}" selected`):hrOpts}</select>
-            <div class="flex items-center gap-1 ml-1 bg-white dark:bg-slate-800 border dark:border-slate-700 p-1 rounded-lg" onclick="event.stopPropagation()">
-                ${state.editingTeacherLimitId === tc.id ? `<input type="number" value="${maxH}" onblur="actions.updateTeacher('${tc.id}','maxHours',parseInt(this.value)||0); state.editingTeacherLimitId=null; render();" onkeydown="if(event.key==='Enter')this.blur()" class="w-8 text-center font-black text-blue-600 bg-slate-100 dark:bg-slate-900 rounded outline-none appearance-none" autofocus>` : `
-                <button onclick="actions.updateTeacher('${tc.id}','maxHours',Math.max(0,${maxH}-1))" class="w-4 h-4 text-slate-400 hover:text-blue-600 font-black">-</button>
-                <span onclick="state.editingTeacherLimitId='${tc.id}'; render();" class="w-6 text-center font-black text-blue-600 dark:text-blue-400 text-xs cursor-pointer">${maxH}</span>
-                <button onclick="actions.updateTeacher('${tc.id}','maxHours',${maxH}+1)" class="w-4 h-4 text-slate-400 hover:text-blue-600 font-black">+</button>`}
-            </div>
-            <button onclick="event.stopPropagation();actions.removeTeacher('${tc.id}')" class="text-slate-300 hover:text-rose-500 px-2 ml-1 transition-colors">✕</button>
-        </div>`;}).join('')}</div></div><div class="flex-1 flex flex-col bg-slate-100/50 dark:bg-slate-800/30 border dark:border-slate-800 p-4 min-h-[300px] items-center rounded-2xl shadow-inner">${t?`<div class="w-full bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-4 mb-4 shadow-lg flex items-center justify-between text-white"><div class="flex items-center gap-3"><span class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-xl">👤</span><h3 class="font-black text-lg tracking-tight">${t.name} <span class="text-sm font-bold opacity-80">先生の設定</span></h3></div><span class="text-[9px] font-black bg-black/20 px-3 py-1.5 rounded-full uppercase tracking-widest border border-white/20">Unavailable Slots</span></div>${buildGrid(t.ngTimes,state.globalBlocks,`actions.toggleTeacherNG('${t.id}','__KEY__')`)}`:'<div class="flex-1 flex items-center justify-center text-slate-400 text-sm font-black">左のリストから先生を選択してください</div>'}</div></div>`;
-};
-
-// --- Step 5 ---
-window.viewStep5 = ()=>{
-    const sb = state.specialBuilder;
-    const sOpts=(state.subjects||[]).map(s=>`<option value="${s.id}" ${sb.subjectId===s.id?'selected':''}>${s.name}</option>`).join('');
-    const rOpts=`<option value="通常教室" ${sb.room==='通常教室'?'selected':''}>通常教室</option>`+(state.rooms||[]).map(r=>`<option value="${r.name}" ${sb.room===r.name?'selected':''}>${r.name}</option>`).join('');
-    const clsKeys=state.classAssignments?Object.keys(state.classAssignments):[];
-    
-    return `<div class="flex flex-col h-full gap-4">
-        <div class="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 border border-indigo-200 dark:border-indigo-800/50 rounded-2xl p-4 shrink-0 shadow-sm">
-            <div class="flex justify-between items-center mb-3">
-                <h3 class="font-black text-indigo-900 dark:text-indigo-300 text-sm flex items-center gap-2">🛠️ 特殊授業ビルダー <span class="text-[9px] font-normal text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full">中身を決めてから作成</span></h3>
-                <button onclick="actions.buildSpecialBlock()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs px-6 py-2 rounded-xl shadow-md transition-transform active:scale-95 flex items-center gap-1">+ 作成する</button>
-            </div>
-            <div class="flex flex-col gap-3">
-                <div class="flex flex-wrap gap-2 items-center bg-white dark:bg-slate-900 p-2 rounded-xl border dark:border-slate-700 shadow-sm">
-                    <select onchange="actions.updateBuilder('type',this.value)" class="m3-input !w-auto !py-1.5 !bg-slate-50 dark:!bg-slate-800 border-none font-bold text-indigo-700"><option value="joint" ${sb.type==='joint'?'selected':''}>🤝 合同</option><option value="split" ${sb.type==='split'?'selected':''}>✂️ 分割</option></select>
-                    <select onchange="actions.updateBuilder('subjectId',this.value)" class="m3-input !w-auto !py-1.5 !bg-slate-50 dark:!bg-slate-800 border-none font-black">${sOpts}</select>
-                    <div class="flex items-center gap-1 bg-slate-50 dark:bg-slate-800 px-1 py-0.5 rounded-lg shrink-0">
-                        <button onclick="actions.updateBuilder('hours',Math.max(1,${sb.hours}-1))" class="w-6 h-6 font-black rounded text-slate-500 hover:bg-slate-200">-</button>
-                        <input type="number" value="${sb.hours}" onblur="actions.updateBuilder('hours',Math.max(1,parseInt(this.value)||1))" onkeydown="if(event.key==='Enter')this.blur()" class="w-8 text-center font-black outline-none text-indigo-600 dark:text-indigo-400 bg-transparent text-sm appearance-none">
-                        <button onclick="actions.updateBuilder('hours',${sb.hours}+1)" class="w-6 h-6 font-black rounded text-slate-500 hover:bg-slate-200">+</button>
-                    </div>
-                    <select onchange="actions.updateBuilder('room',this.value)" class="m3-input !w-auto !py-1.5 !bg-slate-50 dark:!bg-slate-800 border-none font-bold">${rOpts}</select>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div class="bg-white dark:bg-slate-900 p-2.5 rounded-xl border dark:border-slate-700 shadow-sm">
-                        <div class="text-[9px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">対象クラス</div>
-                        <div class="flex flex-wrap gap-1">${clsKeys.map(cls=>{const isTgt=sb.targets.includes(cls);return `<button onclick="actions.toggleBuilderTarget('${cls}')" class="px-2 py-1 rounded-lg text-[10px] font-black border transition-colors ${isTgt?'bg-blue-600 text-white border-blue-700 shadow-sm':'bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-200 hover:bg-slate-100'}">${cls}</button>`;}).join('')}</div>
-                    </div>
-                    <div class="bg-white dark:bg-slate-900 p-2.5 rounded-xl border dark:border-slate-700 shadow-sm">
-                        <div class="text-[9px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">担当教員</div>
-                        <div class="flex flex-wrap gap-1">${(state.teachers||[]).map(t=>{const isTgt=sb.teachers.includes(t.id);return `<button onclick="actions.toggleBuilderTeacher('${t.id}')" class="px-2 py-1 rounded-lg text-[10px] font-black border transition-colors ${isTgt?'bg-blue-600 text-white border-blue-700 shadow-sm':'bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-200 hover:bg-slate-100'}">${t.name}</button>`;}).join('')}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1 pb-10">
-            ${(!state.specialBlocks||state.specialBlocks.length===0)?'<div class="flex items-center justify-center h-full text-slate-400 text-sm font-black">作成されたブロックはありません</div>':state.specialBlocks.map((b,i)=>{
-                const subName=safeFind(state.subjects,'id',b.subjectId)?.name||'特殊';
-                const isExpanded = state.openSpecialEdits[b.id];
-                const tNames=b.teachers?.length?b.teachers.map(bt=>safeFind(state.teachers,'id',bt.id)?.name||'?').join('・'):'未設定';
-                const clsNames=b.targets?.length?b.targets.join('・'):'未設定';
-                
-                let compactView = `<div class="flex items-center justify-between p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm cursor-pointer hover:border-indigo-300 transition-colors ${isExpanded?'rounded-b-none border-b-0':''}" onclick="actions.toggleSpecialEdit('${b.id}')">
-                    <div class="flex items-center gap-3 min-w-0">
-                        <span class="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 font-black text-[9px] rounded uppercase shrink-0">${b.type==='joint'?'合同':'分割'}</span>
-                        <div class="flex flex-col min-w-0">
-                            <div class="flex items-baseline gap-2"><span class="font-black text-sm dark:text-slate-200 truncate">${subName}</span><span class="text-xs font-black text-blue-600 dark:text-blue-400">${b.hours}コマ</span><span class="text-[9px] font-bold text-slate-400">📍${b.room}</span></div>
-                            <div class="flex gap-2 text-[10px] font-bold text-slate-500 mt-0.5 truncate"><span class="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded truncate">クラス: ${clsNames}</span><span class="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded truncate">教員: ${tNames}</span></div>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-2 shrink-0">
-                        ${b.limitOnePerDay?'<span class="text-[9px] font-black text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">1日1コマ</span>':''}
-                        ${b.fixedTimes?.some(x=>x)?'<span class="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">時間固定あり</span>':''}
-                        <span class="text-slate-400 transform transition-transform ${isExpanded?'rotate-180':''}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-                    </div>
-                </div>`;
-                
-                let editView = '';
-                if(isExpanded) {
-                    const rOptsSel=b.room&&b.room!=='通常教室'?rOpts.replace(`value="${b.room}"`,`value="${b.room}" selected`):rOpts;
-                    let fixedHtml = `<div class="flex flex-wrap gap-1 mt-2 p-1.5 bg-slate-100 dark:bg-slate-800/50 rounded-lg border dark:border-slate-700"><span class="text-[9px] font-bold text-slate-500 w-full mb-0.5">📍 時間固定 (ピン留め)</span>`;
-                    for(let fi=0; fi<b.hours; fi++) { fixedHtml += `<select onchange="actions.updateSpecialFixedTime('${b.id}', ${fi}, this.value)" class="text-[9px] p-1 rounded border ${b.fixedTimes?.[fi]?'bg-amber-100 border-amber-300 text-amber-800 font-bold shadow-sm':'bg-white dark:bg-slate-900 text-slate-400'} outline-none cursor-pointer"><option value="">自動配置</option>${DAYS.map(d=>PERIODS.map(p=>`<option value="${d}-${p}" ${b.fixedTimes?.[fi]===`${d}-${p}`?'selected':''}>${d}${p}固定</option>`).join('')).join('')}</select>`; }
-                    fixedHtml += `</div>`;
-                    
-                    editView = `<div class="bg-slate-50 dark:bg-slate-800/30 border border-t-0 border-slate-200 dark:border-slate-700 rounded-b-xl p-3 shadow-inner flex flex-col gap-3 relative">
-                        <button onclick="actions.removeSpecialBlock(${i})" class="absolute top-3 right-3 text-xs font-black text-rose-500 hover:text-rose-700 bg-white dark:bg-slate-800 px-2 py-1 rounded shadow-sm border border-rose-100">🗑️ 削除</button>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <div class="flex items-center gap-1 border dark:border-slate-700 bg-white dark:bg-slate-900 px-1 py-1 rounded-lg"><span class="text-[9px] font-bold text-slate-400 ml-1">時数</span><button onclick="actions.updateSpecialBlock('${b.id}','hours',Math.max(1,${b.hours}-1))" class="w-5 h-5 bg-slate-100 dark:bg-slate-800 rounded text-slate-500 font-black text-xs">-</button><input type="number" value="${b.hours}" onblur="actions.updateSpecialBlock('${b.id}','hours',this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="w-6 text-center font-black text-blue-600 text-xs outline-none bg-transparent appearance-none"><button onclick="actions.updateSpecialBlock('${b.id}','hours',${b.hours}+1)" class="w-5 h-5 bg-slate-100 dark:bg-slate-800 rounded text-slate-500 font-black text-xs">+</button></div>
-                            <select onchange="actions.updateSpecialBlock('${b.id}','room',this.value)" class="text-xs font-bold border dark:border-slate-700 rounded-lg p-1.5 outline-none bg-white dark:bg-slate-900 dark:text-slate-200 shadow-sm">${rOptsSel}</select>
-                            <label class="flex items-center gap-1 bg-white dark:bg-slate-900 border ${b.limitOnePerDay?'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/30':'border-slate-200 dark:border-slate-700'} px-2 py-1.5 rounded-lg cursor-pointer shadow-sm"><input type="checkbox" class="hidden" ${b.limitOnePerDay?'checked':''} onchange="actions.updateSpecialBlock('${b.id}','limitOnePerDay',this.checked)"><span class="text-[10px] font-bold ${b.limitOnePerDay?'text-indigo-700 dark:text-indigo-300':'text-slate-500'}">🚫 1日1コマ厳守</span></label>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div class="bg-white dark:bg-slate-900 p-2 rounded-xl border dark:border-slate-700"><div class="text-[9px] font-black text-slate-400 mb-1">対象クラス</div><div class="flex flex-wrap gap-1">${clsKeys.map(cls=>{const isTgt=b.targets?.includes(cls);return `<label class="flex items-center gap-1 border ${isTgt?'border-blue-400 bg-blue-600 text-white shadow-sm':'border-slate-200 bg-slate-50 text-slate-500'} px-2 py-1 rounded-lg cursor-pointer transition-colors"><input type="checkbox" class="hidden" ${isTgt?'checked':''} onchange="actions.toggleSpecialTarget('${b.id}','${cls}')"><span class="text-[10px] font-black">${cls}</span></label>`;}).join('')}</div></div>
-                            <div class="bg-white dark:bg-slate-900 p-2 rounded-xl border dark:border-slate-700"><div class="text-[9px] font-black text-slate-400 mb-1">担当教員</div><div class="flex flex-wrap gap-1">${(state.teachers||[]).map(t=>{const bt=b.teachers?.find(x=>x.id===t.id);return `<label class="flex items-center gap-1 border ${bt?'border-blue-400 bg-blue-600 text-white shadow-sm':'border-slate-200 bg-slate-50 text-slate-500'} px-2 py-1 rounded-lg cursor-pointer transition-colors"><input type="checkbox" class="hidden" ${bt?'checked':''} onchange="actions.toggleSpecialTeacher('${b.id}','${t.id}')"><span class="text-[10px] font-black">${t.name}</span></label>`;}).join('')}</div></div>
-                        </div>
-                        ${fixedHtml}
-                    </div>`;
-                }
-                return `<div class="flex flex-col">${compactView}${editView}</div>`;
-            }).join('')}
-        </div>
-    </div>`;
-};
-
-// --- Step 6 ---
-window.viewStep6 = ()=>{
-    const classes=state.classAssignments?Object.keys(state.classAssignments):[];
-    if(classes.length===0)return '<div class="p-4 text-center font-bold text-slate-400">クラス設定がありません</div>';
-    if(!state.dashFilter || !classes.includes(state.dashFilter)) state.dashFilter=classes[0];
-    const activeCls=state.dashFilter, cData=state.classAssignments[activeCls]||{}, grade=activeCls.split('-')[0];
-    
-    let totalClassHrs = 0;
-    (state.subjects||[]).forEach(s => totalClassHrs += (parseInt(s.stdHours?.[grade])||0));
-    
-    let tOpts='<option value="">-- 未設定 --</option>'+(state.teachers||[]).map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
-    const tOptsSel=cData.homeroom?tOpts.replace(`value="${cData.homeroom}"`,`value="${cData.homeroom}" selected`):tOpts;
-    const hrName=safeFind(state.teachers,'id',cData.homeroom)?.name||'未設定';
-
-    return `<div class="flex flex-col lg:flex-row h-full gap-3 md:gap-4 overflow-hidden">
-        <div class="w-full lg:w-1/6 min-w-[120px] bg-slate-100 dark:bg-slate-800 rounded-2xl flex flex-col overflow-hidden h-1/4 lg:h-full border dark:border-slate-800">
-            <div class="p-2 border-b dark:border-slate-700 font-black text-[10px] text-slate-500 dark:text-slate-400 flex justify-center items-center bg-slate-50 dark:bg-slate-900">クラス一覧</div>
-            <div class="flex-1 overflow-y-auto p-2 space-y-1.5 flex lg:flex-col flex-wrap lg:flex-nowrap gap-1 custom-scrollbar">
-                ${classes.map(c=>{
-                    const isSel=c===activeCls, tN=safeFind(state.teachers,'id',state.classAssignments[c]?.homeroom)?.name||'(未定)';
-                    return `<button onclick="actions.setDashFilter('${c}')" class="p-2 rounded-xl text-left border transition-all ${isSel?'bg-blue-600 text-white border-blue-700 shadow-md':'bg-white dark:bg-slate-900 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-blue-50'} flex flex-col min-w-[80px] w-full"><span class="font-black text-sm">${c}</span><span class="text-[9px] truncate ${isSel?'text-blue-100 opacity-80':'text-slate-400'}">${tN}</span></button>`;
-                }).join('')}
-            </div>
-        </div>
-        <div class="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col overflow-hidden shadow-sm">
-            <div class="p-3 bg-blue-50/50 dark:bg-blue-900/10 border-b dark:border-slate-800 flex justify-between items-center flex-wrap gap-2">
-                <div class="flex items-center gap-3"><h3 class="text-base font-black text-blue-900 dark:text-blue-300 tracking-tight">${activeCls} 担当割</h3><span class="px-2.5 py-1 bg-white dark:bg-slate-800 rounded-full shadow-sm text-[10px] font-black border dark:border-slate-700">合計: <span class="text-blue-600 text-sm">${totalClassHrs}</span> コマ</span></div>
-                <div class="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border dark:border-slate-700 shadow-sm"><span class="text-[10px] font-bold text-slate-500">担任:</span><select onchange="actions.updateHomeroom('${activeCls}',this.value)" class="m3-input !p-0 !text-sm border-none font-black text-blue-700 dark:text-blue-400 w-32 !bg-transparent">${tOptsSel}</select></div>
-            </div>
-            <div class="flex-1 overflow-y-auto p-2 md:p-4 custom-scrollbar space-y-1.5 pb-20">
-                ${(state.subjects||[]).map(s=>{
-                    const stdH=parseInt(s.stdHours?.[grade])||0; if(stdH<=0) return '';
-                    const spBlocks=(state.specialBlocks||[]).filter(b=>b.subjectId===s.id&&b.targets?.includes(activeCls));
-                    const spH = spBlocks.reduce((sum, b) => sum + (parseInt(b.hours)||0), 0);
-                    const normH = stdH - spH;
-                    let rowsHtml = '';
-                    
-                    spBlocks.forEach(b=>{ 
-                        const tNames=b.teachers?.length?b.teachers.map(bt=>`${safeFind(state.teachers,'id',bt.id)?.name||'?'}`).join(','):'未設定';
-                        let spFixedHtml = `<div class="col-span-4 flex flex-wrap gap-1 px-2 pb-1.5 pt-0.5">`;
-                        for(let fi=0; fi<b.hours; fi++) { spFixedHtml += `<select onchange="actions.updateSpecialFixedTime('${b.id}', ${fi}, this.value)" class="text-[9px] p-0.5 rounded border ${b.fixedTimes?.[fi]?'bg-amber-100 border-amber-400 text-amber-800 font-bold shadow-sm':'bg-white dark:bg-slate-800 text-slate-400 dark:border-slate-700'} outline-none cursor-pointer"><option value="">自動配置</option>${DAYS.map(d=>PERIODS.map(p=>`<option value="${d}-${p}" ${b.fixedTimes?.[fi]===`${d}-${p}`?'selected':''}>${d}${p}固定</option>`).join('')).join('')}</select>`; }
-                        spFixedHtml += `</div>`;
-                        rowsHtml+=`<div class="bg-indigo-50/20 dark:bg-indigo-900/10 rounded-xl mb-1 border-l-4 border-indigo-400 border border-slate-100 dark:border-slate-800"><div class="grid grid-cols-[1.5fr_50px_2fr_1fr] gap-2 p-1.5 pt-2 items-center"><div class="font-black text-xs pl-1 text-indigo-900 dark:text-indigo-300 flex items-center gap-1">🤝 ${s.name}<span class="text-[8px] bg-indigo-100 dark:bg-indigo-800 px-1 rounded">特殊</span></div><div class="text-center font-black text-indigo-600 text-xs">${b.hours}</div><div class="text-[10px] font-bold text-indigo-700 bg-white dark:bg-slate-800 p-1.5 rounded-lg border dark:border-slate-700 truncate shadow-sm">🔒 ${tNames}</div><div class="text-[10px] font-bold text-slate-400 bg-white dark:bg-slate-800 p-1.5 rounded-lg border dark:border-slate-700 truncate text-center">📍${b.room}</div></div>${spFixedHtml}</div>`;
-                    });
-                    
-                    if(normH > 0){
-                        const ovr=cData.overrides?.[s.id]||{}, defR = (s.gradeRooms?.[grade]||s.defaultRoom||'通常教室');
-                        let rmOptsStr=`<option value="">${defR}</option>`+(state.rooms||[]).map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
-                        if(ovr.room) rmOptsStr=rmOptsStr.replace(`value="${ovr.room}"`,`value="${ovr.room}" selected`);
-                        let tOptsSub=`<option value="">担任 (${hrName})</option>`+(state.teachers||[]).map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
-                        if(ovr.teacherId) tOptsSub=tOptsSub.replace(`value="${ovr.teacherId}"`,`value="${ovr.teacherId}" selected`);
-                        let teacherArea = ovr.allocations?.length>0 ? `<div class="flex items-center gap-1"><div onclick="actions.openAllocModal('${activeCls}','${s.id}',${normH})" class="text-[10px] bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg border border-blue-200 font-bold truncate flex-1 cursor-pointer">🔗 分割済み</div><button onclick="actions.clearAllocations('${activeCls}','${s.id}')" class="text-slate-300 font-black px-1.5 hover:text-rose-500">✕</button></div>` : `<div class="flex items-center gap-1"><select onchange="actions.updateSubjectOverride('${activeCls}','${s.id}','teacherId',this.value)" class="m3-input w-full !p-1.5 !bg-white dark:!bg-slate-900">${tOptsSub}</select><button onclick="actions.openAllocModal('${activeCls}','${s.id}',${normH})" class="bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[10px] whitespace-nowrap shadow-sm border dark:border-slate-600">分割</button></div>`;
-                        
-                        let fixedHtml = `<div class="col-span-4 flex flex-wrap gap-1 px-2 pb-1.5 pt-0.5">`;
-                        for(let fi=0; fi<normH; fi++) { fixedHtml += `<select onchange="actions.updateSubjectFixedTime('${activeCls}', '${s.id}', ${fi}, this.value)" class="text-[9px] p-0.5 rounded border ${ovr.fixedTimes?.[fi]?'bg-amber-100 border-amber-300 text-amber-800 font-bold shadow-sm':'bg-white dark:bg-slate-900 text-slate-400 dark:border-slate-700'} outline-none cursor-pointer"><option value="">自動配置</option>${DAYS.map(d=>PERIODS.map(p=>`<option value="${d}-${p}" ${ovr.fixedTimes?.[fi]===`${d}-${p}`?'selected':''}>${d}${p}固定</option>`).join('')).join('')}</select>`; }
-                        fixedHtml += `</div>`;
-                        
-                        rowsHtml += `<div class="bg-slate-50 dark:bg-slate-800/80 rounded-xl mb-1 border dark:border-slate-700 transition-colors hover:bg-white dark:hover:bg-slate-800"><div class="grid grid-cols-[1.5fr_50px_2fr_1fr] gap-2 p-1.5 pt-2 items-center"><div class="font-black text-xs pl-2 dark:text-slate-200">${s.name}</div><div class="text-center font-black text-blue-600 dark:text-blue-400 text-xs">${normH}</div><div>${teacherArea}</div><div><select onchange="actions.updateSubjectOverride('${activeCls}','${s.id}','room',this.value)" class="m3-input !p-1.5 w-full !bg-white dark:!bg-slate-900 !text-[10px]">${rmOptsStr}</select></div></div>${fixedHtml}</div>`;
-                    }
-                    return rowsHtml;
-                }).join('')}
-            </div>
-        </div>
-    </div>`;
-};
-
-// --- Step 7 ---
-window.viewStep7 = ()=>{
-    const details=getTeacherLoadDetails();
-    return `<div class="flex flex-col h-full"><div class="flex-1 overflow-y-auto custom-scrollbar grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-10 content-start">${(state.teachers||[]).map(t=>{
-        const loadInfo=details[t.id], load=loadInfo.total||0, max=t.maxHours||24, isOver=load>max;
-        const itemsHtml = loadInfo.items.length > 0 ? loadInfo.items.map(item => `<div class="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded border dark:border-slate-700 ${item.sp?'border-l-2 border-l-indigo-400':''}"><span class="text-[10px] font-bold text-slate-600 dark:text-slate-300 truncate"><span class="mr-1 text-slate-400">${item.cls}</span>${item.sub}</span><span class="text-[10px] font-black text-blue-600 dark:text-blue-400">${item.hrs}</span></div>`).join('') : `<div class="text-[10px] text-slate-400 text-center py-2 font-bold">担当授業がありません</div>`;
-        return `<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col gap-3 transition-transform hover:scale-[1.01] ${isOver?'ring-1 ring-rose-300 dark:ring-rose-800/50 shadow-rose-100 dark:shadow-none':''}"><div class="flex justify-between items-center border-b dark:border-slate-800 pb-2"><span class="font-black text-base text-blue-900 dark:text-blue-300">${t.name}</span><span class="text-sm font-black ${isOver?'text-rose-500':'text-slate-600 dark:text-slate-300'} bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg">${load} / ${max} コマ</span></div><div class="flex-1 overflow-y-auto custom-scrollbar max-h-[120px] space-y-1 pr-1">${itemsHtml}</div><div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden mt-1 shadow-inner"><div class="h-full rounded-full transition-all duration-500 ${isOver?'bg-rose-500':'bg-gradient-to-r from-blue-500 to-indigo-500'}" style="width:${Math.min(100,(load/max)*100)}%"></div></div></div>`;
-    }).join('')}</div></div>`;
-};
-
-// --- Step 8 ---
 window.viewStep8 = () => {
     const uSubs = Array.from(new Set((state.subjects||[]).map(s=>s.name)));
-    let html = `<div class="flex flex-col lg:flex-row h-full overflow-hidden gap-4" id="sc-step8">`;
-    
-    html += `<div class="flex-1 min-w-0 flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-2 pb-10">`;
-    html += `<div class="flex justify-between items-center mb-1 shrink-0 flex-wrap gap-2"><h2 class="text-lg font-black dark:text-slate-100 tracking-tight">配置ルール詳細設定</h2><div class="flex gap-2 items-center"><button onclick="actions.undoRules()" class="p-1.5 rounded-lg bg-white dark:bg-slate-800 text-slate-400 hover:text-blue-600 transition-colors shadow-sm" title="元に戻す">↩️</button><button onclick="actions.applyPreset('standard')" class="px-3 py-1.5 bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 rounded-lg text-[10px] font-bold border border-blue-200 dark:border-blue-800 shadow-sm active:scale-95 transition-transform">標準セット</button><button onclick="actions.applyPreset('child')" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 rounded-lg text-[10px] font-bold border border-emerald-200 dark:border-emerald-800 shadow-sm active:scale-95 transition-transform">児童重視</button><button onclick="actions.applyPreset('reset')" class="px-3 py-1.5 bg-rose-50 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 rounded-lg text-[10px] font-bold border border-rose-200 dark:border-rose-800 shadow-sm active:scale-95 transition-transform">🗑️ 全て解除</button></div></div>`;
+    let html = `<div class="flex flex-col lg:flex-row h-full overflow-hidden gap-4" id="sc-step8"><div class="flex-1 min-w-0 flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-2 pb-10"><div class="flex justify-between items-center mb-1 shrink-0 flex-wrap gap-2"><h2 class="text-lg font-black dark:text-slate-100 tracking-tight">配置ルール詳細設定</h2><div class="flex gap-2 items-center"><button onclick="actions.undoRules()" class="p-1.5 rounded-lg bg-white dark:bg-slate-800 text-slate-400 hover:text-blue-600 transition-colors shadow-sm" title="元に戻す">↩️</button><button onclick="actions.applyPreset('standard')" class="px-3 py-1.5 bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 rounded-lg text-[10px] font-bold border border-blue-200 dark:border-blue-800 shadow-sm active:scale-95 transition-transform">標準セット</button><button onclick="actions.applyPreset('child')" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 rounded-lg text-[10px] font-bold border border-emerald-200 dark:border-emerald-800 shadow-sm active:scale-95 transition-transform">児童重視</button><button onclick="actions.applyPreset('reset')" class="px-3 py-1.5 bg-rose-50 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 rounded-lg text-[10px] font-bold border border-rose-200 dark:border-rose-800 shadow-sm active:scale-95 transition-transform">🗑️ 全て解除</button></div></div>`;
     
     step8Packages.forEach(pkg => {
-        html += `<div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-1 shrink-0">`;
-        html += `<div class="p-3 bg-slate-50 dark:bg-slate-800/60 border-b dark:border-slate-800 flex justify-between items-center cursor-pointer transition-colors hover:bg-slate-100 dark:hover:bg-slate-800" onclick="actions.togglePkg('${pkg.id}')"><div><h3 class="font-black text-slate-800 dark:text-slate-200 text-sm">${pkg.title}</h3><p class="text-[9px] text-slate-500 font-bold mt-0.5">${pkg.desc}</p></div><div class="flex items-center gap-4"><button onclick="event.stopPropagation(); actions.resetPackage('${pkg.id}')" class="text-slate-400 hover:text-rose-500 font-bold text-[10px] transition-colors bg-white dark:bg-slate-800 px-2 py-1 rounded border dark:border-slate-700 shadow-sm">↻ リセット</button><span class="text-slate-400 transform transition-transform ${state.openPkgs?.[pkg.id] ? 'rotate-180' : ''}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div></div>`;
+        html += `<div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-1 shrink-0"><div class="p-3 bg-slate-50 dark:bg-slate-800/60 border-b dark:border-slate-800 flex justify-between items-center cursor-pointer transition-colors hover:bg-slate-100 dark:hover:bg-slate-800" onclick="actions.togglePkg('${pkg.id}')"><div><h3 class="font-black text-slate-800 dark:text-slate-200 text-sm">${pkg.title}</h3><p class="text-[9px] text-slate-500 font-bold mt-0.5">${pkg.desc}</p></div><div class="flex items-center gap-4"><button onclick="event.stopPropagation(); actions.resetPackage('${pkg.id}')" class="text-slate-400 hover:text-rose-500 font-bold text-[10px] transition-colors bg-white dark:bg-slate-800 px-2 py-1 rounded border dark:border-slate-700 shadow-sm">↻ リセット</button><span class="text-slate-400 transform transition-transform ${state.openPkgs?.[pkg.id] ? 'rotate-180' : ''}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div></div>`;
         
         if (state.openPkgs?.[pkg.id]) {
             html += `<div class="p-2 flex flex-col gap-2">`;
             pkg.items.forEach(item => {
                 const isActive = state.advancedRules && state.advancedRules[item.key] !== undefined, prio = state.advancedRules?.priorities?.[item.key] || 'low';
-                html += `<div class="p-3 bg-white dark:bg-slate-900 rounded-xl border ${isActive?'border-blue-300 ring-2 ring-blue-50 dark:ring-blue-900/20 shadow-sm':'border-slate-100 dark:border-slate-800'} flex flex-col gap-2 transition-all" onmouseenter="actions.hoverRule('${item.key}')" onmouseleave="actions.clearPreview()">`;
-                html += `<div class="flex justify-between items-start gap-2"><div class="flex items-center gap-2 pt-0.5"><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" class="sr-only peer" ${isActive?'checked':''} onchange="actions.toggleRuleActive('${item.key}', this.checked)"><div class="w-8 h-4 bg-slate-200 dark:bg-slate-700 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4"></div></label><div class="flex flex-col"><span class="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">${item.title} <div class="group relative flex items-center justify-center"><span class="w-3.5 h-3.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 text-[9px] font-black flex items-center justify-center cursor-help">i</span><div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-52 p-2 bg-slate-800 dark:bg-black text-white text-[9px] rounded shadow-lg z-10 font-bold leading-tight text-center">${item.tip}</div></div></span><span class="text-[8px] font-bold text-slate-500">${item.desc}</span></div></div>`;
-                if (isActive) html += `<select onchange="actions.setPriority('${item.key}',this.value)" class="text-[9px] font-black p-1.5 rounded-lg border outline-none cursor-pointer transition-colors shadow-sm shrink-0 ${prio==='high'?'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/40':'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40'}"><option value="high" ${prio==='high'?'selected':''}>優先:高(厳守)</option><option value="low" ${prio==='low'?'selected':''}>優先:低(努力)</option></select>`;
+                html += `<div class="p-3 bg-white dark:bg-slate-900 rounded-xl border ${isActive?'border-blue-300 ring-2 ring-blue-50 dark:ring-blue-900/20 shadow-sm':'border-slate-100 dark:border-slate-800'} flex flex-col gap-2 transition-all" onmouseenter="actions.hoverRule('${item.key}')" onmouseleave="actions.clearPreview()"><div class="flex justify-between items-start gap-2"><div class="flex items-center gap-2 pt-0.5"><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="chk-${item.key}" class="sr-only peer" ${isActive?'checked':''} onchange="actions.toggleRuleActive('${item.key}', this.checked)"><div class="w-8 h-4 bg-slate-200 dark:bg-slate-700 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4"></div></label><div class="flex flex-col"><span class="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">${item.title} <div class="group relative flex items-center justify-center"><span class="w-3.5 h-3.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 text-[9px] font-black flex items-center justify-center cursor-help">i</span><div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-52 p-2 bg-slate-800 dark:bg-black text-white text-[9px] rounded shadow-lg z-10 font-bold leading-tight text-center">${item.tip||item.desc}</div></div></span><span class="text-[8px] font-bold text-slate-500">${item.desc}</span></div></div>`;
+                if (isActive && item.key !== 'continuousClasses') html += `<select id="prio-${item.key}" onchange="actions.setPriority('${item.key}',this.value)" class="text-[9px] font-black p-1.5 rounded-lg border outline-none cursor-pointer transition-colors shadow-sm shrink-0 ${prio==='high'?'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/40':'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40'}"><option value="high" ${prio==='high'?'selected':''}>優先:高(厳守)</option><option value="low" ${prio==='low'?'selected':''}>優先:低(努力)</option></select>`;
                 html += `</div>`;
                 
                 if (isActive && item.type === 'array') {
@@ -446,6 +275,7 @@ window.viewStep8 = () => {
                     if (item.fields.includes('subject2')) html += actions.renderMultiSelect(item.key, 'subjects2', '教科B', uSubs, editor.subjects2 || [], 'indigo');
                     if (item.fields.includes('day')) html += actions.renderMultiSelect(item.key, 'days', '曜日', DAYS, editor.days || [], 'amber');
                     if (item.fields.includes('period')) html += actions.renderMultiSelect(item.key, 'periods', '時限', PERIODS.map(p=>`${p}限`), editor.periods || [], 'amber');
+                    if (item.key === 'continuousClasses') html += actions.renderContinuousUI(item.key);
                     html += `<div class="flex justify-end mt-1 gap-2 border-t dark:border-slate-700 pt-2"><button onclick="actions.clearRuleEditor('${item.key}')" class="px-3 py-1 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg text-[9px] font-bold text-slate-500 hover:text-slate-700 transition-colors shadow-sm">選択クリア</button><button onclick="actions.addRuleMulti('${item.key}', '${item.fields.join(',')}')" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-[10px] font-bold shadow-sm hover:bg-blue-700 active:scale-95 transition-transform">+ 追加</button></div>`;
                     
                     const arr = state.advancedRules[item.key] || [];
@@ -460,6 +290,13 @@ window.viewStep8 = () => {
                             if(r.days) txt += ` <span class="text-amber-600 dark:text-amber-300 ml-1">${r.days.join('・')}曜</span>`;
                             if(r.periods) txt += ` <span class="text-amber-600 dark:text-amber-300 ml-1">${r.periods.map(p=>p.replace('限','')).join('・')}限</span>`;
                         }
+                        if (item.key === 'continuousClasses') {
+                            txt += ` <span class="text-[9px] ml-0.5 bg-slate-100 dark:bg-slate-800 px-1 rounded ${r.priority==='high' ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'} font-bold">[優先:${r.priority==='high'?'厳守':'努力'}]</span>`;
+                            if (r.priority === 'low') {
+                                let allows = []; if (r.allowPeriod2) allows.push('2限始'); if (r.allowPeriod4) allows.push('4限始');
+                                if (allows.length > 0) txt += ` <span class="text-[9px] ml-0.5 bg-slate-100 dark:bg-slate-800 px-1 rounded text-slate-500 font-bold">[妥協:${allows.join(',')}]</span>`;
+                            }
+                        }
                         html += `<span class="bg-white dark:bg-slate-900 border dark:border-slate-700 text-[10px] font-black py-1 px-2 rounded-lg shadow-sm flex items-center gap-2 hover:border-rose-300 transition-colors" onmouseenter="actions.hoverListRule('${item.key}', ${idx})" onmouseleave="actions.updatePreviewFromEditor('${item.key}')">${txt}<button onclick="actions.removeRuleNew('${item.key}',${idx})" class="text-rose-400 hover:text-rose-600 ml-1 pl-1.5 border-l dark:border-slate-700">✕</button></span>`;
                     }); }
                     html += `</div></div>`;
@@ -472,104 +309,49 @@ window.viewStep8 = () => {
     });
     html += `</div>`;
     
-    // 右側: ミニプレビューパネル
-    html += `<div class="hidden lg:flex flex-col w-1/3 min-w-[280px] h-fit sticky top-0 bg-white dark:bg-[#1a2035] rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0">`;
-    html += `<div class="flex items-center gap-3 mb-4"><div class="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 ring-2 ring-blue-100 shadow-inner"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg></div><div><h3 class="text-sm font-black text-slate-800 dark:text-white">ミニ・プレビュー</h3><p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Constraints Heatmap</p></div></div>`;
-    html += `<div class="bg-slate-50 dark:bg-slate-900 rounded-2xl p-3 border border-slate-100 dark:border-slate-800 shadow-inner"><table class="w-full text-center table-fixed border-collapse"><thead><tr><th class="w-6"></th>${DAYS.map(d=>`<th class="text-[10px] font-black text-slate-400 pb-2">${d}</th>`).join('')}</tr></thead><tbody>`;
-    PERIODS.forEach(p => {
-        html += `<tr><td class="text-[9px] font-black text-slate-400 pr-2 py-1">${p}</td>`;
-        DAYS.forEach(d => { html += `<td class="p-[3px]"><div id="pv-${d}-${p}" class="h-6 w-full rounded-[4px] border transition-colors duration-300 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm"></div></td>`; });
-        html += `</tr>`;
-    });
-    html += `</tbody></table></div>`;
-    html += `<div class="mt-4 p-3 bg-blue-50/50 dark:bg-indigo-900/20 rounded-xl border border-blue-100 dark:border-indigo-800/50 flex gap-2 items-start"><span class="text-blue-500 text-xs mt-0.5">💡</span><div class="text-[10px] text-slate-600 dark:text-indigo-200 font-bold leading-snug flex flex-col gap-1 w-full" id="preview-desc-container"><div class="flex items-center gap-2 border-b border-blue-100 dark:border-indigo-800/50 pb-1.5 mb-1.5"><div class="flex items-center gap-1"><span class="w-3 h-3 bg-rose-100 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800/50 rounded-sm"></span>背景: 既存ルール</div><div class="flex items-center gap-1"><span class="w-3 h-3 bg-rose-500/30 border border-rose-400 rounded-sm bg-[repeating-linear-gradient(45deg,transparent,transparent_2px,rgba(244,63,94,0.2)_2px,rgba(244,63,94,0.2)_4px)]"></span>強調: 入力中</div></div><p id="preview-desc">項目にマウスを乗せてください。</p></div></div>`;
-    html += `</div>`;
-    
-    html += `</div>`;
+    html += `<div class="hidden lg:flex flex-col w-1/3 min-w-[280px] h-fit sticky top-0 bg-white dark:bg-[#1a2035] rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0"><div class="flex items-center gap-3 mb-4"><div class="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 ring-2 ring-blue-100 shadow-inner"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg></div><div><h3 class="text-sm font-black text-slate-800 dark:text-white">ミニ・プレビュー</h3><p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Constraints Heatmap</p></div></div><div class="bg-slate-50 dark:bg-slate-900 rounded-2xl p-3 border border-slate-100 dark:border-slate-800 shadow-inner"><table class="w-full text-center table-fixed border-collapse"><thead><tr><th class="w-6"></th>${DAYS.map(d=>`<th class="text-[10px] font-black text-slate-400 pb-2">${d}</th>`).join('')}</tr></thead><tbody>`;
+    PERIODS.forEach(p => { html += `<tr><td class="text-[9px] font-black text-slate-400 pr-2 py-1">${p}</td>`; DAYS.forEach(d => { html += `<td class="p-[3px]"><div id="pv-${d}-${p}" class="h-6 w-full rounded-[4px] border transition-colors duration-300 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm"></div></td>`; }); html += `</tr>`; });
+    html += `</tbody></table></div><div class="mt-4 p-3 bg-blue-50/50 dark:bg-indigo-900/20 rounded-xl border border-blue-100 dark:border-indigo-800/50 flex gap-2 items-start"><span class="text-blue-500 text-xs mt-0.5">💡</span><div class="text-[10px] text-slate-600 dark:text-indigo-200 font-bold leading-snug flex flex-col gap-1.5 w-full" id="preview-desc-container"><div class="flex items-center gap-2 border-b border-blue-100 dark:border-indigo-800/50 pb-1.5 mb-1 flex-wrap"><div class="flex items-center gap-1"><span class="w-3 h-3 bg-rose-100 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800/50 rounded-sm"></span>背景: 既存ルール</div><div class="flex items-center gap-1"><span class="w-3 h-3 bg-rose-500/30 border border-rose-400 rounded-sm bg-[repeating-linear-gradient(45deg,transparent,transparent_2px,rgba(244,63,94,0.2)_2px,rgba(244,63,94,0.2)_4px)]"></span>強調: 禁止/抑制</div><div class="flex items-center gap-1"><span class="w-3 h-3 bg-blue-500/30 border border-blue-400 rounded-sm"></span>青: 推奨枠</div><div class="flex items-center gap-1"><span class="w-3 h-3 bg-amber-500/30 border border-amber-400 rounded-sm"></span>黄: 妥協枠</div></div><p id="preview-desc">項目にマウスを乗せてください。</p></div></div></div></div>`;
     setTimeout(() => actions.clearPreview(), 50);
     return html;
 };
 
-// --- Step 9 (プレフライト・バリデーター & ルール緩和スイッチ追加) ---
+// --- Step 9 ---
 window.viewStep9 = ()=>{
     let uSubs=Array.from(new Set((state.subjects||[]).map(s=>s.name))),classNeeds={},classAssigned={},classes=Object.keys(state.classAssignments||{}), m=state.marathon;
     classes.forEach(cls=>{uSubs.forEach(sName=>{classNeeds[`${cls}-${sName}`]=0;classAssigned[`${cls}-${sName}`]=0;});});
     classes.forEach(cls=>{const cData=state.classAssignments[cls],g=cls.split('-')[0];(state.subjects||[]).forEach(s=>{let hrs=parseInt(s.stdHours?.[g])||0;classNeeds[`${cls}-${s.name}`]+=hrs;if(hrs===0)return;if(state.specialBlocks?.some(b=>b.subjectId===s.id&&b.targets?.includes(cls)))return;const ovr=cData.overrides?.[s.id]||{};if(ovr.allocations?.length>0)ovr.allocations.forEach(a=>{classAssigned[`${cls}-${s.name}`]+=parseInt(a.hours)||0;});else if(ovr.teacherId||cData.homeroom)classAssigned[`${cls}-${s.name}`]+=hrs;});});
     (state.specialBlocks||[]).forEach(b=>{const subObj=safeFind(state.subjects,'id',b.subjectId);if(subObj&&b.targets)b.targets.forEach(cls=>{if(classAssigned[`${cls}-${subObj.name}`]!==undefined)classAssigned[`${cls}-${subObj.name}`]+=parseInt(b.hours)||0;});});
     
-    // ★ 追加: 教員キャパシティ・プレフライトチェック
     let teacherIssues = [];
     let loads = getTeacherLoads();
     (state.teachers || []).forEach(t => {
         let load = loads[t.id] || 0;
         let unavailableCount = 0;
-        DAYS.forEach(d => PERIODS.forEach(p => {
-            if (state.globalBlocks[`${d}-${p}`] || (t.ngTimes && t.ngTimes[`${d}-${p}`])) unavailableCount++;
-        }));
-        let maxPossible = 30 - unavailableCount; // 週30コマ前提
-        if (load > maxPossible) {
-            teacherIssues.push(`${t.name}先生 (担当: ${load}コマ / 物理的上限: ${maxPossible}コマ)`);
-        }
+        DAYS.forEach(d => PERIODS.forEach(p => { if (state.globalBlocks[`${d}-${p}`] || (t.ngTimes && t.ngTimes[`${d}-${p}`])) unavailableCount++; }));
+        let maxPossible = 30 - unavailableCount; 
+        if (load > maxPossible) teacherIssues.push(`${t.name}先生 (担当: ${load}コマ / 物理的上限: ${maxPossible}コマ)`);
     });
 
     const resultBtn = state.generatedSchedule ? `<button onclick="actions.jumpToResult()" class="flex-[1] bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-4 py-4 rounded-2xl font-black text-xs shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2 active:scale-95">📄 前回の結果</button>` : '';
 
-    return `<div class="flex flex-col h-full">
-        <div class="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 flex flex-col overflow-hidden shadow-sm relative">
-            ${teacherIssues.length > 0 ? `<div class="bg-rose-50 dark:bg-rose-900/10 border border-rose-200 dark:border-rose-800/50 rounded-2xl p-4 mb-4 shrink-0 shadow-sm"><h4 class="font-black text-rose-700 dark:text-rose-400 text-xs mb-2 flex items-center gap-1">🚨 致命的なキャパシティ超過 (計算前に設定を見直してください)</h4><ul class="text-[10px] font-bold text-rose-600 dark:text-rose-300 list-disc pl-5 space-y-1">${teacherIssues.map(msg => `<li>${msg}</li>`).join('')}</ul></div>` : ''}
-            
-            <div class="flex items-center justify-between mb-4 shrink-0"><h4 class="text-base font-black text-slate-800 dark:text-white flex items-center gap-2">🚩 プレフライト・マトリックス <span class="text-[9px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border dark:border-slate-700">未配置・超過の最終確認</span></h4><div class="flex gap-4 text-[10px] font-bold"><span class="text-rose-500">赤:不足</span><span class="text-amber-500">黄:超過</span><span class="text-emerald-500">緑:完了</span></div></div>
-            <div class="flex-1 overflow-auto custom-scrollbar rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-inner"><table class="w-full text-[10px] text-center border-collapse whitespace-nowrap"><thead class="bg-white dark:bg-slate-800 border-b dark:border-slate-700 sticky top-0 z-10 shadow-sm"><tr><th class="p-2.5 dark:text-slate-300">クラス</th>${uSubs.map(s=>`<th class="p-2.5 font-black dark:text-slate-300">${s}</th>`).join('')}</tr></thead><tbody>${classes.map(cls=>`<tr><td class="p-2.5 bg-white dark:bg-slate-800/60 font-bold border-r dark:border-slate-700 dark:text-slate-400">${cls}</td>${uSubs.map(s=>{let n=classNeeds[`${cls}-${s}`]||0,a=classAssigned[`${cls}-${s}`]||0,d=a-n,c='text-slate-300 dark:text-slate-700',t='-';if(n>0||a>0){if(d===0){c='bg-emerald-50 text-emerald-600 font-black';t='✓';}else if(d<0){c='bg-rose-50 text-rose-600 font-black';t=d;}else{c='bg-amber-50 text-amber-600 font-black';t='+'+d;}}return `<td class="p-2.5 border-b dark:border-slate-700 border-r dark:border-slate-700 ${c}">${t}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>
-            
-            <div class="mt-4 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 p-4 rounded-2xl shrink-0 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
-                <div class="flex flex-col gap-1">
-                    <span class="text-[10px] font-black text-blue-600 uppercase tracking-widest">Control Center</span>
-                    <div class="flex items-center gap-3 flex-wrap">
-                        <div class="flex items-center gap-1.5"><span class="text-xs font-bold text-slate-500">目標:</span><select onchange="actions.updateMarathon('target',parseInt(this.value))" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white font-black text-xs outline-none rounded-lg p-1.5 cursor-pointer hover:border-blue-400 transition-colors shadow-sm"><option value="0" ${m.target===0?'selected':''}>未配置 0</option><option value="1" ${m.target===1?'selected':''}>1コマ以下</option><option value="3" ${m.target===3?'selected':''}>3コマ以下</option></select></div>
-                        <div class="flex items-center gap-1.5"><span class="text-xs font-bold text-slate-500">最大:</span><select onchange="actions.updateMarathon('maxGen',parseFloat(this.value))" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white font-black text-xs outline-none rounded-lg p-1.5 cursor-pointer hover:border-blue-400 transition-colors shadow-sm">${marathonGens.map(v=>`<option value="${v}" ${m.maxGen===v?'selected':''}>${v===Infinity?'無制限':v+'世代'}</option>`).join('')}</select></div>
-                        <!-- ★ 追加: ルール緩和モード -->
-                        <label class="flex items-center gap-1.5 cursor-pointer bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded-lg hover:border-emerald-400 transition-colors shadow-sm"><input type="checkbox" ${m.relaxRules?'checked':''} onchange="actions.updateMarathon('relaxRules',this.checked)" class="w-4 h-4 text-emerald-600 rounded"><span class="text-xs font-bold text-emerald-700 dark:text-emerald-400">💡 ルール緩和モード (全て「努力」で試算)</span></label>
-                    </div>
-                </div>
-                <div class="flex flex-col md:flex-row gap-3 min-w-[280px] w-full md:w-auto">
-                    ${resultBtn}
-                    <button onclick="actions.startGeneration()" class="flex-[2] bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black text-base shadow-md active:scale-95 transition-all flex items-center justify-center gap-2" ${teacherIssues.length > 0 ? 'title="警告があります"' : ''}>🚀 AIマラソンを開始する</button>
-                </div>
-            </div>
-        </div>
-    </div>`;
+    return `<div class="flex flex-col h-full"><div class="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 flex flex-col overflow-hidden shadow-sm relative">${teacherIssues.length > 0 ? `<div class="bg-rose-50 dark:bg-rose-900/10 border border-rose-200 dark:border-rose-800/50 rounded-2xl p-4 mb-4 shrink-0 shadow-sm"><h4 class="font-black text-rose-700 dark:text-rose-400 text-xs mb-2 flex items-center gap-1">🚨 致命的なキャパシティ超過 (計算前に設定を見直してください)</h4><ul class="text-[10px] font-bold text-rose-600 dark:text-rose-300 list-disc pl-5 space-y-1">${teacherIssues.map(msg => `<li>${msg}</li>`).join('')}</ul></div>` : ''}<div class="flex items-center justify-between mb-4 shrink-0"><h4 class="text-base font-black text-slate-800 dark:text-white flex items-center gap-2">🚩 プレフライト・マトリックス <span class="text-[9px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border dark:border-slate-700">未配置・超過の最終確認</span></h4><div class="flex gap-4 text-[10px] font-bold"><span class="text-rose-500">赤:不足</span><span class="text-amber-500">黄:超過</span><span class="text-emerald-500">緑:完了</span></div></div><div class="flex-1 overflow-auto custom-scrollbar rounded-xl border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-inner"><table class="w-full text-[10px] text-center border-collapse whitespace-nowrap"><thead class="bg-white dark:bg-slate-800 border-b dark:border-slate-700 sticky top-0 z-10 shadow-sm"><tr><th class="p-2.5 dark:text-slate-300">クラス</th>${uSubs.map(s=>`<th class="p-2.5 font-black dark:text-slate-300">${s}</th>`).join('')}</tr></thead><tbody>${classes.map(cls=>`<tr><td class="p-2.5 bg-white dark:bg-slate-800/60 font-bold border-r dark:border-slate-700 dark:text-slate-400">${cls}</td>${uSubs.map(s=>{let n=classNeeds[`${cls}-${s}`]||0,a=classAssigned[`${cls}-${s}`]||0,d=a-n,c='text-slate-300 dark:text-slate-700',t='-';if(n>0||a>0){if(d===0){c='bg-emerald-50 text-emerald-600 font-black';t='✓';}else if(d<0){c='bg-rose-50 text-rose-600 font-black';t=d;}else{c='bg-amber-50 text-amber-600 font-black';t='+'+d;}}return `<td class="p-2.5 border-b dark:border-slate-700 border-r dark:border-slate-700 ${c}">${t}</td>`}).join('')}</tr>`).join('')}</tbody></table></div><div class="mt-4 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 p-4 rounded-2xl shrink-0 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm"><div class="flex flex-col gap-1"><span class="text-[10px] font-black text-blue-600 uppercase tracking-widest">Control Center</span><div class="flex items-center gap-3 flex-wrap"><div class="flex items-center gap-1.5"><span class="text-xs font-bold text-slate-500">目標:</span><select id="m-tgt" onchange="actions.updateMarathon('target',parseInt(this.value))" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white font-black text-xs outline-none rounded-lg p-1.5 cursor-pointer hover:border-blue-400 transition-colors shadow-sm"><option value="0" ${m.target===0?'selected':''}>未配置 0</option><option value="1" ${m.target===1?'selected':''}>1コマ以下</option><option value="3" ${m.target===3?'selected':''}>3コマ以下</option></select></div><div class="flex items-center gap-1.5"><span class="text-xs font-bold text-slate-500">最大:</span><select id="m-max" onchange="actions.updateMarathon('maxGen',parseFloat(this.value))" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white font-black text-xs outline-none rounded-lg p-1.5 cursor-pointer hover:border-blue-400 transition-colors shadow-sm">${marathonGens.map(v=>`<option value="${v}" ${m.maxGen===v?'selected':''}>${v===Infinity?'無制限':v+'世代'}</option>`).join('')}</select></div><label class="flex items-center gap-1.5 cursor-pointer bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded-lg hover:border-emerald-400 transition-colors shadow-sm"><input type="checkbox" id="chk-relax" ${m.relaxRules?'checked':''} onchange="actions.updateMarathon('relaxRules',this.checked)" class="w-4 h-4 text-emerald-600 rounded"><span class="text-xs font-bold text-emerald-700 dark:text-emerald-400">💡 ルール緩和モード (全て「努力」で試算)</span></label></div></div><div class="flex flex-col md:flex-row gap-3 min-w-[280px] w-full md:w-auto">${resultBtn}<button onclick="actions.startGeneration()" id="btn-start-marathon" class="flex-[2] bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black text-base shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" ${teacherIssues.length > 0 ? 'title="警告があります" disabled' : ''}>🚀 AIマラソンを開始</button></div></div></div></div>`;
 };
 
-// --- Step 10 (ヒートマップ統合) ---
+// --- Step 10 ---
 window.viewStep10 = ()=>{
     if(!state.generatedSchedule && (!state.unassigned || state.unassigned.length===0)) return '<div class="flex items-center justify-center h-full text-slate-400 font-black">計算結果がありません</div>';
     const sc=state.scoreCard, m=state.marathon, classes=Object.keys(state.classAssignments||{}), teachers=state.teachers||[];
     if(!state.dashFilter || (state.dashView==='class' && !classes.includes(state.dashFilter))) state.dashFilter=classes[0];
     
-    let html=`<div class="flex flex-col flex-1 overflow-hidden h-full">`;
-    // 上部コントロールバー
-    html+=`<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-2 rounded-xl mb-2 flex flex-wrap justify-between items-center shadow-sm gap-2 shrink-0"><div class="flex items-center gap-4"><div class="flex flex-col px-2"><span class="text-[9px] font-black text-blue-600 uppercase tracking-widest">Dashboard</span><span class="text-sm font-black text-slate-800 dark:text-white">${m.currentGen} 世代目の結果</span></div><div class="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div><div class="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border dark:border-slate-700"><button onclick="actions.setDashTab('matrix')" class="px-4 py-1.5 rounded-md font-black text-xs transition-all ${state.dashTab==='matrix'?'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400':'text-slate-500 hover:text-slate-700'}">全体</button><button onclick="actions.setDashTab('individual')" class="px-4 py-1.5 rounded-md font-black text-xs transition-all ${state.dashTab==='individual'?'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400':'text-slate-500 hover:text-slate-700'}">個別</button></div></div><div class="flex items-center gap-2">${sc?`<div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border dark:border-slate-700"><span class="text-[9px] font-bold text-slate-500 uppercase">Score:</span><span class="text-xs font-black text-emerald-600 dark:text-emerald-400">${sc?.basic?.score||0}%</span><button onclick="actions.openReportModal()" class="ml-1 px-2 py-0.5 bg-white dark:bg-slate-700 rounded text-[9px] font-bold border dark:border-slate-600 shadow-sm text-slate-600 dark:text-slate-300">採点レポート</button></div>`:''}<button onclick="actions.continueMarathon()" class="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-black shadow-sm hover:bg-blue-100 transition-all active:scale-95">🚀 あと10世代 継続</button><button onclick="actions.openExportModal()" class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-black shadow-sm hover:bg-emerald-700 transition-all active:scale-95">📤 出力</button></div></div>`;
+    let html=`<div class="flex flex-col flex-1 overflow-hidden h-full"><div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-2 rounded-xl mb-2 flex flex-wrap justify-between items-center shadow-sm gap-2 shrink-0"><div class="flex items-center gap-4"><div class="flex flex-col px-2"><span class="text-[9px] font-black text-blue-600 uppercase tracking-widest">Dashboard</span><span class="text-sm font-black text-slate-800 dark:text-white">${m.currentGen} 世代目の結果</span></div><div class="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div><div class="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border dark:border-slate-700"><button onclick="actions.setDashTab('matrix')" class="px-4 py-1.5 rounded-md font-black text-xs transition-all ${state.dashTab==='matrix'?'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400':'text-slate-500 hover:text-slate-700'}">全体</button><button onclick="actions.setDashTab('individual')" class="px-4 py-1.5 rounded-md font-black text-xs transition-all ${state.dashTab==='individual'?'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400':'text-slate-500 hover:text-slate-700'}">個別</button></div></div><div class="flex items-center gap-2">${sc?`<div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border dark:border-slate-700"><span class="text-[9px] font-bold text-slate-500 uppercase">Score:</span><span class="text-xs font-black text-emerald-600 dark:text-emerald-400">${sc?.basic?.score||0}%</span><button onclick="actions.openReportModal()" class="ml-1 px-2 py-0.5 bg-white dark:bg-slate-700 rounded text-[9px] font-bold border dark:border-slate-600 shadow-sm text-slate-600 dark:text-slate-300">採点レポート</button></div>`:''}<button onclick="actions.continueMarathon()" class="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-black shadow-sm hover:bg-blue-100 transition-all active:scale-95">🚀 あと10世代 継続</button><button onclick="actions.openExportModal()" class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-black shadow-sm hover:bg-emerald-700 transition-all active:scale-95">📤 スプレッドシート出力</button></div></div>`;
     
-    // ★ 未配置アラート ＆ ヒートマップボタン領域
     if(state.unassigned?.length>0) {
         let unassignedBadges = (state.unassigned || []).map((l, i) => {
             let isSelected = state.heatmapLesson?.id === l.id;
             return `<button onclick="actions.toggleHeatmap(${i})" class="px-2 py-1 rounded text-[10px] font-bold border transition-all ${isSelected ? 'bg-rose-600 text-white border-rose-700 shadow-inner scale-95' : 'bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800 hover:bg-rose-50 dark:hover:bg-rose-900/30'} shadow-sm text-left truncate flex-1 min-w-[120px] max-w-[160px]" title="クリックで置けない理由を可視化">${l.targets.join(',')} ${l.subject}</button>`;
         }).join('');
-
-        html+=`<div class="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-xl p-3 mb-2 shrink-0 flex flex-col gap-2 shadow-sm">
-            <div class="flex items-center justify-between gap-3">
-                <span class="text-amber-800 dark:text-amber-400 font-black text-xs">⚠️ ${state.unassigned.length}コマ未配置があります</span>
-                <div class="flex gap-2 items-center">
-                    ${state.reportDetails && Object.keys(state.reportDetails).length > 0 ? `<button onclick="actions.openUnassignedReasonModal()" class="px-3 py-1 bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50 rounded-lg text-[10px] font-black shadow-sm active:scale-95 hover:bg-rose-50 flex items-center gap-1">🔍 理由レポート</button>` : ''}
-                    <button onclick="actions.continueGeneration()" class="px-3 py-1 bg-amber-500 text-white rounded-lg text-[10px] font-black shadow-sm active:scale-95 hover:bg-amber-600">微調整ループ</button>
-                </div>
-            </div>
-            <div class="flex flex-wrap gap-1 mt-1 border-t border-amber-200/50 dark:border-amber-800/30 pt-2">
-                <span class="text-[9px] font-black text-amber-600 dark:text-amber-500 w-full mb-1">💡 コマをクリックしてヒートマップを表示（置けない物理的理由を可視化）</span>
-                ${unassignedBadges}
-            </div>
-        </div>`;
+        html+=`<div class="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-xl p-3 mb-2 shrink-0 flex flex-col gap-2 shadow-sm"><div class="flex items-center justify-between gap-3"><span class="text-amber-800 dark:text-amber-400 font-black text-xs">⚠️ ${state.unassigned.length}コマ未配置があります</span><div class="flex gap-2 items-center">${state.reportDetails && Object.keys(state.reportDetails).length > 0 ? `<button onclick="actions.openUnassignedReasonModal()" class="px-3 py-1 bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50 rounded-lg text-[10px] font-black shadow-sm active:scale-95 hover:bg-rose-50 flex items-center gap-1">🔍 理由レポート</button>` : ''}<button onclick="actions.continueGeneration()" class="px-3 py-1 bg-amber-500 text-white rounded-lg text-[10px] font-black shadow-sm active:scale-95 hover:bg-amber-600">微調整ループ</button></div></div><div class="flex flex-wrap gap-1 mt-1 border-t border-amber-200/50 dark:border-amber-800/30 pt-2"><span class="text-[9px] font-black text-amber-600 dark:text-amber-500 w-full mb-1">💡 コマをクリックしてヒートマップを表示（置けない物理的理由を可視化）</span>${unassignedBadges}</div></div>`;
     }
 
     if (state.dashTab === 'matrix') {
@@ -588,22 +370,17 @@ window.viewStep10 = ()=>{
         }).join(''); html += `</tbody></table></div>`;
     } else {
         const fOpts=state.dashView==='class'?classes.map(c=>`<option value="${c}" ${c===state.dashFilter?'selected':''}>${c}</option>`).join(''):teachers.map(t=>`<option value="${t.id}" ${t.id===state.dashFilter?'selected':''}>${t.name}</option>`).join('');
-        html+=`<div class="flex justify-between items-center mb-2 bg-white dark:bg-slate-900 border dark:border-slate-800 p-2 rounded-xl shrink-0 gap-2 flex-wrap shadow-sm"><div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-1 rounded-lg border dark:border-slate-700"><button onclick="actions.setDashView('class')" class="px-4 py-1.5 rounded-md font-black text-[10px] transition-all ${state.dashView==='class'?'bg-blue-600 text-white shadow-md':'text-slate-500 hover:text-slate-700'}">クラス別</button><button onclick="actions.setDashView('teacher')" class="px-4 py-1.5 rounded-md font-black text-[10px] transition-all ${state.dashView==='teacher'?'bg-blue-600 text-white shadow-md':'text-slate-500 hover:text-slate-700'}">教員別</button></div><select onchange="actions.setDashFilter(this.value)" class="m3-input !py-1.5 !text-xs !w-40 !bg-white dark:!bg-slate-800 shadow-sm">${fOpts}</select></div>`;
+        html+=`<div class="flex justify-between items-center mb-2 bg-white dark:bg-slate-900 border dark:border-slate-800 p-2 rounded-xl shrink-0 gap-2 flex-wrap shadow-sm"><div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-1 rounded-lg border dark:border-slate-700"><button onclick="actions.setDashView('class')" class="px-4 py-1.5 rounded-md font-black text-[10px] transition-all ${state.dashView==='class'?'bg-blue-600 text-white shadow-md':'text-slate-500 hover:text-slate-700'}">クラス別</button><button onclick="actions.setDashView('teacher')" class="px-4 py-1.5 rounded-md font-black text-[10px] transition-all ${state.dashView==='teacher'?'bg-blue-600 text-white shadow-md':'text-slate-500 hover:text-slate-700'}">教員別</button></div><select id="dash-flt" onchange="actions.setDashFilter(this.value)" class="m3-input !py-1.5 !text-xs !w-40 !bg-white dark:!bg-slate-800 shadow-sm">${fOpts}</select></div>`;
         html+=`<div class="flex-1 overflow-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl custom-scrollbar p-1 min-h-0 shadow-inner"><div class="grid grid-cols-[40px_repeat(5,1fr)] min-w-[700px] h-full gap-px bg-slate-200 dark:bg-slate-800 border dark:border-slate-800"><div class="bg-slate-50 dark:bg-slate-900 flex items-center justify-center font-black text-[8px] uppercase text-slate-400">Time</div>${DAYS.map(d=>`<div class="bg-slate-50 dark:bg-slate-900 flex items-center justify-center font-black text-xs py-2 text-slate-500">${d}曜</div>`).join('')}`;
         
         PERIODS.forEach(p=>{ html+=`<div class="bg-white dark:bg-slate-900 flex items-center justify-center font-black text-xs border-r dark:border-slate-800 text-slate-400">${p}限</div>`;
             DAYS.forEach(d=>{
                 const ls=(state.generatedSchedule?.[d]?.[p]||[]).filter(l=>state.dashView==='class'?l.targets?.includes(state.dashFilter):l.teacherIds?.includes(state.dashFilter));
-                
-                // ★ 追加: ヒートマップ・オーバーレイ生成ロジック
                 let heatHtml = '';
                 if (state.heatmapLesson && (state.dashView === 'class' || state.dashView === 'teacher')) {
                     let hl = state.heatmapLesson;
                     let isGlobalBlock = state.globalBlocks[`${d}-${p}`];
-                    let isTeacherNG = hl.teacherIds.some(tid => {
-                        let t = safeFind(state.teachers, 'id', tid);
-                        return t && t.ngTimes[`${d}-${p}`];
-                    });
+                    let isTeacherNG = hl.teacherIds.some(tid => { let t = safeFind(state.teachers, 'id', tid); return t && t.ngTimes[`${d}-${p}`]; });
                     let existLessons = state.generatedSchedule?.[d]?.[p] || [];
                     let isTeacherConflict = existLessons.some(el => hl.teacherIds.some(tid => el.teacherIds.includes(tid)));
                     let isClassConflict = existLessons.some(el => hl.targets.some(tgt => el.targets.includes(tgt)));
@@ -614,11 +391,8 @@ window.viewStep10 = ()=>{
                     if (isOverTime || isGlobalBlock || isTeacherNG || isTeacherConflict || isClassConflict) {
                         let reason = isOverTime ? "下校超過" : isGlobalBlock ? "全校不可" : isTeacherNG ? "教員NG枠" : isTeacherConflict ? "教員重複" : "クラス重複";
                         heatHtml = `<div class="absolute inset-0 bg-rose-500/80 backdrop-blur-[1px] flex items-center justify-center z-10 rounded-sm pointer-events-none"><span class="text-white text-[10px] font-black">${reason}</span></div>`;
-                    } else {
-                        heatHtml = `<div class="absolute inset-0 bg-emerald-500/20 z-10 rounded-sm pointer-events-none border-[1.5px] border-emerald-400 border-dashed"></div>`;
-                    }
+                    } else { heatHtml = `<div class="absolute inset-0 bg-emerald-500/20 z-10 rounded-sm pointer-events-none border-[1.5px] border-emerald-400 border-dashed"></div>`; }
                 }
-
                 html+=`<div class="dash-cell border-b border-r dark:border-slate-800 transition-colors bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 relative">${heatHtml}${ls.map(l=>`<div class="text-center w-full px-1 flex flex-col items-center justify-center h-full gap-0.5 relative z-0"><div class="px-2 py-0.5 rounded-lg text-[11px] font-black border leading-none ${getSubjectColor(l.subject)} shadow-sm truncate max-w-[95%]">${l.subject}</div><div class="text-[8px] font-bold text-slate-400 truncate mt-0.5">${state.dashView==='teacher'?l.targets?.join(','):(l.teacherName||'担任')}</div></div>`).join('')}</div>`;
             });
         }); html+=`</div></div>`;
@@ -628,10 +402,38 @@ window.viewStep10 = ()=>{
 // --- アクションロジック ---
 window.actions = {
     toggleDarkMode: () => { const h = document.documentElement; h.classList.toggle('dark'); localStorage.setItem('tt_theme', h.classList.contains('dark') ? 'dark' : 'light'); },
-    hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem('tt_v15_7_5_5');location.reload();}},
+    hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem('tt_v16_0_1');location.reload();}},
     jumpToResult:()=>{state.currentStep=10;render();},
     
-    // 教科・教員・特殊授業等のアクション群
+    // データ保存・出力
+    exportData: () => {
+        try {
+            const fileName = `SmartTimeTable_Backup_${new Date().toISOString().slice(0,10)}.json`;
+            const jsonStr = JSON.stringify(state, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+            showToast("端末に保存しました", "success");
+        } catch (e) {
+            try {
+                const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(state));
+                const a = document.createElement('a');
+                a.href = dataUri;
+                a.download = `SmartTimeTable_Backup_Fallback.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                showToast("端末に保存しました (フォールバック)", "success");
+            } catch(e2) { showToast("保存に失敗しました", "error"); }
+        }
+    },
+    importData:()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];const r=new FileReader();r.onload=ev=>{Object.assign(state,JSON.parse(ev.target.result));forceInitState();render();showToast("読み込み完了","success");};r.readAsText(f);};i.click();},
+
     pushUndoSubjects:()=>{ state.subjectsUndoStack.push(JSON.stringify(state.subjects)); if(state.subjectsUndoStack.length>10) state.subjectsUndoStack.shift(); },
     undoSubjects:()=>{ if(state.subjectsUndoStack.length>0){ state.subjects=JSON.parse(state.subjectsUndoStack.pop()); render(); showToast("教科設定を戻しました"); }else showToast("戻せる履歴がありません","error"); },
     addSubject:(n)=>{ actions.pushUndoSubjects(); state.subjects.push({id:'s_'+Date.now(),name:n,stdHours:{1:0,2:0,3:0,4:0,5:0,6:0},defaultRoom:'通常教室',gradeRooms:{}}); render(); },
@@ -640,7 +442,7 @@ window.actions = {
     updateSubject:(id,k,v)=>{ const s=safeFind(state.subjects,'id',id); if(s){ s[k]=v; render(); }},
     updateGradeRoom:(sid, g, val)=>{ const s=safeFind(state.subjects,'id',sid); if(s){ if(!s.gradeRooms)s.gradeRooms={}; s.gradeRooms[g]=val; render(); }},
     handleTeacherClick:(id)=>{ state.selectedTeacherId=id; render(); },
-    startEditTeacher:(id)=>{ state.editingTeacherId=id; render(); setTimeout(()=>document.getElementById('edit-t-name')?.select(),10); },
+    startEditTeacher:(id)=>{ state.editingTeacherId=id; render(); setTimeout(()=>document.getElementById(`edit-t-name-${id}`)?.select(),10); },
     stopEditTeacher:()=>{ state.editingTeacherId=null; render(); },
     addTeacher:()=>{ state.teachers.push({id:'t_'+Date.now(),name:'教員'+(state.teachers.length+1),maxHours:24,homeroom:'',ngTimes:{},assignments:[]}); render(); },
     removeTeacher:(id)=>{ state.teachers=state.teachers.filter(x=>x.id!==id); render(); },
@@ -650,20 +452,24 @@ window.actions = {
     updateBuilder:(k,v)=>{ state.specialBuilder[k]=v; render(); },
     toggleBuilderTarget:(cls)=>{ const arr=state.specialBuilder.targets; const idx=arr.indexOf(cls); if(idx>-1) arr.splice(idx,1); else arr.push(cls); render(); },
     toggleBuilderTeacher:(tid)=>{ const arr=state.specialBuilder.teachers; const idx=arr.indexOf(tid); if(idx>-1) arr.splice(idx,1); else arr.push(tid); render(); },
-    buildSpecialBlock:()=>{ const sb=state.specialBuilder; if(!sb.subjectId||sb.targets.length===0){showToast("教科と対象クラスを選択してください","error");return;} const s=safeFind(state.subjects,'id',sb.subjectId); const newId='sp_'+Date.now(); state.specialBlocks.unshift({id:newId,type:sb.type,subjectId:sb.subjectId,subject:s?s.name:'特殊',room:sb.room,hours:sb.hours,targets:[...sb.targets],teachers:sb.teachers.map(tid=>({id:tid,hours:sb.hours})),limitOnePerDay:false, fixedTimes:[]}); state.specialBuilder.targets=[]; state.specialBuilder.teachers=[]; state.openSpecialEdits[newId]=true; render(); showToast("特殊授業を作成しました","success"); },
+    buildSpecialBlock:()=>{ const sb=state.specialBuilder; if(!sb.subjectId||sb.targets.length===0){showToast("教科と対象クラスを選択してください","error");return;} const s=safeFind(state.subjects,'id',sb.subjectId); const newId='sp_'+Date.now(); state.specialBlocks.unshift({id:newId,type:sb.type,subjectId:sb.subjectId,subject:s?s.name:'特殊',room:sb.room,hours:sb.hours,targets:[...sb.targets],teachers:sb.teachers.map(tid=>({id:tid,hours:sb.hours})),limitOnePerDay:false, fixedTimes:new Array(parseInt(sb.hours)).fill('')}); state.specialBuilder.targets=[]; state.specialBuilder.teachers=[]; state.openSpecialEdits[newId]=true; render(); showToast("特殊授業を作成しました","success"); },
     toggleSpecialEdit:(id)=>{ state.openSpecialEdits[id]=!state.openSpecialEdits[id]; render(); },
     updateSpecialBlock:(id,k,v)=>{ const b=safeFind(state.specialBlocks,'id',id); if(b){ b[k]=v; render(); }},
     removeSpecialBlock:(i)=>{ state.specialBlocks.splice(i,1); render(); },
-    updateSpecialFixedTime:(id,idx,val)=>{ const b=safeFind(state.specialBlocks,'id',id); if(b){ if(!b.fixedTimes)b.fixedTimes=[]; b.fixedTimes[idx]=val; render(); }},
+    updateSpecialFixedTime:(id,idx,val)=>{ const b=safeFind(state.specialBlocks,'id',id); if(b){ if(!b.fixedTimes)b.fixedTimes=new Array(b.hours).fill(''); b.fixedTimes[idx]=val; render(); }},
     toggleSpecialTarget:(id,cls)=>{ const b=safeFind(state.specialBlocks,'id',id); if(b){ const i=b.targets.indexOf(cls); if(i>-1)b.targets.splice(i,1); else b.targets.push(cls); render(); }},
     toggleSpecialTeacher:(id,tid)=>{ const b=safeFind(state.specialBlocks,'id',id); if(b){ const i=b.teachers.findIndex(x=>x.id===tid); if(i>-1)b.teachers.splice(i,1); else b.teachers.push({id:tid,hours:b.hours}); render(); }},
 
-    // ルール操作
     pushUndoRules:()=>{ state.rulesUndoStack.push(JSON.stringify(state.advancedRules)); if(state.rulesUndoStack.length>10) state.rulesUndoStack.shift(); },
     undoRules:()=>{ if(state.rulesUndoStack.length>0){ state.advancedRules=JSON.parse(state.rulesUndoStack.pop()); render(); showToast("ルールを戻しました"); }else showToast("戻せる履歴がありません","error"); },
     togglePkg:(id)=>{ Object.keys(state.openPkgs).forEach(k=>state.openPkgs[k]=false); state.openPkgs[id]=true; render(); },
     toggleRuleActive:(k,a)=>{ actions.pushUndoRules(); if(!state.advancedRules)state.advancedRules={priorities:{}}; if(a){ const item=step8Packages.flatMap(p=>p.items).find(i=>i.key===k); state.advancedRules[k]=(item.type==='array'?[]:true); state.advancedRules.priorities[k]='high'; }else{ delete state.advancedRules[k]; delete state.advancedRules.priorities[k]; } render(); },
     setPriority:(k,v)=>{ state.advancedRules.priorities[k]=v; render(); },
+    
+    renderContinuousUI: (rk) => {
+        const ed = state.ruleEditor[rk] || {};
+        return `<div class="flex flex-col gap-3 mt-1 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800"><div class="flex items-center justify-between gap-4"><div class="flex flex-col gap-1"><span class="text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase">枠固定の設定</span><select id="ed-priority" class="m3-input !py-1 !text-[10px] !w-40 font-black"><option value="high">厳守 (1, 3, 5限始のみ)</option><option value="low">努力 (妥協枠を許可)</option></select></div><div class="flex flex-col gap-1"><span class="text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase">妥協許可枠 (努力時のみ有効)</span><div class="flex gap-3"><label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="ed-allowP2" class="w-4 h-4 text-indigo-600 rounded"><span class="text-[10px] font-bold text-indigo-900 dark:text-indigo-100">2限始(中休み跨ぎ)</span></label><label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="ed-allowP4" class="w-4 h-4 text-indigo-600 rounded"><span class="text-[10px] font-bold text-indigo-900 dark:text-indigo-100">4限始(給食跨ぎ)</span></label></div></div></div></div>`;
+    },
     renderMultiSelect: (ruleKey, fieldKey, label, options, selectedArr, theme = 'blue') => {
         let h = `<div class="flex flex-col sm:flex-row sm:items-center gap-1.5"><span class="text-[9px] font-black text-slate-400 w-12 shrink-0">${label}</span><div class="flex flex-wrap gap-1 flex-1">`;
         let activeC = 'bg-blue-600 text-white border-blue-700 shadow-md ring-1 ring-blue-400';
@@ -677,20 +483,74 @@ window.actions = {
     toggleRuleEditor:(rk,fk,v)=>{ if(!state.ruleEditor[rk]) state.ruleEditor[rk]={}; if(!state.ruleEditor[rk][fk]) state.ruleEditor[rk][fk]=[]; const arr=state.ruleEditor[rk][fk]; const i=arr.indexOf(v); if(i>-1) arr.splice(i,1); else arr.push(v); actions.updatePreviewFromEditor(rk); render(); },
     toggleAllRuleEditor:(rk,fk,optsStr)=>{ const opts=optsStr.split(','); if(!state.ruleEditor[rk]) state.ruleEditor[rk]={}; const arr=state.ruleEditor[rk][fk]||[]; const isA=opts.every(o=>arr.includes(o)); state.ruleEditor[rk][fk]=isA?[]:[...opts]; actions.updatePreviewFromEditor(rk); render(); },
     clearRuleEditor:(rk)=>{ state.ruleEditor[rk]={}; actions.updatePreviewFromEditor(rk); render(); },
-    addRuleMulti:(rk,fks)=>{ actions.pushUndoRules(); const ed=state.ruleEditor[rk]||{}; let obj={}; let ok=true; fks.split(',').forEach(fk=>{ let val=ed[fk==='target'?'targets':fk==='exclude'?'excludes':fk==='subject'?'subjects':fk==='subject1'?'subjects1':fk==='subject2'?'subjects2':fk==='day'?'days':fk==='period'?'periods':fk]; if(!val?.length && fk!=='exclude'){ok=false;} obj[fk==='target'?'targets':fk==='exclude'?'excludes':fk==='subject'?'subjects':fk==='subject1'?'subjects1':fk==='subject2'?'subjects2':fk==='day'?'days':fk==='period'?'periods':fk]=val; }); if(!ok){showToast("選択項目が不足しています","error");return;} state.advancedRules[rk].push(obj); state.ruleEditor[rk]={}; actions.updatePreviewFromEditor(rk); render(); },
+    addRuleMulti:(rk,fks)=>{ 
+        actions.pushUndoRules(); const ed=state.ruleEditor[rk]||{}; let obj={}; let ok=true; 
+        fks.split(',').forEach(fk=>{ 
+            let val=ed[fk==='target'?'targets':fk==='exclude'?'excludes':fk==='subject'?'subjects':fk==='subject1'?'subjects1':fk==='subject2'?'subjects2':fk==='day'?'days':fk==='period'?'periods':fk]; 
+            if(!val?.length && fk!=='exclude'){ok=false;} 
+            obj[fk==='target'?'targets':fk==='exclude'?'excludes':fk==='subject'?'subjects':fk==='subject1'?'subjects1':fk==='subject2'?'subjects2':fk==='day'?'days':fk==='period'?'periods':fk]=val; 
+        }); 
+        if(!ok){showToast("選択項目が不足しています","error");return;} 
+        if(rk==='continuousClasses') { obj.priority = document.getElementById('ed-priority')?.value || 'high'; obj.allowPeriod2 = document.getElementById('ed-allowP2')?.checked || false; obj.allowPeriod4 = document.getElementById('ed-allowP4')?.checked || false; }
+        if(!state.advancedRules[rk]) state.advancedRules[rk] = [];
+        state.advancedRules[rk].push(obj); state.ruleEditor[rk]={}; actions.updatePreviewFromEditor(rk); render(); 
+    },
     removeRuleNew:(k,i)=>{ actions.pushUndoRules(); state.advancedRules[k].splice(i,1); render(); },
-    applyPreset:(type)=>{ actions.pushUndoRules(); if(type==='reset') state.advancedRules={priorities:{}}; else if(type==='standard') { state.advancedRules.limitOneSubjectPerDayStrict=true; state.advancedRules.limitContinuousToSpecificPeriods=true; state.advancedRules.priorities.limitOneSubjectPerDayStrict='high'; state.advancedRules.priorities.limitContinuousToSpecificPeriods='high'; } else if(type==='child') { state.advancedRules.limitOneSubjectPerDayStrict=true; state.advancedRules.amPrioritySubjects=[{targets:["全学年"],subjects:["国語"]},{targets:["全学年"],subjects:["算数"]}]; state.advancedRules.priorities.limitOneSubjectPerDayStrict='high'; state.advancedRules.priorities.amPrioritySubjects='low'; } render(); },
+    applyPreset:(type)=>{ actions.pushUndoRules(); if(type==='reset') state.advancedRules={priorities:{}}; else if(type==='standard') { state.advancedRules.limitOneSubjectPerDayStrict=true; state.advancedRules.priorities.limitOneSubjectPerDayStrict='high'; } else if(type==='child') { state.advancedRules.limitOneSubjectPerDayStrict=true; state.advancedRules.amPrioritySubjects=[{targets:["全学年"],subjects:["国語"]},{targets:["全学年"],subjects:["算数"]}]; state.advancedRules.priorities.limitOneSubjectPerDayStrict='high'; state.advancedRules.priorities.amPrioritySubjects='low'; } render(); },
     resetPackage:(id)=>{ const pkg=step8Packages.find(p=>p.id===id); if(pkg){ pkg.items.forEach(i=>{ delete state.advancedRules[i.key]; delete state.advancedRules.priorities[i.key]; }); render(); }},
     
     // プレビュー表示
     calculateActiveBlocks: () => { let b={}; const r=state.advancedRules||{}; if(r.amPrioritySubjects?.length) DAYS.forEach(d=>[5,6].forEach(p=>b[`${d}-${p}`]=true)); if(r.lastPeriodSubjects?.length) DAYS.forEach(d=>[1,2,3,4,5].forEach(p=>b[`${d}-${p}`]=true)); ['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].forEach(k=>{ if(r[k]) r[k].forEach(v=>{ const dys=v.days||(v.day?[v.day]:DAYS), pds=v.periods?v.periods.map(p=>parseInt(p)):(v.period?[v.period]:PERIODS); dys.forEach(d=>pds.forEach(p=>b[`${d}-${p}`]=true)); })}); return b; },
-    applyPreviewUI: (aB, hB, d) => { const dEl=document.getElementById('preview-desc'); if(dEl) dEl.innerText=d; DAYS.forEach(d=>{ PERIODS.forEach(p=>{ const el=document.getElementById(`pv-${d}-${p}`); if(el){ if(hB[`${d}-${p}`]) el.className="h-6 w-full rounded-[4px] border transition-colors bg-rose-500/30 border-rose-400 bg-[repeating-linear-gradient(45deg,transparent,transparent_2px,rgba(244,63,94,0.2)_2px,rgba(244,63,94,0.2)_4px)] shadow-inner"; else if(aB[`${d}-${p}`]) el.className="h-6 w-full rounded-[4px] border transition-colors bg-rose-100 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800/50"; else el.className="h-6 w-full rounded-[4px] border transition-colors bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm"; } })}); },
+    applyPreviewUI: (aB, hB, d) => { 
+        const dEl=document.getElementById('preview-desc'); if(dEl) dEl.innerText=d; 
+        DAYS.forEach(d=>{ 
+            PERIODS.forEach(p=>{ 
+                const el=document.getElementById(`pv-${d}-${p}`); 
+                if(el){ 
+                    if(hB[`${d}-${p}`] === 'blue') el.className="h-6 w-full rounded-[4px] border transition-colors duration-300 bg-blue-500/30 border-blue-400 bg-[repeating-linear-gradient(45deg,transparent,transparent_2px,rgba(59,130,246,0.2)_2px,rgba(59,130,246,0.2)_4px)] shadow-inner";
+                    else if(hB[`${d}-${p}`] === 'yellow') el.className="h-6 w-full rounded-[4px] border transition-colors duration-300 bg-amber-500/30 border-amber-400 bg-[repeating-linear-gradient(45deg,transparent,transparent_2px,rgba(245,158,11,0.2)_2px,rgba(245,158,11,0.2)_4px)] shadow-inner";
+                    else if(hB[`${d}-${p}`] === true || hB[`${d}-${p}`] === 'red') el.className="h-6 w-full rounded-[4px] border transition-colors duration-300 bg-rose-500/30 border-rose-400 bg-[repeating-linear-gradient(45deg,transparent,transparent_2px,rgba(244,63,94,0.2)_2px,rgba(244,63,94,0.2)_4px)] shadow-inner";
+                    else if(aB[`${d}-${p}`]) el.className="h-6 w-full rounded-[4px] border transition-colors duration-300 bg-rose-100 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800/50"; 
+                    else el.className="h-6 w-full rounded-[4px] border transition-colors duration-300 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm"; 
+                } 
+            });
+        }); 
+    },
     clearPreview: () => { actions.applyPreviewUI(actions.calculateActiveBlocks(), {}, "設定済みのルールは薄く、編集中の項目は濃く表示されます。"); },
-    updatePreviewFromEditor: (rk) => { const aB=actions.calculateActiveBlocks(); let hB={}; let d="編集中項目のシミュレーション"; const ed=state.ruleEditor[rk]||{}; if(rk==='amPrioritySubjects'){ DAYS.forEach(d=>[5,6].forEach(p=>hB[`${d}-${p}`]=true)); d="午前優先: 午後のコマが抑制されます。"; } else if (rk==='lastPeriodSubjects') { DAYS.forEach(d=>[1,2,3,4,5].forEach(p=>hB[`${d}-${p}`]=true)); d="最終コマ優先: 最終コマ以外の枠が抑制されます。"; } else if (['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].includes(rk)) { const dys=ed.days?.length?ed.days:DAYS, pds=ed.periods?.length?ed.periods.map(p=>parseInt(p.replace('限',''))):PERIODS; if(ed.days?.length||ed.periods?.length){ dys.forEach(d=>pds.forEach(p=>hB[`${d}-${p}`]=true)); d=`指定された ${dys.join('')}曜 ${pds.join(',')}限 の配置を禁止します。`; } } else if (rk==='limitContinuousToSpecificPeriods') { DAYS.forEach(d=>[2,4,6].forEach(p=>hB[`${d}-${p}`]=true)); d="ニコイチ制限: 中休み・昼休みを跨ぐペアが禁止されます。"; } actions.applyPreviewUI(aB, hB, d); },
+    updatePreviewFromEditor: (rk) => { 
+        const aB=actions.calculateActiveBlocks(); let hB={}; let d="編集中項目のシミュレーション"; 
+        const ed=state.ruleEditor[rk]||{}; 
+        if(rk==='amPrioritySubjects'){ DAYS.forEach(d=>[5,6].forEach(p=>hB[`${d}-${p}`]=true)); d="午前優先: 午後のコマが抑制されます。"; } 
+        else if (rk==='lastPeriodSubjects') { DAYS.forEach(d=>[1,2,3,4,5].forEach(p=>hB[`${d}-${p}`]=true)); d="最終コマ優先: 最終コマ以外の枠が抑制されます。"; } 
+        else if (['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].includes(rk)) { const dys=ed.days?.length?ed.days:DAYS, pds=ed.periods?.length?ed.periods.map(p=>parseInt(p.replace('限',''))):PERIODS; if(ed.days?.length||ed.periods?.length){ dys.forEach(d=>pds.forEach(p=>hB[`${d}-${p}`]=true)); d=`指定された ${dys.join('')}曜 ${pds.join(',')}限 の配置を禁止します。`; } } 
+        else if (rk==='continuousClasses') { 
+            const prio = document.getElementById('ed-priority')?.value || 'high';
+            const aP2 = document.getElementById('ed-allowP2')?.checked;
+            const aP4 = document.getElementById('ed-allowP4')?.checked;
+            DAYS.forEach(d => {
+                hB[`${d}-1`] = 'blue'; hB[`${d}-3`] = 'blue'; hB[`${d}-5`] = 'blue';
+                if (prio === 'low') { if (aP2) hB[`${d}-2`] = 'yellow'; if (aP4) hB[`${d}-4`] = 'yellow'; }
+            });
+            d = "青:推奨枠(1,3,5限始) / 黄:妥協枠(許可時のみ) / 無色:禁止"; 
+        } 
+        actions.applyPreviewUI(aB, hB, d); 
+    },
     hoverRule: (k) => { if(state.advancedRules[k]) actions.updatePreviewFromEditor(k); },
-    hoverListRule: (k,i) => { const aB=actions.calculateActiveBlocks(); let hB={}; let d="選択中のルール範囲"; const r=state.advancedRules[k][i]; if(k==='amPrioritySubjects'){ DAYS.forEach(d=>[5,6].forEach(p=>hB[`${d}-${p}`]=true)); } else if(['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].includes(k)){ const dys=r.days||(r.day?[r.day]:DAYS), pds=r.periods?r.periods.map(p=>parseInt(p.replace('限',''))):(r.period?[r.period]:PERIODS); dys.forEach(d=>pds.forEach(p=>hB[`${d}-${p}`]=true)); } actions.applyPreviewUI(aB, hB, d); },
+    hoverListRule: (k,i) => { 
+        const aB=actions.calculateActiveBlocks(); let hB={}; let d="選択中のルール範囲"; 
+        const r=state.advancedRules[k][i]; 
+        if(k==='amPrioritySubjects'){ DAYS.forEach(d=>[5,6].forEach(p=>hB[`${d}-${p}`]=true)); } 
+        else if(['avoidSpecificTimes','avoidSpecialistTimes','homeroomOnlyTimes'].includes(k)){ const dys=r.days||(r.day?[r.day]:DAYS), pds=r.periods?r.periods.map(p=>parseInt(p.replace('限',''))):(r.period?[r.period]:PERIODS); dys.forEach(d=>pds.forEach(p=>hB[`${d}-${p}`]=true)); } 
+        else if (k==='continuousClasses') { 
+            DAYS.forEach(d => {
+                hB[`${d}-1`] = 'blue'; hB[`${d}-3`] = 'blue'; hB[`${d}-5`] = 'blue';
+                if (r.priority === 'low') { if (r.allowPeriod2) hB[`${d}-2`] = 'yellow'; if (r.allowPeriod4) hB[`${d}-4`] = 'yellow'; }
+            });
+            d = "青:推奨枠 / 黄:妥協枠 / 無色:禁止";
+        } 
+        actions.applyPreviewUI(aB, hB, d); 
+    },
 
-    // 基本データ管理 UI操作
     setDashTab:(t)=>{ state.dashTab=t; render(); },
     setDashView:(v)=>{ state.dashView=v; render(); },
     setDashFilter:(f)=>{ state.dashFilter=f; render(); },
@@ -701,32 +561,79 @@ window.actions = {
     setPeriod:(g,d,v)=>{if(!state.periods[g])state.periods[g]={}; state.periods[g][d]=Math.max(0,Math.min(6,parseInt(v)||0)); render();},
     toggleBlock:(k)=>{state.globalBlocks[k]=!state.globalBlocks[k]; render();},
     
-    // セーブ・ロード
-    openQuickSaveModal: () => { const slots=Array.from({length:10},(_,i)=>i+1); let h=`<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0"><h3 class="text-lg font-black text-blue-900">💾 セーブ/ロード (全10スロット)</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold">✕</button></div><div class="flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-1 flex-1">`;
-        slots.forEach(i=>{ let m=null; try{m=JSON.parse(localStorage.getItem('tt_v15_7_5_5_meta_'+i));}catch(e){} const isEmpty=!m;
-            h+=`<div class="flex items-center justify-between p-3 border rounded-xl ${isEmpty?'bg-slate-50 border-dashed':'bg-white shadow-sm'}"><div class="flex flex-col"><span class="text-[10px] font-black text-slate-400">Slot ${i}</span><span class="text-xs font-bold ${isEmpty?'text-slate-300':'text-slate-700'}">${isEmpty?'空きスロット':m.name}</span><span class="text-[8px] text-slate-400">${isEmpty?'':m.time}</span></div><div class="flex gap-1"><button onclick="actions.quickSave(${i})" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold">セーブ</button><button onclick="actions.quickLoad(${i})" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-bold ${isEmpty?'opacity-30 cursor-not-allowed':''}" ${isEmpty?'disabled':''}>ロード</button></div></div>`;
-        }); h+=`</div>`; document.getElementById('modal-body').innerHTML=h; document.getElementById('modal-overlay').classList.remove('hidden'); },
-    quickSave: (s) => { const un=state.unassigned?.length||0, n=prompt("保存名を入力してください", `未配置${un} - ${new Date().toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}`); if(!n)return; const meta={name:n,time:new Date().toLocaleString()}; try{ localStorage.setItem('tt_v15_7_5_5_save_'+s,JSON.stringify(state)); localStorage.setItem('tt_v15_7_5_5_meta_'+s,JSON.stringify(meta)); showToast("保存しました","success"); actions.openQuickSaveModal(); }catch(e){showToast("保存容量不足","error");} },
-    quickLoad: (s) => { if(confirm("データを読み込みますか？")){ const d=localStorage.getItem('tt_v15_7_5_5_save_'+s); if(d){ Object.assign(state,JSON.parse(d)); forceInitState(); render(); showToast("読み込み完了","success"); actions.closeModal(); } } },
+    openQuickSaveModal: () => { const slots=Array.from({length:10},(_,i)=>i+1); let h=`<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0"><h3 class="text-lg font-black text-blue-900">💾 セーブ/ロード (全10スロット)</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold">✕</button></div><div class="flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-1 flex-1">`; slots.forEach(i=>{ let m=null; try{m=JSON.parse(localStorage.getItem('tt_v16_0_1_meta_'+i));}catch(e){} const isEmpty=!m; h+=`<div class="flex items-center justify-between p-3 border rounded-xl ${isEmpty?'bg-slate-50 border-dashed':'bg-white shadow-sm'}"><div class="flex flex-col"><span class="text-[10px] font-black text-slate-400">Slot ${i}</span><span class="text-xs font-bold ${isEmpty?'text-slate-300':'text-slate-700'}">${isEmpty?'空きスロット':m.name}</span><span class="text-[8px] text-slate-400">${isEmpty?'':m.time}</span></div><div class="flex gap-1"><button onclick="actions.quickSave(${i})" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold">セーブ</button><button onclick="actions.quickLoad(${i})" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-bold ${isEmpty?'opacity-30 cursor-not-allowed':''}" ${isEmpty?'disabled':''}>ロード</button></div></div>`; }); h+=`</div>`; document.getElementById('modal-body').innerHTML=h; document.getElementById('modal-overlay').classList.remove('hidden'); },
+    quickSave: (s) => { const un=state.unassigned?.length||0, n=prompt("保存名を入力してください", `未配置${un} - ${new Date().toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}`); if(!n)return; const meta={name:n,time:new Date().toLocaleString()}; try{ localStorage.setItem('tt_v16_0_1_save_'+s,JSON.stringify(state)); localStorage.setItem('tt_v16_0_1_meta_'+s,JSON.stringify(meta)); showToast("保存しました","success"); actions.openQuickSaveModal(); }catch(e){showToast("保存容量不足","error");} },
+    quickLoad: (s) => { if(confirm("データを読み込みますか？")){ const d=localStorage.getItem('tt_v16_0_1_save_'+s); if(d){ Object.assign(state,JSON.parse(d)); forceInitState(); render(); showToast("読み込み完了","success"); actions.closeModal(); } } },
 
-    // スプレッドシート出力
     openExportModal: () => { let html = `<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0"><h3 class="text-lg font-black text-blue-900">📤 スプレッドシートに出力</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold">✕</button></div><div class="flex flex-col gap-4 overflow-y-auto pr-1 flex-1 min-h-0"><div class="flex flex-col gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-200"><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white rounded-xl transition-colors"><input type="checkbox" id="exp-mat-class" checked class="w-5 h-5 text-blue-600"><span class="font-black text-sm">全体マトリックス (クラス軸)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white rounded-xl transition-colors"><input type="checkbox" id="exp-mat-teacher" class="w-5 h-5 text-blue-600"><span class="font-black text-sm">全体マトリックス (教員軸)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white rounded-xl transition-colors"><input type="checkbox" id="exp-mat-room" class="w-5 h-5 text-blue-600"><span class="font-black text-sm">全体マトリックス (教室軸)</span></label><div class="h-px bg-slate-200 my-2"></div><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white rounded-xl transition-colors"><input type="checkbox" id="exp-ind-class" checked class="w-5 h-5 text-blue-600"><span class="font-black text-sm">各クラス用時間割 (配布用)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white rounded-xl transition-colors"><input type="checkbox" id="exp-ind-teacher" class="w-5 h-5 text-blue-600"><span class="font-black text-sm">各教員用時間割 (配布用)</span></label></div><div class="flex justify-end mt-2"><button onclick="actions.exportToSpreadsheetExec()" class="m3-btn-primary px-10">実行して出力</button></div></div>`; document.getElementById('modal-body').innerHTML = html; document.getElementById('modal-overlay').classList.remove('hidden'); },
     exportToSpreadsheetExec: async function() { const opts = { matrixClass: document.getElementById('exp-mat-class')?.checked||false, matrixTeacher: document.getElementById('exp-mat-teacher')?.checked||false, matrixRoom: document.getElementById('exp-mat-room')?.checked||false, individualClass: document.getElementById('exp-ind-class')?.checked||false, individualTeacher: document.getElementById('exp-ind-teacher')?.checked||false }; actions.closeModal(); showLoading("出力中", "作成には数十秒かかります。"); try{ const res=await fetch(GAS_URL,{method:'POST',mode:'cors',body:JSON.stringify({action:'export',schedule:state.generatedSchedule,state:actions.preparePayload(), options:opts})}); const data=await res.json(); if(data.success) showToast("出力成功！","success"); else showToast("出力失敗","error"); }catch(e){showToast("エラー","error");} finally {hideLoading();} },
 
-    // ★ AI マラソン & 生成ロジック (ペイロード準備時のルール緩和を含む)
     updateMarathon: (k,v) => { state.marathon[k] = v; render(); },
-    startGeneration: async function(){ state.marathon.active = true; state.marathon.currentGen = 1; globalStartTime = Date.now(); state.best = {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}; actions.runMarathonCycle(); },
+    
+    // 【重要ガード】空データを安全に処理する payload 生成
+    preparePayload: () => { 
+        const pS = JSON.parse(JSON.stringify(state)); 
+        if (pS.advancedRules) { 
+            Object.keys(pS.advancedRules).forEach(k => { 
+                if (k === 'priorities') return; 
+                const oR = pS.advancedRules[k]; 
+                if (!Array.isArray(oR)) return; 
+                const exR = []; 
+                oR.forEach(r => { 
+                    if (k === 'exclusivePairs') { 
+                        const s1s = r.subjects1 || [r.subject1]; const s2s = r.subjects2 || [r.subject2]; 
+                        s1s.forEach(s1 => s2s.forEach(s2 => { if(s1 && s2 && s1 !== s2) exR.push({subject1: s1, subject2: s2}); })); 
+                    } else { 
+                        const tgs = (r.targets?.length) ? r.targets : [undefined]; 
+                        const excs = (r.excludes?.length) ? r.excludes : [undefined]; 
+                        const subs = (r.subjects?.length) ? r.subjects : [undefined]; 
+                        const dys = (r.days?.length) ? r.days : [undefined]; 
+                        const pds = (r.periods?.length) ? r.periods : [undefined]; 
+                        tgs.forEach(tg => excs.forEach(ex => subs.forEach(su => dys.forEach(dy => pds.forEach(pd => { 
+                            let nr = {}; 
+                            if (tg) nr.grade = tg; 
+                            if (ex) nr.exclude = ex; 
+                            if (su) nr.subject = su; 
+                            if (dy) nr.day = dy; 
+                            if (pd) {
+                                const pdStr = pd.toString();
+                                nr.period = parseInt(pdStr.replace('限','')); 
+                            }
+                            if (k === 'continuousClasses') { nr.priority = r.priority || 'high'; nr.allowPeriod2 = !!r.allowPeriod2; nr.allowPeriod4 = !!r.allowPeriod4; }
+                            exR.push(nr); 
+                        }))))); 
+                    } 
+                }); 
+                pS.advancedRules[k] = exR; 
+            }); 
+            if (state.marathon.relaxRules && pS.advancedRules.priorities) {
+                Object.keys(pS.advancedRules.priorities).forEach(k => { pS.advancedRules.priorities[k] = 'low'; });
+                if (pS.advancedRules.continuousClasses) { pS.advancedRules.continuousClasses.forEach(rc => { rc.priority = 'low'; rc.allowPeriod2 = true; rc.allowPeriod4 = true; }); }
+            }
+        } 
+        return pS; 
+    },
+
+    startGeneration: async function(){ 
+        state.marathon.active = true; state.marathon.currentGen = 1; globalStartTime = Date.now(); 
+        state.best = {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}; 
+        actions.runMarathonCycle(); 
+    },
     continueMarathon: async function(){ const addGen = 10; state.marathon.active = true; if(state.marathon.maxGen !== Infinity) state.marathon.maxGen += addGen; actions.runMarathonCycle(); },
     continueGeneration: function(){ state.marathon.active = false; actions.runSingleCycle("今の盤面を元に再調整中...", false); },
-    cancelGeneration: () => { hideLoading(); state.marathon.active = false; if (state.best.schedule) { state.generatedSchedule = state.best.schedule; state.unassigned = state.best.unassigned; state.scoreCard = state.best.scoreCard; state.reportDetails = state.best.reportDetails; state.currentStep = 10; showToast(`ベスト盤面を表示します。`, "info"); } else { state.currentStep = 9; } render(); },
+    cancelGeneration: () => { hideLoading(); state.marathon.active = false; if (state.best && state.best.schedule) { state.generatedSchedule = state.best.schedule; state.unassigned = state.best.unassigned; state.scoreCard = state.best.scoreCard; state.reportDetails = state.best.reportDetails; state.currentStep = 10; showToast(`ベスト盤面を表示します。`, "info"); } else { state.currentStep = 9; } render(); },
     
+    // 【通信安定化】エラーレスポンスの厳密なトラップ
     runMarathonCycle: async function(){ 
         if (!state.marathon.active) return; 
         const m = state.marathon; 
         startGenTimer(); 
         showLoading("AIマラソン中", `第 ${m.currentGen} / ${m.maxGen===Infinity?'∞':m.maxGen} 世代`, true, `目標:未配置${m.target}以下`); 
         try { 
-            const res = await fetch(GAS_URL, { method:'POST', mode:'cors', body:JSON.stringify({ action:'generate', state: actions.preparePayload(), currentSchedule: null, unassigned: null }) }); 
+            const payload = actions.preparePayload();
+            const res = await fetch(GAS_URL, { method:'POST', mode:'cors', headers: { 'Content-Type': 'text/plain' }, body:JSON.stringify({ action:'generate', state: payload, currentSchedule: null, unassigned: null }) }); 
+            
+            if (!res.ok) throw new Error("サーバーエラー");
             const data = await res.json(); 
             if (!state.marathon.active) return; 
             
@@ -744,93 +651,31 @@ window.actions = {
                 } 
                 const goalReached = state.best.unassignedCount <= m.target, genLimitReached = m.currentGen >= m.maxGen; 
                 if (goalReached || genLimitReached) { 
-                    state.generatedSchedule = state.best.schedule; 
-                    state.unassigned = state.best.unassigned; 
-                    state.scoreCard = state.best.scoreCard; 
-                    state.reportDetails = state.best.reportDetails; 
-                    state.currentStep=10; 
-                    state.marathon.active = false; 
-                    render(); 
-                    hideLoading(); 
-                    if (goalReached) showToast(`目標達成！未配置${state.best.unassignedCount}`, "success"); 
-                    else showToast(`最大世代に到達。`, "success"); 
-                } else { 
-                    m.currentGen++; 
-                    actions.runMarathonCycle(); 
-                } 
-            } else { 
-                showToast("エラー発生","error"); 
-                hideLoading(); 
-                state.marathon.active = false; 
-            } 
-        } catch(e) { 
-            showToast("通信エラー","error"); 
-            hideLoading(); 
-            state.marathon.active = false; 
-        } 
+                    state.generatedSchedule = state.best.schedule; state.unassigned = state.best.unassigned; state.scoreCard = state.best.scoreCard; state.reportDetails = state.best.reportDetails; 
+                    state.currentStep=10; state.marathon.active = false; render(); hideLoading(); 
+                    if (goalReached) showToast(`目標達成！未配置${state.best.unassignedCount}`, "success"); else showToast(`最大世代に到達。`, "success"); 
+                } else { m.currentGen++; actions.runMarathonCycle(); } 
+            } else { showToast("AIエラー:" + (data.message||"不明"),"error"); hideLoading(); state.marathon.active = false; } 
+        } catch(e) { console.error(e); showToast("通信エラー(サーバー設定を確認)","error"); hideLoading(); state.marathon.active = false; } 
     },
     
     runSingleCycle: async function(status, isNew){ 
-        startGenTimer(); 
-        showLoading("計算中", status, true); 
+        startGenTimer(); showLoading("計算中", status, true); 
         try { 
-            const res = await fetch(GAS_URL, { method:'POST', mode:'cors', body:JSON.stringify({ action:'generate', state: actions.preparePayload(), currentSchedule: isNew?null:state.generatedSchedule, unassigned: state.unassigned }) }); 
+            const payload = actions.preparePayload();
+            const res = await fetch(GAS_URL, { method:'POST', mode:'cors', headers: { 'Content-Type': 'text/plain' }, body:JSON.stringify({ action:'generate', state: payload, currentSchedule: isNew?null:state.generatedSchedule, unassigned: state.unassigned }) }); 
+            if (!res.ok) throw new Error("サーバーエラー");
             const data = await res.json(); 
-            if(data.schedule) state.generatedSchedule=data.schedule; 
-            if(data.unassigned) state.unassigned=data.unassigned; 
-            if(data.scoreCard) state.scoreCard=data.scoreCard; 
-            if(data.reportDetails) state.reportDetails=data.reportDetails; 
-
-            if(data.success) { 
-                state.currentStep=10; 
-                render(); 
-                hideLoading(); 
-            } else { 
-                showToast("エラー","error"); 
-                hideLoading(); 
-            } 
-        } catch(e) { 
-            showToast("通信エラー","error"); 
-            hideLoading(); 
-        } 
-    },
-    
-    // ユーティリティ・その他UIモーダル
-    preparePayload: () => { 
-        const pS = JSON.parse(JSON.stringify(state)); 
-        if (pS.advancedRules) { 
-            Object.keys(pS.advancedRules).forEach(k => { 
-                if (k === 'priorities') return; 
-                const oR = pS.advancedRules[k]; 
-                if (!Array.isArray(oR)) return; 
-                const exR = []; 
-                oR.forEach(r => { 
-                    if (k === 'exclusivePairs') { 
-                        const s1s = r.subjects1 || [r.subject1]; const s2s = r.subjects2 || [r.subject2]; 
-                        s1s.forEach(s1 => s2s.forEach(s2 => { if(s1 !== s2) exR.push({subject1: s1, subject2: s2}); })); 
-                    } else { 
-                        const tgs = (r.targets?.length) ? r.targets : [undefined]; const excs = (r.excludes?.length) ? r.excludes : [undefined]; const subs = (r.subjects?.length) ? r.subjects : [undefined]; const dys = (r.days?.length) ? r.days : [undefined]; const pds = (r.periods?.length) ? r.periods : [undefined]; 
-                        tgs.forEach(tg => excs.forEach(ex => subs.forEach(su => dys.forEach(dy => pds.forEach(pd => { let nr = {}; if (tg) nr.grade = tg; if (ex) nr.exclude = ex; if (su) nr.subject = su; if (dy) nr.day = dy; if (pd) nr.period = parseInt(pd.toString().replace('限','')); exR.push(nr); }))))); 
-                    } 
-                }); 
-                pS.advancedRules[k] = exR; 
-            }); 
-            // ★ ルール緩和モードONの場合、すべての優先度を「low(努力)」に書き換えて送信
-            if (state.marathon.relaxRules && pS.advancedRules.priorities) {
-                Object.keys(pS.advancedRules.priorities).forEach(k => {
-                    pS.advancedRules.priorities[k] = 'low';
-                });
-            }
-        } 
-        return pS; 
+            if(data.schedule) state.generatedSchedule=data.schedule; if(data.unassigned) state.unassigned=data.unassigned; if(data.scoreCard) state.scoreCard=data.scoreCard; if(data.reportDetails) state.reportDetails=data.reportDetails; 
+            if(data.success) { state.currentStep=10; render(); hideLoading(); } else { showToast("AIエラー:" + (data.message||"不明"),"error"); hideLoading(); } 
+        } catch(e) { console.error(e); showToast("通信エラー(サーバー設定を確認)","error"); hideLoading(); } 
     },
     
     openReportModal:()=>{ const sc = state.scoreCard; let h = `<div class="flex justify-between items-center mb-4 border-b pb-2"><h3 class="text-lg font-black text-blue-900">📊 AI自己採点レポート</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold text-xl">✕</button></div><div class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-4">`; h += `<div class="bg-blue-50 dark:bg-slate-800 p-4 rounded-xl border border-blue-200 shrink-0"><div class="flex justify-between items-center mb-2"><span class="font-black text-sm text-blue-900 dark:text-blue-300">基礎ルール (配置率)</span><span class="font-black text-lg text-blue-600">${sc.basic.score}%</span></div></div>`; const rules = sc.advanced.rules || {}; Object.keys(rules).forEach(k => { const r = rules[k], isP = r.score === 100; h += `<div class="bg-white dark:bg-slate-900 rounded-xl border ${isP ? 'border-emerald-200 shadow-emerald-50' : 'border-amber-300 shadow-amber-50'} shadow-sm overflow-hidden"><div class="px-4 py-2 flex justify-between items-center ${isP ? 'bg-emerald-50' : 'bg-amber-50'} border-b dark:border-slate-800"><span class="font-black text-xs ${isP ? 'text-emerald-800' : 'text-amber-800'}">${r.name}</span><span class="font-black text-sm">${r.score}%</span></div><div class="p-3">${r.failures?.length > 0 ? `<ul class="text-[10px] font-bold text-slate-600 dark:text-slate-400 space-y-1 list-disc pl-4">${r.failures.map(f => `<li>${f}</li>`).join('')}</ul>` : `<div class="text-[10px] font-bold text-emerald-600">✅ 遵守されています</div>`}</div></div>`; }); document.getElementById('modal-body').innerHTML = h + `</div>`; document.getElementById('modal-overlay').classList.remove('hidden'); },
     
     openUnassignedReasonModal: () => {
         let h = `<div class="flex justify-between items-center mb-4 border-b dark:border-slate-800 pb-2 shrink-0"><h3 class="text-lg font-black text-rose-600 dark:text-rose-400 flex items-center gap-2">⚠️ なぜ置けない？ (分析レポート)</h3><button onclick="actions.closeModal()" class="text-slate-400 hover:text-slate-600 font-bold text-xl transition-colors">✕</button></div><div class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-4 min-h-0">`;
-        const details = state.reportDetails || {};
-        const keys = Object.keys(details);
+        const details = state.reportDetails || {}; const keys = Object.keys(details);
         if (keys.length === 0) { h += `<div class="text-center text-slate-500 font-bold p-4">レポートデータがありません。</div>`; } else {
             keys.forEach(k => {
                 const d = details[k];
@@ -841,23 +686,14 @@ window.actions = {
         } h += `</div>`; document.getElementById('modal-body').innerHTML = h; document.getElementById('modal-overlay').classList.remove('hidden');
     },
 
-    // ★ 追加: ヒートマップ表示切り替え
     toggleHeatmap: (index) => {
         if (!state.unassigned || state.unassigned.length <= index) return;
         const lesson = state.unassigned[index];
-        if (state.heatmapLesson && state.heatmapLesson.id === lesson.id) {
-            state.heatmapLesson = null; // 解除
-        } else {
-            state.heatmapLesson = lesson;
-            state.dashView = 'class';
-            if (lesson.targets && lesson.targets.length > 0) {
-                state.dashFilter = lesson.targets[0];
-            }
-        }
+        if (state.heatmapLesson && state.heatmapLesson.id === lesson.id) { state.heatmapLesson = null; } 
+        else { state.heatmapLesson = lesson; state.dashView = 'class'; if (lesson.targets && lesson.targets.length > 0) { state.dashFilter = lesson.targets[0]; } }
         render();
     },
 
-    importData:()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];const r=new FileReader();r.onload=ev=>{Object.assign(state,JSON.parse(ev.target.result));forceInitState();render();showToast("読み込み完了","success");};r.readAsText(f);};i.click();},
     closeModal: () => { document.getElementById('modal-overlay').classList.add('hidden'); },
     updateRoomName:(id,v)=>{const r=safeFind(state.rooms,'id',id);if(r)r.name=v;render();},
     addRoom:()=>{state.rooms.push({id:'r_'+Date.now(),name:'新教室',capacity:1,ngTimes:{}});render();},
