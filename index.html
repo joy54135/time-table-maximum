@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 17.0.0</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 17.0.1</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 <script>tailwind.config={darkMode:'class'}</script>
@@ -51,7 +51,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
             <button id="btn-prev" class="m3-btn-secondary w-[80px] md:w-[120px] relative z-10 !text-xs">戻る</button>
             <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none hidden md:flex">
                 <div class="text-[11px] font-black text-slate-800 dark:text-slate-100 leading-none">Smart TimeTable</div>
-                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 17.0.0 (SA-LNS Pin-Lock)</div>
+                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 17.0.1 (SA-LNS Pin-Lock)</div>
             </div>
             <button id="btn-next" class="m3-btn-primary w-[140px] md:w-[180px] relative z-10 !text-xs"><span id="btn-next-text">次へ進む</span></button>
         </div>
@@ -101,8 +101,8 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 
 <script>
 var GAS_URL="https://script.google.com/macros/s/AKfycbweUMbBJDlkqbYj9BBHiygaidQjBPY4hrdn3uDkJbD91c7PmYit4uNxGqLC9evtglaf/exec";
-const STORAGE_KEY_DRAFT = 'tt_v17_0_0_draft';
-const STORAGE_KEY_SLOTS = 'tt_v17_0_0_slots';
+const STORAGE_KEY_DRAFT = 'tt_v17_0_1_draft';
+const STORAGE_KEY_SLOTS = 'tt_v17_0_1_slots';
 
 var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'];
 function getDynamicPeriods() { let m=6; if(state.periods) Object.values(state.periods).forEach(dObj=>Object.values(dObj).forEach(v=>{if(parseInt(v)>m)m=parseInt(v);})); return Array.from({length:m},(_,i)=>i+1); }
@@ -121,6 +121,7 @@ let slotsData = Array(10).fill(null);
 let exportAbortController = null;
 let isPainting = false;
 let paintTargetLock = true;
+let globalStartTime = 0; // 追加: 未定義エラーの回避
 
 function safeFind(arr,k,v){return (arr||[]).find(x=>x[k]===v);}
 function forceInitState(){
@@ -257,68 +258,41 @@ function restoreUIState(){
             } 
         }
     };
-    doRestore(); 
-    setTimeout(doRestore, 10); 
-    setTimeout(doRestore, 50); 
+    doRestore(); setTimeout(doRestore, 10); setTimeout(doRestore, 50); 
 }
 
-let confettiAnimationId = null;
-let celebrationTimeoutIds = [];
-
+let confettiAnimationId = null; let celebrationTimeoutIds = [];
 function triggerCelebration() {
-    celebrationTimeoutIds.forEach(clearTimeout);
-    celebrationTimeoutIds = [];
+    celebrationTimeoutIds.forEach(clearTimeout); celebrationTimeoutIds = [];
     if(confettiAnimationId) cancelAnimationFrame(confettiAnimationId);
     if(typeof confetti === 'function') confetti.reset();
-
     if(typeof confetti === 'function') {
-        var duration = 4000;
-        var end = Date.now() + duration;
+        var duration = 4000; var end = Date.now() + duration;
         (function frame() {
             confetti({ particleCount: 6, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#26ccff', '#a25afd', '#ff5e7e', '#88ff5a', '#fcff42', '#ffa62d', '#ff36ff'], zIndex: 400 });
             confetti({ particleCount: 6, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#26ccff', '#a25afd', '#ff5e7e', '#88ff5a', '#fcff42', '#ffa62d', '#ff36ff'], zIndex: 400 });
-            if (Date.now() < end) {
-                confettiAnimationId = requestAnimationFrame(frame);
-            }
+            if (Date.now() < end) confettiAnimationId = requestAnimationFrame(frame);
         }());
     }
-    const overlay = document.getElementById('celebration-overlay');
-    const text = document.getElementById('celebration-text');
-    overlay.classList.remove('hidden');
-    void overlay.offsetWidth; 
-    overlay.classList.remove('opacity-0');
-    overlay.classList.add('flex', 'opacity-100');
+    const overlay = document.getElementById('celebration-overlay'), text = document.getElementById('celebration-text');
+    overlay.classList.remove('hidden'); void overlay.offsetWidth; 
+    overlay.classList.remove('opacity-0'); overlay.classList.add('flex', 'opacity-100');
     
     const skipCelebration = () => {
         if(confettiAnimationId) cancelAnimationFrame(confettiAnimationId);
         if(typeof confetti === 'function') confetti.reset();
-        celebrationTimeoutIds.forEach(clearTimeout);
-        celebrationTimeoutIds = [];
-        
+        celebrationTimeoutIds.forEach(clearTimeout); celebrationTimeoutIds = [];
         overlay.classList.replace('opacity-100', 'opacity-0');
-        text.classList.remove('scale-100', 'scale-110');
-        text.classList.add('scale-150', 'opacity-0');
-        
+        text.classList.remove('scale-100', 'scale-110'); text.classList.add('scale-150', 'opacity-0');
         setTimeout(() => {
-            overlay.classList.add('hidden');
-            overlay.classList.remove('flex');
+            overlay.classList.add('hidden'); overlay.classList.remove('flex');
             text.className = "text-6xl md:text-[10rem] font-black text-transparent bg-clip-text bg-gradient-to-br from-yellow-300 via-pink-500 to-indigo-500 drop-shadow-[0_15px_20px_rgba(0,0,0,0.4)] transform scale-50 opacity-0 transition-all duration-700 ease-out tracking-tighter";
         }, 500);
         overlay.removeEventListener('click', skipCelebration);
     };
     overlay.addEventListener('click', skipCelebration);
-
-    celebrationTimeoutIds.push(setTimeout(() => {
-        text.classList.remove('scale-50', 'opacity-0');
-        text.classList.add('scale-110', 'opacity-100');
-        celebrationTimeoutIds.push(setTimeout(() => {
-            text.classList.replace('scale-110', 'scale-100');
-        }, 300));
-    }, 100));
-
-    celebrationTimeoutIds.push(setTimeout(() => {
-        skipCelebration();
-    }, 4000));
+    celebrationTimeoutIds.push(setTimeout(() => { text.classList.remove('scale-50', 'opacity-0'); text.classList.add('scale-110', 'opacity-100'); celebrationTimeoutIds.push(setTimeout(() => { text.classList.replace('scale-110', 'scale-100'); }, 300)); }, 100));
+    celebrationTimeoutIds.push(setTimeout(() => { skipCelebration(); }, 4000));
 }
 
 function validateSchedule() {
@@ -512,7 +486,7 @@ window.viewStep10 = ()=>{
             <button onclick="actions.redoSchedule()" class="flex-1 bg-white hover:bg-slate-50 dark:bg-slate-700 dark:hover:bg-slate-600 rounded shadow-sm text-[10px] font-black transition-opacity disabled:opacity-30 disabled:cursor-not-allowed" ${state.historyIndex < (state.scheduleHistory?.length||0) - 1 ? '' : 'disabled'} title="進む">↪️</button>
         </div>
         <div class="w-24 flex flex-col shrink-0">
-            <button onclick="actions.continueGeneration()" class="h-full bg-amber-500 hover:bg-amber-600 text-white rounded shadow-sm text-[9px] font-black p-1 leading-tight flex items-center justify-center text-center transition-colors">☕移動駒以外を<br>AIにお任せ</button>
+            <button onclick="actions.runDashAI()" class="h-full bg-amber-500 hover:bg-amber-600 text-white rounded shadow-sm text-[10px] font-black p-1 leading-tight flex items-center justify-center text-center transition-colors">☕ AIにお任せ<br><span class="text-[8px] font-normal mt-1 opacity-80">非固定を再配置</span></button>
         </div>
     </div>`;
 
@@ -870,7 +844,6 @@ window.actions = {
         showToast("ハイライトをリセットしました");
     },
     
-    // --- ロック機能 ---
     togglePaintLockMode: () => {
         state.paintLockMode = !state.paintLockMode;
         if(state.movingLesson) state.movingLesson = null;
@@ -881,7 +854,6 @@ window.actions = {
         let l = findLessonById(id);
         if(l && l.isLocked !== lockState) {
             l.isLocked = lockState;
-            // 簡易DOM操作で軽く見せる
             document.querySelectorAll(`.lesson-cell[data-lesson-id="${id}"]`).forEach(el => {
                 if(lockState) {
                     el.classList.add('opacity-80', 'saturate-50', 'brightness-90');
@@ -889,9 +861,7 @@ window.actions = {
                         const pin = document.createElement('div');
                         pin.className = "pin-icon absolute -top-1 -right-1 bg-slate-700 text-white text-[8px] w-3 h-3 flex items-center justify-center rounded-full shadow-md z-10 border border-white";
                         pin.innerText = "📌";
-                        if(el.closest('#step10-birdeye-scroll')) {
-                             pin.className = "pin-icon absolute -top-0.5 -right-0.5 bg-slate-700 text-white text-[6px] w-2.5 h-2.5 flex items-center justify-center rounded-full shadow-md z-10";
-                        }
+                        if(el.closest('#step10-birdeye-scroll')) pin.className = "pin-icon absolute -top-0.5 -right-0.5 bg-slate-700 text-white text-[6px] w-2.5 h-2.5 flex items-center justify-center rounded-full shadow-md z-10";
                         el.appendChild(pin);
                     }
                 } else {
@@ -905,22 +875,13 @@ window.actions = {
     },
     toggleLock: (id) => {
         let l = findLessonById(id);
-        if(l) {
-            l.isLocked = !l.isLocked;
-            render();
-            showToast(l.isLocked ? "📌固定しました" : "固定を解除しました");
-        }
+        if(l) { l.isLocked = !l.isLocked; render(); showToast(l.isLocked ? "📌固定しました" : "固定を解除しました"); }
     },
     lockAll: (doLock) => {
         if(!state.generatedSchedule) return;
-        DAYS.forEach(d => {
-            getDynamicPeriods().forEach(p => {
-                (state.generatedSchedule[d]?.[p]||[]).forEach(l => l.isLocked = doLock);
-            });
-        });
+        DAYS.forEach(d => { getDynamicPeriods().forEach(p => { (state.generatedSchedule[d]?.[p]||[]).forEach(l => l.isLocked = doLock); }); });
         (state.unassigned||[]).forEach(l => l.isLocked = doLock);
-        render();
-        showToast(doLock ? "すべての駒を固定しました" : "すべての固定を解除しました");
+        render(); showToast(doLock ? "すべての駒を固定しました" : "すべての固定を解除しました");
     },
     lockHomeroom: () => {
         if(!state.generatedSchedule || !state.classAssignments) return;
@@ -928,17 +889,12 @@ window.actions = {
         DAYS.forEach(d => {
             getDynamicPeriods().forEach(p => {
                 (state.generatedSchedule[d]?.[p]||[]).forEach(l => {
-                    const cls = l.targets[0];
-                    const homeroomId = state.classAssignments[cls]?.homeroom;
-                    if(homeroomId && l.teacherIds.includes(homeroomId)) {
-                        l.isLocked = true;
-                        count++;
-                    }
+                    const cls = l.targets[0], homeroomId = state.classAssignments[cls]?.homeroom;
+                    if(homeroomId && l.teacherIds.includes(homeroomId)) { l.isLocked = true; count++; }
                 });
             });
         });
-        render();
-        showToast(`担任授業を固定しました(${count}コマ)`);
+        render(); showToast(`担任授業を固定しました(${count}コマ)`);
     },
 
     handleCellClick: (d, p, cls, lId = null) => {
@@ -949,9 +905,7 @@ window.actions = {
         if (state.movingLesson) {
             const fromL = state.movingLesson;
             if (fromL.id === lId) { state.movingLesson = null; render(); return; }
-            let schedule = state.generatedSchedule;
-            
-            let movingObj = null;
+            let schedule = state.generatedSchedule, movingObj = null;
             if (fromL.day && fromL.period) {
                 const fromList = schedule[fromL.day]?.[fromL.period] || [];
                 const lIndex = fromList.findIndex(x => x.id === fromL.id);
@@ -969,33 +923,32 @@ window.actions = {
                 if (lId) {
                     const tIndex = toList.findIndex(x => x.id === lId);
                     if (tIndex > -1) {
-                        targetL = toList[tIndex];
-                        toList.splice(tIndex, 1);
+                        targetL = toList[tIndex]; toList.splice(tIndex, 1);
                         if (fromL.day && fromL.period) {
                             if(!schedule[fromL.day][fromL.period]) schedule[fromL.day][fromL.period] = [];
                             schedule[fromL.day][fromL.period].push(targetL);
-                        } else {
-                            state.unassigned.push(targetL);
-                        }
+                        } else state.unassigned.push(targetL);
                     }
                 }
                 toList.push(movingObj);
-                showToast(targetL ? "コマを入れ替えました" : "コマを移動しました", "success");
+                
+                // --- 追加：移動した駒は自動的にピン留めする ---
+                movingObj.isLocked = true;
+                if (targetL) targetL.isLocked = true;
+                // ----------------------------------------------
+                
+                showToast(targetL ? "コマを入れ替え＆ピン留めしました" : "コマを移動＆ピン留めしました", "success");
             } else if (d === 'tray') {
                 state.unassigned.push(movingObj);
                 showToast("トレイに戻しました", "success");
             }
             state.movingLesson = null;
-            actions.pushScheduleHistory(); 
-            validateSchedule();
-            render();
+            actions.pushScheduleHistory(); validateSchedule(); render();
         } else {
             if (!lId) return;
             if(state.violations && state.violations[lId]) { setTimeout(() => window.showViolationPopup(lId), 10); }
-            
-            if(d === 'tray') {
-                state.movingLesson = { id: lId, day: null, period: null, targets: safeFind(state.unassigned, 'id', lId)?.targets||[], teacherIds: safeFind(state.unassigned, 'id', lId)?.teacherIds||[] };
-            } else {
+            if(d === 'tray') state.movingLesson = { id: lId, day: null, period: null, targets: safeFind(state.unassigned, 'id', lId)?.targets||[], teacherIds: safeFind(state.unassigned, 'id', lId)?.teacherIds||[] };
+            else {
                 let obj = (state.generatedSchedule[d][p]||[]).find(x=>x.id===lId);
                 if(obj) state.movingLesson = { id: lId, day: d, period: p, cls: cls, targets: obj.targets, teacherIds: obj.teacherIds };
             }
@@ -1010,13 +963,9 @@ window.actions = {
             const dlAnchorElem = document.createElement('a');
             dlAnchorElem.setAttribute("href", dataStr);
             dlAnchorElem.setAttribute("download", `時間割データ_${new Date().toLocaleDateString('ja-JP').replace(/\//g,'')}_未配置${state.unassigned?.length||0}.json`);
-            document.body.appendChild(dlAnchorElem);
-            dlAnchorElem.click();
-            dlAnchorElem.remove();
+            document.body.appendChild(dlAnchorElem); dlAnchorElem.click(); dlAnchorElem.remove();
             showToast("端末へ保存しました", "success");
-        } catch(e) {
-            showToast("保存に失敗しました", "error");
-        }
+        } catch(e) { showToast("保存に失敗しました", "error"); }
     },
 
     closeModal: () => { document.getElementById('modal-overlay').classList.add('hidden'); },
@@ -1063,15 +1012,15 @@ window.actions = {
 
     updateMarathon: (k,v) => { state.marathon[k] = v; render(); },
     startGeneration: async function(){ state.marathon.active = true; state.marathon.currentGen = 1; globalStartTime = Date.now(); state.best = {unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}; actions.runMarathonCycle(); },
-    continueMarathon: async function(){ 
-        const addGen = 10; 
-        state.marathon.active = true; 
-        if(state.marathon.maxGen !== Infinity) state.marathon.maxGen = parseInt(state.marathon.maxGen, 10) + addGen; 
-        actions.runMarathonCycle(); 
-    },
-    continueGeneration: function(){ state.marathon.active = false; actions.runSingleCycle("今の盤面を元に再調整中...", false); },
-    cancelGeneration: () => { hideLoading(); state.marathon.active = false; if (state.best.schedule) { state.generatedSchedule = state.best.schedule; state.unassigned = state.best.unassigned; state.scoreCard = state.best.scoreCard; state.reportDetails = state.best.reportDetails; state.currentStep = 10; actions.initScheduleHistory(); showToast(`ベスト盤面を表示します。`, "info"); } else { state.currentStep = 9; } render(); },
     
+    // --- Step 10 から呼ばれる AI再配置用ラッパー関数 ---
+    runDashAI: function() {
+        if (!state.generatedSchedule && state.unassigned.length === 0) return;
+        state.marathon.active = false;
+        actions.pushScheduleHistory();
+        actions.runSingleCycle("非固定駒を再配置中...", false);
+    },
+
     runMarathonCycle: async function(){ 
         if (!state.marathon.active) return; 
         const m = state.marathon; startGenTimer(); 
@@ -1096,19 +1045,10 @@ window.actions = {
                 if (goalReached || genLimitReached) { 
                     state.generatedSchedule = state.best.schedule; state.unassigned = state.best.unassigned; state.scoreCard = state.best.scoreCard; state.reportDetails = state.best.reportDetails; 
                     state.currentStep=10; state.marathon.active = false; actions.initScheduleHistory(); render(); hideLoading(); 
-                    
-                    if (state.best.unassignedCount === 0) {
-                        showToast(`🎉 完璧な時間割が完成しました！`, "success"); 
-                        setTimeout(triggerCelebration, 300); 
-                    } else if (goalReached) {
-                        showToast(`目標達成！未配置${state.best.unassignedCount}`, "success"); 
-                    } else {
-                        showToast(`最大チャレンジ回数に到達。`, "success"); 
-                    }
-                } else { 
-                    m.currentGen = Number(m.currentGen) + 1; 
-                    actions.runMarathonCycle(); 
-                } 
+                    if (state.best.unassignedCount === 0) { showToast(`🎉 完璧な時間割が完成しました！`, "success"); setTimeout(triggerCelebration, 300); } 
+                    else if (goalReached) showToast(`目標達成！未配置${state.best.unassignedCount}`, "success"); 
+                    else showToast(`最大チャレンジ回数に到達。`, "success"); 
+                } else { m.currentGen = Number(m.currentGen) + 1; actions.runMarathonCycle(); } 
             } else { showToast("エラー発生","error"); hideLoading(); state.marathon.active = false; } 
         } catch(e) { showToast("通信エラー","error"); hideLoading(); state.marathon.active = false; } 
     },
@@ -1121,8 +1061,8 @@ window.actions = {
             if(data.unassigned) state.unassigned=data.unassigned; 
             if(data.scoreCard) state.scoreCard=data.scoreCard; 
             if(data.reportDetails) state.reportDetails=data.reportDetails; 
-            if(data.success) { state.currentStep=10; actions.initScheduleHistory(); render(); hideLoading(); } 
-            else { showToast("エラー","error"); hideLoading(); } 
+            if(data.success) { state.currentStep=10; actions.initScheduleHistory(); render(); hideLoading(); showToast("再配置が完了しました","success");} 
+            else { showToast("エラーが発生しました","error"); hideLoading(); } 
         } catch(e) { showToast("通信エラー","error"); hideLoading(); } 
     },
     
@@ -1164,100 +1104,46 @@ window.actions = {
     },
 
     cancelExport: () => {
-        if(exportAbortController) {
-            exportAbortController.abort();
-            exportAbortController = null;
-        }
+        if(exportAbortController) { exportAbortController.abort(); exportAbortController = null; }
         document.getElementById('export-overlay').classList.replace('flex', 'hidden');
         showToast("出力をキャンセルしました", "info");
     },
     
     executeExport: async function() {
         const options = {
-            pdf: {
-                matrixClass: document.getElementById('pdf-matrix-class')?.checked,
-                matrixTeacher: document.getElementById('pdf-matrix-teacher')?.checked,
-                matrixRoom: document.getElementById('pdf-matrix-room')?.checked,
-                individualClass: document.getElementById('pdf-indiv-class')?.checked,
-                individualTeacher: document.getElementById('pdf-indiv-teacher')?.checked
-            },
-            spreadsheet: {
-                matrixClass: document.getElementById('ss-matrix-class')?.checked,
-                matrixTeacher: document.getElementById('ss-matrix-teacher')?.checked,
-                matrixRoom: document.getElementById('ss-matrix-room')?.checked,
-                individualClass: document.getElementById('ss-indiv-class')?.checked,
-                individualTeacher: document.getElementById('ss-indiv-teacher')?.checked
-            }
+            pdf: { matrixClass: document.getElementById('pdf-matrix-class')?.checked, matrixTeacher: document.getElementById('pdf-matrix-teacher')?.checked, matrixRoom: document.getElementById('pdf-matrix-room')?.checked, individualClass: document.getElementById('pdf-indiv-class')?.checked, individualTeacher: document.getElementById('pdf-indiv-teacher')?.checked },
+            spreadsheet: { matrixClass: document.getElementById('ss-matrix-class')?.checked, matrixTeacher: document.getElementById('ss-matrix-teacher')?.checked, matrixRoom: document.getElementById('ss-matrix-room')?.checked, individualClass: document.getElementById('ss-indiv-class')?.checked, individualTeacher: document.getElementById('ss-indiv-teacher')?.checked }
         };
-
-        actions.closeModal();
-        document.getElementById('export-overlay').classList.replace('hidden', 'flex');
-        
+        actions.closeModal(); document.getElementById('export-overlay').classList.replace('hidden', 'flex');
         exportAbortController = new AbortController();
 
         try {
-            const res = await fetch(GAS_URL, { 
-                method: 'POST', 
-                mode: 'cors', 
-                signal: exportAbortController.signal,
-                body: JSON.stringify({ 
-                    action: 'export', 
-                    state: actions.preparePayload(), 
-                    schedule: state.generatedSchedule,
-                    options: options
-                }) 
-            });
+            const res = await fetch(GAS_URL, { method: 'POST', mode: 'cors', signal: exportAbortController.signal, body: JSON.stringify({ action: 'export', state: actions.preparePayload(), schedule: state.generatedSchedule, options: options }) });
             const data = await res.json();
-            document.getElementById('export-overlay').classList.replace('flex', 'hidden');
-            exportAbortController = null;
-            
+            document.getElementById('export-overlay').classList.replace('flex', 'hidden'); exportAbortController = null;
             if (data.success && data.urls) {
-                let h = `<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0"><h3 class="text-lg font-black text-blue-900">🎉 生成完了</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold text-xl hover:bg-slate-100 rounded px-2">✕</button></div><div class="flex-1 flex flex-col gap-4 pb-4">`;
-                h += `<p class="text-sm font-bold text-slate-700">ファイルが正常に生成されました。以下のリンクからアクセスしてください。</p>`;
-                h += `<div class="flex flex-col gap-3">`;
-                if (data.urls.spreadsheetUrl) {
-                    h += `<a href="${data.urls.spreadsheetUrl}" target="_blank" class="flex items-center justify-center gap-2 p-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-emerald-700 font-black transition-colors text-base">📊 スプレッドシートを開く</a>`;
-                }
-                if (data.urls.pdfUrl) {
-                    h += `<a href="${data.urls.pdfUrl}" target="_blank" class="flex items-center justify-center gap-2 p-3 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-rose-700 font-black transition-colors text-base">📄 PDFを開く (ダウンロード)</a>`;
-                }
+                let h = `<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0"><h3 class="text-lg font-black text-blue-900">🎉 生成完了</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold text-xl hover:bg-slate-100 rounded px-2">✕</button></div><div class="flex-1 flex flex-col gap-4 pb-4"><p class="text-sm font-bold text-slate-700">ファイルが正常に生成されました。以下のリンクからアクセスしてください。</p><div class="flex flex-col gap-3">`;
+                if (data.urls.spreadsheetUrl) h += `<a href="${data.urls.spreadsheetUrl}" target="_blank" class="flex items-center justify-center gap-2 p-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-emerald-700 font-black transition-colors text-base">📊 スプレッドシートを開く</a>`;
+                if (data.urls.pdfUrl) h += `<a href="${data.urls.pdfUrl}" target="_blank" class="flex items-center justify-center gap-2 p-3 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-rose-700 font-black transition-colors text-base">📄 PDFを開く (ダウンロード)</a>`;
                 h += `</div></div>`;
-                document.getElementById('modal-body').innerHTML = h;
-                document.getElementById('modal-overlay').classList.remove('hidden');
-            } else {
-                showToast("ファイルの生成に失敗しました: " + (data.message || ""), "error");
-            }
+                document.getElementById('modal-body').innerHTML = h; document.getElementById('modal-overlay').classList.remove('hidden');
+            } else { showToast("ファイルの生成に失敗しました: " + (data.message || ""), "error"); }
         } catch (e) {
-            if(e.name === 'AbortError') {
-                // do nothing, toast already shown
-            } else {
-                document.getElementById('export-overlay').classList.replace('flex', 'hidden');
-                exportAbortController = null;
-                showToast("通信エラーが発生しました", "error");
-            }
+            if(e.name !== 'AbortError') { document.getElementById('export-overlay').classList.replace('flex', 'hidden'); exportAbortController = null; showToast("通信エラーが発生しました", "error"); }
         }
     }
 };
 
 window.showViolationPopup = function(lessonId) {
     if(!state.violations || !state.violations[lessonId]) return;
-    const msgs = state.violations[lessonId];
     const el = document.getElementById('violation-popup');
-    el.innerHTML = `<div class="font-black text-rose-500 text-xs mb-1 flex items-center gap-1">⚠️ ルール違反を検知</div><ul class="text-[10px] font-bold list-disc pl-4 space-y-1 leading-snug">${msgs.map(m=>`<li>${m}</li>`).join('')}</ul>`;
-    el.classList.remove('opacity-0', 'pointer-events-none', 'scale-95');
-    state.activeViolationNode = lessonId;
+    el.innerHTML = `<div class="font-black text-rose-500 text-xs mb-1 flex items-center gap-1">⚠️ ルール違反を検知</div><ul class="text-[10px] font-bold list-disc pl-4 space-y-1 leading-snug">${state.violations[lessonId].map(m=>`<li>${m}</li>`).join('')}</ul>`;
+    el.classList.remove('opacity-0', 'pointer-events-none', 'scale-95'); state.activeViolationNode = lessonId;
 };
 window.hideViolationPopup = function() {
-    const el = document.getElementById('violation-popup');
-    el.classList.add('opacity-0', 'pointer-events-none', 'scale-95');
-    state.activeViolationNode = null;
+    document.getElementById('violation-popup').classList.add('opacity-0', 'pointer-events-none', 'scale-95'); state.activeViolationNode = null;
 };
-document.addEventListener('click', (e) => {
-    if(state.activeViolationNode && !e.target.closest('#violation-popup')) {
-        setTimeout(window.hideViolationPopup, 50);
-    }
-});
-
+document.addEventListener('click', (e) => { if(state.activeViolationNode && !e.target.closest('#violation-popup')) setTimeout(window.hideViolationPopup, 50); });
 document.addEventListener('DOMContentLoaded',load);
 </script>
 </body>
