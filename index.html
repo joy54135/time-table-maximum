@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 17.0.1</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 17.1.0</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 <script>tailwind.config={darkMode:'class'}</script>
@@ -51,7 +51,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
             <button id="btn-prev" class="m3-btn-secondary w-[80px] md:w-[120px] relative z-10 !text-xs">戻る</button>
             <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none hidden md:flex">
                 <div class="text-[11px] font-black text-slate-800 dark:text-slate-100 leading-none">Smart TimeTable</div>
-                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 17.0.1 (SA-LNS Pin-Lock)</div>
+                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 17.1.0 (Ghost Slot & Pin-Lock)</div>
             </div>
             <button id="btn-next" class="m3-btn-primary w-[140px] md:w-[180px] relative z-10 !text-xs"><span id="btn-next-text">次へ進む</span></button>
         </div>
@@ -100,9 +100,10 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 </div>
 
 <script>
+// 指定された新しいGASのURL
 var GAS_URL="https://script.google.com/macros/s/AKfycbweUMbBJDlkqbYj9BBHiygaidQjBPY4hrdn3uDkJbD91c7PmYit4uNxGqLC9evtglaf/exec";
-const STORAGE_KEY_DRAFT = 'tt_v17_0_1_draft';
-const STORAGE_KEY_SLOTS = 'tt_v17_0_1_slots';
+const STORAGE_KEY_DRAFT = 'tt_v17_1_0_draft';
+const STORAGE_KEY_SLOTS = 'tt_v17_1_0_slots';
 
 var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'];
 function getDynamicPeriods() { let m=6; if(state.periods) Object.values(state.periods).forEach(dObj=>Object.values(dObj).forEach(v=>{if(parseInt(v)>m)m=parseInt(v);})); return Array.from({length:m},(_,i)=>i+1); }
@@ -121,7 +122,7 @@ let slotsData = Array(10).fill(null);
 let exportAbortController = null;
 let isPainting = false;
 let paintTargetLock = true;
-let globalStartTime = 0; // 追加: 未定義エラーの回避
+let globalStartTime = 0; 
 
 function safeFind(arr,k,v){return (arr||[]).find(x=>x[k]===v);}
 function forceInitState(){
@@ -932,12 +933,7 @@ window.actions = {
                 }
                 toList.push(movingObj);
                 
-                // --- 追加：移動した駒は自動的にピン留めする ---
-                movingObj.isLocked = true;
-                if (targetL) targetL.isLocked = true;
-                // ----------------------------------------------
-                
-                showToast(targetL ? "コマを入れ替え＆ピン留めしました" : "コマを移動＆ピン留めしました", "success");
+                showToast(targetL ? "コマを入れ替えました" : "コマを移動しました", "success");
             } else if (d === 'tray') {
                 state.unassigned.push(movingObj);
                 showToast("トレイに戻しました", "success");
