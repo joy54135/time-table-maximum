@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 16.2.0</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 16.3.0</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config={darkMode:'class'}</script>
 <script>
@@ -61,7 +61,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 </div>
 
 <script>
-var GAS_URL="https://script.google.com/macros/s/AKfycbwp-D79Z2ujGjoioPq5rWLKYnNwnEGHPsGV6NGsj41bcXpc9w7vLEd7YHkZj4d3j_SIGA/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycbxCspknzrObO2oyc_j1d4C7p4ZBpGYFTHlznRFyhnq4eIztOTdCtVGmkwInqDJ5c-aFNw/exec";
 var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'];
 function getDynamicPeriods() { let m=6; if(state.periods) Object.values(state.periods).forEach(dObj=>Object.values(dObj).forEach(v=>{if(parseInt(v)>m)m=parseInt(v);})); return Array.from({length:m},(_,i)=>i+1); }
 
