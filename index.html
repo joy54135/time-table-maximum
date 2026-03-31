@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 16.4.0</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 16.5.0</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config={darkMode:'class'}</script>
 <script>
@@ -44,7 +44,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
             <button id="btn-prev" class="m3-btn-secondary w-[80px] md:w-[120px] relative z-10 !text-xs">戻る</button>
             <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none hidden md:flex">
                 <div class="text-[11px] font-black text-slate-800 dark:text-slate-100 leading-none">Smart TimeTable</div>
-                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 16.4.0 (Ultimate UI/UX)</div>
+                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 16.5.0 (Ultimate UI/UX)</div>
             </div>
             <button id="btn-next" class="m3-btn-primary w-[140px] md:w-[180px] relative z-10 !text-xs"><span id="btn-next-text">次へ進む</span></button>
         </div>
@@ -63,7 +63,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 </div>
 
 <script>
-var GAS_URL="https://script.google.com/macros/s/AKfycbxEPNBPcdSCKHWU8r0iEZoXCzeTG_Ppr3iymvyVQjdx1YaWd1s_lXjXF8SHOOrD0XBIww/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycbxCXNhWjmK7SSBVfgG_q2mGr3LggB1cocPSmZHO6bmZ33A70Rafkf8vVZ1r3k-xluRDUQ/exec";
 var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'];
 function getDynamicPeriods() { let m=6; if(state.periods) Object.values(state.periods).forEach(dObj=>Object.values(dObj).forEach(v=>{if(parseInt(v)>m)m=parseInt(v);})); return Array.from({length:m},(_,i)=>i+1); }
 
@@ -93,7 +93,7 @@ function forceInitState(){
     if(!state.scheduleHistory) state.scheduleHistory=[]; if(state.historyIndex===undefined) state.historyIndex=-1;
 }
 
-function load(){ try{const d=localStorage.getItem('tt_v16_4_0');if(d)Object.assign(state,JSON.parse(d));}catch(e){} forceInitState(); render(); }
+function load(){ try{const d=localStorage.getItem('tt_v16_5_0');if(d)Object.assign(state,JSON.parse(d));}catch(e){} forceInitState(); render(); }
 function showToast(msg,type='info'){const t=document.getElementById('toast'),m=document.getElementById('toast-msg');if(!t||!m)return; t.className=`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm z-[9999] transition-all opacity-100 ${type==='success'?'bg-emerald-600 text-white':(type==='error'?'bg-rose-600 text-white':'bg-blue-600 text-white')}`; m.innerText=msg; setTimeout(()=>t.classList.replace('opacity-100','opacity-0'),3000);}
 function showLoading(t,d,showC=false){const l=document.getElementById('loading-overlay'),cBtn=document.getElementById('btn-cancel-gen');if(l){document.getElementById('loading-title').innerText=t;document.getElementById('loading-desc').innerText=d;if(showC)cBtn.classList.remove('hidden');else cBtn.classList.add('hidden');l.classList.replace('hidden','flex');}}
 function hideLoading(){stopGenTimer();const l=document.getElementById('loading-overlay');if(l)l.classList.replace('flex','hidden');}
@@ -125,7 +125,8 @@ function validateSchedule() {
             const tMap = {}, rMap = {};
             ls.forEach(l => {
                 l.teacherIds.forEach(tid => { if(!tMap[tid]) tMap[tid]=[]; tMap[tid].push(l); });
-                if(l.room !== '通常教室') { if(!rMap[l.room]) rMap[l.room]=[]; rMap[l.room].push(l); }
+                // 16.5.0: state.rooms（特別教室リスト）に存在する場合のみ、部屋重複チェックの対象にする
+                if(l.room && safeFind(state.rooms, 'name', l.room)) { if(!rMap[l.room]) rMap[l.room]=[]; rMap[l.room].push(l); }
                 l.targets.forEach(c => {
                     if(!dailyCls[d][c]) dailyCls[d][c]={};
                     if(!dailyCls[d][c][l.subject]) dailyCls[d][c][l.subject]=[];
@@ -144,14 +145,18 @@ function validateSchedule() {
                 }
             });
             Object.keys(rMap).forEach(rName => {
-                const cap = safeFind(state.rooms, 'name', rName)?.capacity || 1;
-                if(rMap[rName].length > cap) {
-                    rMap[rName].forEach(l => {
-                        if(!state.violations[l.id]) state.violations[l.id]=[];
-                        const ots = rMap[rName].filter(x=>x.id!==l.id);
-                        state.violations[l.id].push(`教室重複: ${rName}が定員オーバー(他: ${ots.map(x=>x.targets.join(',')).join('・')})`);
-                        ots.forEach(x=>confSet.add(x.id));
-                    });
+                const roomDef = safeFind(state.rooms, 'name', rName);
+                // roomDef が存在する場合（通常教室ではない場合）のみ定員チェックを行う
+                if(roomDef) {
+                    const cap = roomDef.capacity || 1;
+                    if(rMap[rName].length > cap) {
+                        rMap[rName].forEach(l => {
+                            if(!state.violations[l.id]) state.violations[l.id]=[];
+                            const ots = rMap[rName].filter(x=>x.id!==l.id);
+                            state.violations[l.id].push(`教室重複: ${rName}が定員オーバー(他: ${ots.map(x=>x.targets.join(',')).join('・')})`);
+                            ots.forEach(x=>confSet.add(x.id));
+                        });
+                    }
                 }
             });
         });
@@ -204,7 +209,7 @@ function isBannedArea(d, p, rowId, mode) {
 
 function render(){
     saveUIState();
-    try{localStorage.setItem('tt_v16_4_0',JSON.stringify(state));}catch(e){}
+    try{localStorage.setItem('tt_v16_5_0',JSON.stringify(state));}catch(e){}
     if(state.currentStep===10) validateSchedule();
     
     const hU = document.getElementById('step-header-utils');
@@ -379,7 +384,7 @@ window.viewStep10 = ()=>{
         let rows=[]; 
         if(state.matrixAxis==='class') rows=classes; 
         else if(state.matrixAxis==='teacher') rows=teachers.map(t=>t.id); 
-        else rows=(state.rooms||[]).map(r=>r.name); // 16.4.0: 通常教室を除外
+        else rows=(state.rooms||[]).map(r=>r.name);
 
         html+=`<div class="flex-1 overflow-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl custom-scrollbar relative shadow-inner"><table class="w-max border-collapse text-center table-fixed"><thead class="sticky top-0 z-20"><tr class="bg-slate-50 dark:bg-slate-800 border-b dark:border-slate-700"><th class="sticky left-0 bg-slate-50 dark:bg-slate-800 z-30 p-2 w-20 border-r font-black text-[9px] text-slate-400">Axis</th>${DAYS.map((d,i)=>`<th colspan="${PERIODS.length}" class="p-1 border-r font-black text-[10px] text-slate-500 ${i%2===0?'bg-white':'bg-slate-50'}">${d}曜</th>`).join('')}</tr><tr class="bg-white border-b"><th class="sticky left-0 bg-white z-30 p-1 border-r text-[8px] font-black text-slate-300">Period</th>${DAYS.map((d,i)=>PERIODS.map(p=>`<th class="p-1 w-[50px] border-r font-black text-[8px] text-slate-300 ${i%2===0?'bg-white':'bg-slate-50'}">${p}</th>`).join('')).join('')}</tr></thead><tbody>`;
         html += rows.map(rowId=>{
@@ -445,7 +450,7 @@ window.viewStep10 = ()=>{
 // --- アクションロジック ---
 window.actions = {
     toggleDarkMode: () => { const h = document.documentElement; h.classList.toggle('dark'); localStorage.setItem('tt_theme', h.classList.contains('dark') ? 'dark' : 'light'); },
-    hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem('tt_v16_4_0');location.reload();}},
+    hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem('tt_v16_5_0');location.reload();}},
     jumpToResult:()=>{state.currentStep=10;render();},
     
     // 履歴操作 (Undo/Redo)
