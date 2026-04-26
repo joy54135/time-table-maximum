@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 17.0.0</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 16.8.2</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 <script>tailwind.config={darkMode:'class'}</script>
@@ -51,7 +51,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
             <button id="btn-prev" class="m3-btn-secondary w-[80px] md:w-[120px] relative z-10 !text-xs">戻る</button>
             <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none hidden md:flex">
                 <div class="text-[11px] font-black text-slate-800 dark:text-slate-100 leading-none">Smart TimeTable</div>
-                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 17.0.0 (SA-LNS Pin-Lock)</div>
+                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 16.8.2 (Ultimate UI/UX)</div>
             </div>
             <button id="btn-next" class="m3-btn-primary w-[140px] md:w-[180px] relative z-10 !text-xs"><span id="btn-next-text">次へ進む</span></button>
         </div>
@@ -100,9 +100,9 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 </div>
 
 <script>
-var GAS_URL="https://script.google.com/macros/s/AKfycbyBGtPeS-wJycxNwPTFWBAXZG2iJ2o27oaAgtE-VgPd9QPISq8JTmOawTn9W3csfpJL/exec";
-const STORAGE_KEY_DRAFT = 'tt_v17_0_0_draft';
-const STORAGE_KEY_SLOTS = 'tt_v17_0_0_slots';
+var GAS_URL="https://script.google.com/macros/s/AKfycbx7iOTrVz3n13LyP9KSAm5fuwtycHDWGatE68T_gFtSwseeauR0ZXTVwlIdROdbiBbg3g/exec";
+const STORAGE_KEY_DRAFT = 'tt_v16_8_2_draft';
+const STORAGE_KEY_SLOTS = 'tt_v16_8_2_slots';
 
 var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'];
 function getDynamicPeriods() { let m=6; if(state.periods) Object.values(state.periods).forEach(dObj=>Object.values(dObj).forEach(v=>{if(parseInt(v)>m)m=parseInt(v);})); return Array.from({length:m},(_,i)=>i+1); }
@@ -116,11 +116,9 @@ const step8Packages=[
   {id:"pkg3", title:"【児童配慮設定】", desc:"集中度に合わせた教科配置", items:[{key:"amPrioritySubjects", type:"array", fields:['target','exclude','subject'], format:"", title:"午前に優先配置", desc:"", tip:""},{key:"lastPeriodSubjects", type:"array", fields:['target','exclude','subject'], format:"", title:"最終コマに優先配置", desc:"", tip:""},{key:"avoidSpecificTimes", type:"array", fields:['target','exclude','subject','day','period'], format:"", title:"特定の時間帯回避", desc:"", tip:""}]}
 ];
 
-var state={currentStep:1, grades:{1:3,2:3,3:3,4:3,5:3,6:3}, periods:{}, rooms:[], subjects:[], teachers:[], globalBlocks:{}, specialBlocks:[], classAssignments:{}, advancedRules:{priorities:{}}, ruleEditor:{}, openPkgs:{}, generatedSchedule:null, unassigned:[], reportDetails:{}, scoreCard:null, dashTab:'matrix', matrixAxis:'class', dashView:'class', dashFilter:'', marathon:{active:false, target:0, maxGen:10, currentGen:1, relaxRules:false}, best:{unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}, selectedTeacherId:null, editingTeacherId:null, editingSubjectId:null, editingTeacherLimitId:null, specialBuilder:{type:'joint', subjectId:'', hours:1, room:'通常教室', targets:[], teachers:[]}, openSpecialEdits:{}, subjectsUndoStack:[], rulesUndoStack:[], birdEyeMode:false, spotlightSub:'', spotlightTea:'', spotlightTeas:['','','',''], movingLesson:null, violations:{}, conflictingIds:[], activeViolationNode:null, scheduleHistory:[], historyIndex:-1, openTeacherLoadId:null, paintLockMode:false};
+var state={currentStep:1, grades:{1:3,2:3,3:3,4:3,5:3,6:3}, periods:{}, rooms:[], subjects:[], teachers:[], globalBlocks:{}, specialBlocks:[], classAssignments:{}, advancedRules:{priorities:{}}, ruleEditor:{}, openPkgs:{}, generatedSchedule:null, unassigned:[], reportDetails:{}, scoreCard:null, dashTab:'matrix', matrixAxis:'class', dashView:'class', dashFilter:'', marathon:{active:false, target:0, maxGen:10, currentGen:1, relaxRules:false}, best:{unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}, selectedTeacherId:null, editingTeacherId:null, editingSubjectId:null, editingTeacherLimitId:null, specialBuilder:{type:'joint', subjectId:'', hours:1, room:'通常教室', targets:[], teachers:[]}, openSpecialEdits:{}, subjectsUndoStack:[], rulesUndoStack:[], birdEyeMode:false, spotlightSub:'', spotlightTea:'', spotlightTeas:['','','',''], movingLesson:null, violations:{}, conflictingIds:[], activeViolationNode:null, scheduleHistory:[], historyIndex:-1, openTeacherLoadId:null};
 let slotsData = Array(10).fill(null);
 let exportAbortController = null;
-let isPainting = false;
-let paintTargetLock = true;
 
 function safeFind(arr,k,v){return (arr||[]).find(x=>x[k]===v);}
 function forceInitState(){
@@ -134,7 +132,6 @@ function forceInitState(){
     if(!state.openSpecialEdits) state.openSpecialEdits={}; if(!state.subjectsUndoStack) state.subjectsUndoStack=[]; if(!state.rulesUndoStack) state.rulesUndoStack=[];
     state.birdEyeMode=false; state.spotlightSub=''; state.spotlightTea=''; if(!state.spotlightTeas) state.spotlightTeas=['','','','']; state.movingLesson=null; state.violations={}; state.conflictingIds=[];
     if(!state.scheduleHistory) state.scheduleHistory=[]; if(state.historyIndex===undefined) state.historyIndex=-1; if(state.openTeacherLoadId===undefined) state.openTeacherLoadId=null;
-    if(state.paintLockMode===undefined) state.paintLockMode=false;
 }
 
 function load(){ 
@@ -146,7 +143,6 @@ function load(){
         if(s)slotsData = JSON.parse(s);
     }catch(e){} 
     forceInitState(); 
-    setupPaintListeners();
     render(); 
 }
 function showToast(msg,type='info'){const t=document.getElementById('toast'),m=document.getElementById('toast-msg');if(!t||!m)return; t.className=`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm z-[9999] transition-all opacity-100 ${type==='success'?'bg-emerald-600 text-white':(type==='error'?'bg-rose-600 text-white':'bg-blue-600 text-white')}`; m.innerText=msg; setTimeout(()=>t.classList.replace('opacity-100','opacity-0'),3000);}
@@ -160,76 +156,6 @@ function getSubjectColorClass(sName){const s=safeFind(state.subjects,'name',sNam
 
 function getTeacherLoadDetails(){let loads={};(state.teachers||[]).forEach(t=>loads[t.id]={total:0,items:[]});Object.keys(state.classAssignments||{}).forEach(cls=>{const g=cls.split('-')[0],d=state.classAssignments[cls];(state.subjects||[]).forEach(sub=>{let hrs=parseInt(sub.stdHours?.[g])||0;if(hrs===0)return;if((state.specialBlocks||[]).some(b=>b.subjectId===sub.id&&b.targets?.includes(cls)))return;const ovr=d.overrides?.[sub.id]||{};if(ovr.allocations?.length>0){ovr.allocations.forEach(a=>{if(a.teacherId&&loads[a.teacherId]){let h=parseInt(a.hours)||0;loads[a.teacherId].total+=h;loads[a.teacherId].items.push({cls,sub:sub.name,hrs:h});}});}else{const tid=ovr.teacherId||d.homeroom;if(tid&&loads[tid]){loads[tid].total+=hrs;loads[tid].items.push({cls,sub:sub.name,hrs});}}});});(state.specialBlocks||[]).forEach(b=>{const subName=safeFind(state.subjects,'id',b.subjectId)?.name||'特殊';(b.teachers||[]).forEach(bt=>{if(bt.id&&loads[bt.id]){let h=parseInt(bt.hours)||0;loads[bt.id].total+=h;loads[bt.id].items.push({cls:(b.targets||[]).join(','),sub:subName,hrs:h,sp:true});}});});return loads;}
 function getTeacherLoads(){let l={};const dets=getTeacherLoadDetails();Object.keys(dets).forEach(k=>l[k]=dets[k].total);return l;}
-
-function findLessonById(id) {
-    if(state.generatedSchedule) {
-        for(let d of DAYS) {
-            for(let p of getDynamicPeriods()) {
-                let l = (state.generatedSchedule[d]?.[p]||[]).find(x=>x.id===id);
-                if(l) return l;
-            }
-        }
-    }
-    return (state.unassigned||[]).find(x=>x.id===id);
-}
-
-function setupPaintListeners() {
-    if(window._paintListenersAdded) return;
-    window._paintListenersAdded = true;
-
-    document.addEventListener('mousedown', (e) => {
-        if(!state.paintLockMode) return;
-        const cell = e.target.closest('.lesson-cell');
-        if(cell) {
-            isPainting = true;
-            const lid = cell.dataset.lessonId;
-            const l = findLessonById(lid);
-            if(l) {
-                paintTargetLock = !l.isLocked; 
-                actions.setLock(lid, paintTargetLock);
-            }
-        }
-    });
-    document.addEventListener('mousemove', (e) => {
-        if(!isPainting || !state.paintLockMode) return;
-        const cell = e.target.closest('.lesson-cell');
-        if(cell) {
-            const lid = cell.dataset.lessonId;
-            actions.setLock(lid, paintTargetLock);
-        }
-    });
-    document.addEventListener('mouseup', () => { isPainting = false; });
-    
-    document.addEventListener('touchstart', (e) => {
-        if(!state.paintLockMode) return;
-        const touch = e.touches[0];
-        const el = document.elementFromPoint(touch.clientX, touch.clientY);
-        const cell = el?.closest('.lesson-cell');
-        if(cell) {
-            isPainting = true;
-            const lid = cell.dataset.lessonId;
-            const l = findLessonById(lid);
-            if(l) {
-                paintTargetLock = !l.isLocked;
-                actions.setLock(lid, paintTargetLock);
-            }
-        }
-    }, {passive: false});
-
-    document.addEventListener('touchmove', (e) => {
-        if(!isPainting || !state.paintLockMode) return;
-        if(e.cancelable) e.preventDefault();
-        const touch = e.touches[0];
-        const el = document.elementFromPoint(touch.clientX, touch.clientY);
-        const cell = el?.closest('.lesson-cell');
-        if(cell) {
-            const lid = cell.dataset.lessonId;
-            actions.setLock(lid, paintTargetLock);
-        }
-    }, {passive: false});
-
-    document.addEventListener('touchend', () => { isPainting = false; });
-}
 
 let scrollPos={}, activeElId=null;
 function saveUIState(){
@@ -479,32 +405,20 @@ window.viewStep10 = ()=>{
     } else {
         if(!state.dashFilter || (state.dashView==='class' && !classes.includes(state.dashFilter))) state.dashFilter=classes[0] || '';
     }
-
-    const lockToolsHtml = `<div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border dark:border-slate-700 mt-1 sm:mt-0">
-        <button onclick="actions.togglePaintLockMode()" class="px-2 py-1 rounded text-[10px] font-black transition-colors ${state.paintLockMode?'bg-blue-600 text-white shadow-sm':'bg-white dark:bg-slate-900 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 border dark:border-slate-700'}" title="なぞって固定/解除">🖌️なぞり固定</button>
-        <button onclick="actions.lockHomeroom()" class="px-2 py-1 rounded text-[10px] font-black bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm" title="担任の授業を固定">担任固定</button>
-        <button onclick="actions.lockAll(true)" class="px-2 py-1 rounded text-[10px] font-black bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm" title="全て固定">全固定</button>
-        <button onclick="actions.lockAll(false)" class="px-2 py-1 rounded text-[10px] font-black bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm" title="全て解除">全解除</button>
-    </div>`;
     
     const trayHtml = `<div class="h-[80px] bg-slate-200 dark:bg-slate-800 border-t border-slate-300 dark:border-slate-700 flex shrink-0 p-1 gap-1">
-        <div class="flex-1 flex flex-col bg-slate-300 dark:bg-slate-700 rounded transition-colors overflow-hidden ${state.movingLesson && !state.paintLockMode ? 'hover:bg-slate-400 dark:hover:bg-slate-600 cursor-pointer' : ''}" onclick="if(state.movingLesson && !state.paintLockMode) actions.handleCellClick('tray', null, null)">
+        <div class="flex-1 flex flex-col bg-slate-300 dark:bg-slate-700 rounded transition-colors overflow-hidden ${state.movingLesson ? 'hover:bg-slate-400 dark:hover:bg-slate-600 cursor-pointer' : ''}" onclick="if(state.movingLesson) actions.handleCellClick('tray', null, null)">
             <div class="flex items-center justify-between px-2 py-0.5 bg-black/10 cursor-default" onclick="event.stopPropagation()">
                 <span class="text-[10px] font-black text-slate-700 dark:text-slate-200">📥 未配置トレイ (${state.unassigned.length}件)</span>
-                <button onclick="actions.handleCellClick('tray', null, null)" class="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[9px] font-bold shadow-sm ${state.movingLesson && !state.paintLockMode ? 'animate-pulse ring-2 ring-rose-500 bg-rose-600 hover:bg-rose-700' : ''} transition-all">ここへ戻す</button>
+                <button onclick="actions.handleCellClick('tray', null, null)" class="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[9px] font-bold shadow-sm ${state.movingLesson ? 'animate-pulse ring-2 ring-rose-500 bg-rose-600 hover:bg-rose-700' : ''} transition-all">ここへ戻す</button>
             </div>
             <div id="step10-tray-scroll" class="flex-1 overflow-x-auto custom-scrollbar p-1 flex gap-1 items-center">
-                ${state.unassigned.length===0?'<span class="text-[9px] text-slate-400 font-bold px-2 cursor-default" onclick="event.stopPropagation()">空です</span>':state.unassigned.map(l => {
-                    const isLocked = l.isLocked || false;
-                    const lockIcon = isLocked ? `<div class="pin-icon absolute -top-1 -right-1 bg-slate-700 text-white text-[8px] w-3 h-3 flex items-center justify-center rounded-full shadow-md z-10 border border-white">📌</div>` : '';
-                    const lockStyleCls = isLocked ? 'opacity-80 saturate-50 brightness-90' : '';
-                    return `
-                    <div onclick="event.stopPropagation(); actions.handleCellClick('tray', null, null, '${l.id}')" ondblclick="event.stopPropagation(); actions.toggleLock('${l.id}')" class="lesson-cell w-16 h-12 shrink-0 rounded-[4px] border cursor-pointer flex flex-col items-center justify-center relative ${state.movingLesson?.id===l.id?'ring-2 ring-rose-500 scale-95 opacity-80':''} ${state.violations&&state.violations[l.id]?'ring-2 ring-rose-500 shadow-rose-500 shadow-lg':''} ${getSubjectColorClass(l.subject)} ${lockStyleCls} transition-all" data-lesson-id="${l.id}" ${getSubjectStyle(l.subject)?`style="${getSubjectStyle(l.subject)}"`:''}>
-                        ${lockIcon}
+                ${state.unassigned.length===0?'<span class="text-[9px] text-slate-400 font-bold px-2 cursor-default" onclick="event.stopPropagation()">空です</span>':state.unassigned.map(l => `
+                    <div onclick="event.stopPropagation(); actions.handleCellClick('tray', null, null, '${l.id}')" class="w-16 h-12 shrink-0 rounded-[4px] border cursor-pointer flex flex-col items-center justify-center ${state.movingLesson?.id===l.id?'ring-2 ring-rose-500 scale-95 opacity-80':''} ${state.violations&&state.violations[l.id]?'ring-2 ring-rose-500 shadow-rose-500 shadow-lg':''} ${getSubjectColorClass(l.subject)} transition-all" ${getSubjectStyle(l.subject)?`style="${getSubjectStyle(l.subject)}"`:''}>
                         <span class="text-[10px] font-black truncate w-full text-center px-0.5 leading-none">${l.subject}</span>
                         <span class="text-[8px] truncate w-full text-center opacity-80 leading-tight">${l.targets.join(',')}</span>
                     </div>
-                `}).join('')}
+                `).join('')}
             </div>
         </div>
         <div class="w-10 flex flex-col gap-1 shrink-0">
@@ -527,10 +441,9 @@ window.viewStep10 = ()=>{
                         ${[0,1,2,3].map(idx => `<select onchange="actions.setSpotlight('tea', this.value, ${idx})" class="text-[10px] text-black p-1 rounded outline-none font-bold w-16"><option value="">教員${idx+1}</option>${teachers.map(t => `<option value="${t.id}" ${state.spotlightTeas[idx]===t.id?'selected':''}>${t.name}</option>`).join('')}</select>`).join('')}
                         <button onclick="actions.clearSpotlight()" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-[9px] font-black transition-colors">✕ クリア</button>
                     </div>
-                    ${state.movingLesson && !state.paintLockMode ? `<span class="text-[10px] font-black bg-rose-600 px-2 py-0.5 rounded-full animate-pulse">👉 先をタップ</span>` : ''}
+                    ${state.movingLesson ? `<span class="text-[10px] font-black bg-rose-600 px-2 py-0.5 rounded-full animate-pulse">👉 先をタップ</span>` : ''}
                 </div>
-                <div class="flex gap-2 items-center">
-                    ${lockToolsHtml}
+                <div class="flex gap-2">
                     <button onclick="actions.toggleBirdEye()" class="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-[10px] font-black shadow-sm transition-colors">✕ 閉じる</button>
                 </div>
             </div>
@@ -553,10 +466,10 @@ window.viewStep10 = ()=>{
                                 if (p === 1) borderCls += ' border-l-[2px] border-l-slate-400'; 
                                 
                                 const isBanned = isBannedArea(d, p, cls, 'class');
-                                const bannedCls = isBanned ? 'bg-banned pointer-events-none' : (state.paintLockMode ? 'hover:bg-slate-100' : 'cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700');
+                                const bannedCls = isBanned ? 'bg-banned pointer-events-none' : 'cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700';
                                 
                                 if (ls.length === 0) {
-                                    const isSelCls = (state.movingLesson && !state.paintLockMode && state.movingLesson.cls===cls && state.movingLesson.day===d && state.movingLesson.period===p) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
+                                    const isSelCls = (state.movingLesson && state.movingLesson.cls===cls && state.movingLesson.day===d && state.movingLesson.period===p) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
                                     return `<td class="border ${borderCls} ${bgCls} p-0 relative transition-colors ${bannedCls}" ${!isBanned?`onclick="actions.handleCellClick('${d}',${p},'${cls}')"`:''}><div class="${isSelCls}"></div></td>`;
                                 }
                                 
@@ -565,15 +478,11 @@ window.viewStep10 = ()=>{
                                 const activeTeas = state.spotlightTeas.filter(t => t);
                                 const isTeaMatch = activeTeas.length === 0 || activeTeas.every(tid => l.teacherIds?.includes(tid));
                                 const isSpot = isSubMatch && isTeaMatch;
+                                const dimCls = (!state.spotlightSub && activeTeas.length === 0 || isSpot) ? '' : 'opacity-20 grayscale';
                                 
-                                const isSel = (state.movingLesson && !state.paintLockMode && state.movingLesson.id === l.id);
+                                const isSel = (state.movingLesson && state.movingLesson.id === l.id);
                                 const isVio = state.violations && state.violations[l.id];
                                 const isConf = state.conflictingIds && state.conflictingIds.includes(l.id);
-                                
-                                const isLocked = l.isLocked || false;
-                                const lockIcon = isLocked ? `<div class="pin-icon absolute -top-0.5 -right-0.5 bg-slate-700 text-white text-[6px] w-2.5 h-2.5 flex items-center justify-center rounded-full shadow-md z-10">📌</div>` : '';
-                                const lockStyleCls = isLocked ? 'opacity-80 saturate-50 brightness-90' : '';
-                                const dimCls = (!state.spotlightSub && activeTeas.length === 0 || isSpot) ? lockStyleCls : 'opacity-20 grayscale';
                                 
                                 let ringCls = '';
                                 if(isSel) ringCls = 'ring-2 ring-rose-500 scale-90 opacity-80 z-20 shadow-lg';
@@ -584,8 +493,7 @@ window.viewStep10 = ()=>{
                                 const cClass = cStyle ? '' : getSubjectColorClass(l.subject);
                                 
                                 return `<td class="border ${borderCls} ${bgCls} p-0 ${bannedCls} align-middle relative" ${!isBanned||isSel?`onclick="actions.handleCellClick('${d}',${p},'${cls}','${l.id}')"`:''}>
-                                    <div class="lesson-cell w-full h-full flex flex-col items-center justify-center m-0 overflow-hidden relative z-0 ${cClass} ${dimCls} ${ringCls} transition-all select-none" data-lesson-id="${l.id}" ondblclick="actions.toggleLock('${l.id}')" ${cStyle?`style="${cStyle}"`:''}>
-                                        ${lockIcon}
+                                    <div class="w-full h-full flex flex-col items-center justify-center m-0 overflow-hidden relative z-0 ${cClass} ${dimCls} ${ringCls} transition-all select-none" ${cStyle?`style="${cStyle}"`:''}>
                                         <span class="font-black leading-none text-[clamp(8px,1.2vw,14px)] tracking-tighter w-full text-center whitespace-nowrap overflow-hidden" style="text-overflow:clip; min-width:2em;">${l.subject}</span>
                                         <span class="font-extrabold leading-none text-[clamp(6px,0.9vw,10px)] opacity-100 text-slate-800 dark:text-slate-100 mt-[1px] w-full text-center truncate px-0.5">${l.teacherName||''}</span>
                                     </div>
@@ -622,9 +530,8 @@ window.viewStep10 = ()=>{
                 <button onclick="actions.setDashTab('individual')" class="px-3 py-1 rounded font-black text-[10px] transition-all ${state.dashTab==='individual'?'bg-white shadow-sm text-blue-600':'text-slate-500 hover:bg-slate-200'}">個別</button>
             </div>
             ${subControls}
-            ${lockToolsHtml}
         </div>
-        <div class="flex items-center gap-1 mt-1 md:mt-0">
+        <div class="flex items-center gap-1">
             ${sc?`<div class="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border hover:bg-slate-100 transition-colors cursor-pointer" onclick="actions.openReportModal()"><span class="text-[8px] font-bold text-slate-500 uppercase">Score:</span><span class="text-[10px] font-black text-emerald-600">${sc?.basic?.score||0}%</span><button class="ml-1 px-1.5 py-0.5 bg-white rounded text-[8px] font-bold border shadow-sm">詳細</button></div>`:''}
             <button onclick="actions.toggleBirdEye()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-black shadow-sm flex items-center gap-1 transition-colors">🦅俯瞰モード</button>
         </div>
@@ -646,27 +553,22 @@ window.viewStep10 = ()=>{
                 let borderCls = 'border-r'; if(p===1) borderCls += ' border-l-2 border-l-slate-300';
                 
                 const isBanned = isBannedArea(d, p, rowId, state.matrixAxis);
-                const bannedCls = isBanned ? 'bg-banned pointer-events-none' : (state.paintLockMode ? 'hover:bg-slate-50' : 'cursor-pointer hover:bg-slate-200');
+                const bannedCls = isBanned ? 'bg-banned pointer-events-none' : 'cursor-pointer hover:bg-slate-200';
                 
                 const lessons=(state.generatedSchedule?.[d]?.[p]||[]).filter(l=>state.matrixAxis==='class'?l.targets?.includes(rowId):state.matrixAxis==='teacher'?l.teacherIds?.includes(rowId):l.room===rowId);
                 
                 if(lessons.length===0){ 
-                    const isSelCls = (state.movingLesson && !state.paintLockMode && state.movingLesson.day===d && state.movingLesson.period===p && ((state.matrixAxis==='class'&&state.movingLesson.cls===rowId) || (state.matrixAxis==='teacher'&&state.movingLesson.teacherIds.includes(rowId)))) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
+                    const isSelCls = (state.movingLesson && state.movingLesson.day===d && state.movingLesson.period===p && ((state.matrixAxis==='class'&&state.movingLesson.cls===rowId) || (state.matrixAxis==='teacher'&&state.movingLesson.teacherIds.includes(rowId)))) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
                     tr+=`<td class="p-0 ${borderCls} ${bgCls} ${bannedCls} relative align-top h-full" ${!isBanned?`onclick="actions.handleCellClick('${d}',${p},'${state.matrixAxis==='class'?rowId:state.dashFilter}')"`:''}><div class="${isSelCls}"></div></td>`;
                 } else { 
                     const l=lessons[0]; const subT=state.matrixAxis==='class'?`${l.teacherName||'?'}`:`${l.targets?.join(',')}`;
                     const cStyle = getSubjectStyle(l.subject); const cClass = cStyle ? '' : getSubjectColorClass(l.subject);
-                    const isSel = (state.movingLesson && !state.paintLockMode && state.movingLesson.id === l.id);
+                    const isSel = (state.movingLesson && state.movingLesson.id === l.id);
                     const isVio = state.violations && state.violations[l.id];
                     let ringCls = ''; if(isSel) ringCls='ring-2 ring-rose-500 scale-90 opacity-80 z-20'; else if(isVio) ringCls='ring-[1px] ring-rose-500 animate-pulse';
                     
-                    const isLocked = l.isLocked || false;
-                    const lockIcon = isLocked ? `<div class="pin-icon absolute -top-1 -right-1 bg-slate-700 text-white text-[8px] w-3 h-3 flex items-center justify-center rounded-full shadow-md z-10 border border-white">📌</div>` : '';
-                    const lockStyleCls = isLocked ? 'opacity-80 saturate-50 brightness-90' : '';
-
                     tr+=`<td class="p-0.5 ${borderCls} ${bgCls} ${bannedCls} align-top h-full" ${!isBanned||isSel?`onclick="actions.handleCellClick('${d}',${p},'${state.matrixAxis==='class'?rowId:state.dashFilter}','${l.id}')"`:''}>
-                        <div class="lesson-cell flex flex-col items-center justify-center p-0.5 rounded-[4px] border ${cClass} ${ringCls} ${lockStyleCls} shadow-sm relative overflow-hidden h-full min-h-[40px] select-none" data-lesson-id="${l.id}" ondblclick="actions.toggleLock('${l.id}')" ${cStyle?`style="${cStyle}"`:''}>
-                            ${lockIcon}
+                        <div class="flex flex-col items-center justify-center p-0.5 rounded-[4px] border ${cClass} ${ringCls} shadow-sm relative overflow-hidden h-full min-h-[40px]" ${cStyle?`style="${cStyle}"`:''}>
                             ${lessons.length>1?`<span class="absolute top-0 right-0 bg-rose-500 text-white text-[6px] px-0.5 rounded-bl">重</span>`:''}
                             <div class="font-black text-[clamp(9px,1vw,12px)] w-full truncate leading-tight">${l.subject}</div>
                             <div class="text-[7px] font-extrabold opacity-100 text-slate-800 w-full truncate leading-none mt-0.5">${subT}</div>
@@ -684,21 +586,16 @@ window.viewStep10 = ()=>{
             DAYS.forEach(d=>{
                 const ls=(state.generatedSchedule?.[d]?.[p]||[]).filter(l=>state.dashView==='class'?l.targets?.includes(state.dashFilter):l.teacherIds?.includes(state.dashFilter));
                 const isBanned = isBannedArea(d, p, state.dashFilter, state.dashView);
-                const bannedCls = isBanned ? 'bg-banned pointer-events-none' : (state.paintLockMode ? 'hover:bg-slate-50' : 'cursor-pointer hover:bg-slate-50');
+                const bannedCls = isBanned ? 'bg-banned pointer-events-none' : 'cursor-pointer hover:bg-slate-50';
                 
-                const selCls = (state.movingLesson && !state.paintLockMode && state.movingLesson.day===d && state.movingLesson.period===p && ((state.dashView==='class'&&state.movingLesson.cls===state.dashFilter) || (state.dashView==='teacher'&&state.movingLesson.teacherIds.includes(state.dashFilter)))) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
+                const selCls = (state.movingLesson && state.movingLesson.day===d && state.movingLesson.period===p && ((state.dashView==='class'&&state.movingLesson.cls===state.dashFilter) || (state.dashView==='teacher'&&state.movingLesson.teacherIds.includes(state.dashFilter)))) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
                 
                 html+=`<div class="dash-cell border-b border-r bg-white relative ${bannedCls}" ${!isBanned?`onclick="actions.handleCellClick('${d}',${p},'${state.dashFilter}','${ls.length>0?ls[0].id:''}')"`:''}><div class="${selCls}"></div>${ls.map(l=>{
                     const cStyle = getSubjectStyle(l.subject); const cClass = cStyle ? '' : getSubjectColorClass(l.subject);
-                    const isSel = state.movingLesson && !state.paintLockMode && state.movingLesson.id === l.id;
+                    const isSel = state.movingLesson && state.movingLesson.id === l.id;
                     const isVio = state.violations && state.violations[l.id];
                     let ringCls = ''; if(isSel) ringCls='ring-2 ring-rose-500 scale-90 opacity-80 z-20'; else if(isVio) ringCls='ring-[2px] ring-rose-500 animate-pulse shadow-rose-500 shadow-md';
-                    
-                    const isLocked = l.isLocked || false;
-                    const lockIcon = isLocked ? `<div class="pin-icon absolute -top-1 -right-1 bg-slate-700 text-white text-[8px] w-3 h-3 flex items-center justify-center rounded-full shadow-md z-10 border border-white">📌</div>` : '';
-                    const lockStyleCls = isLocked ? 'opacity-80 saturate-50 brightness-90' : '';
-
-                    return `<div class="lesson-cell text-center w-full px-0.5 flex flex-col items-center justify-center h-full gap-0.5 relative z-0 transition-transform select-none" data-lesson-id="${l.id}" ondblclick="actions.toggleLock('${l.id}')"><div class="px-1 py-0.5 rounded border leading-none ${cClass} ${ringCls} ${lockStyleCls} shadow-sm truncate max-w-full w-full flex-1 flex flex-col justify-center relative" ${cStyle?`style="${cStyle}"`:''}>${lockIcon}<div class="text-[clamp(12px,1.5vw,18px)] font-black">${l.subject}</div><div class="text-[clamp(9px,1.2vw,14px)] font-black text-slate-900 mt-[4px] opacity-90">${state.dashView==='teacher'?l.targets?.join(','):(l.teacherName||'担任')}</div></div></div>`;
+                    return `<div class="text-center w-full px-0.5 flex flex-col items-center justify-center h-full gap-0.5 relative z-0 transition-transform"><div class="px-1 py-0.5 rounded border leading-none ${cClass} ${ringCls} shadow-sm truncate max-w-full w-full flex-1 flex flex-col justify-center" ${cStyle?`style="${cStyle}"`:''}><div class="text-[clamp(12px,1.5vw,18px)] font-black">${l.subject}</div><div class="text-[clamp(9px,1.2vw,14px)] font-black text-slate-900 mt-[4px] opacity-90">${state.dashView==='teacher'?l.targets?.join(','):(l.teacherName||'担任')}</div></div></div>`;
                 }).join('')}</div>`;
             });
         }); html+=`</div></div>`;
@@ -869,80 +766,7 @@ window.actions = {
         render();
         showToast("ハイライトをリセットしました");
     },
-    
-    // --- ロック機能 ---
-    togglePaintLockMode: () => {
-        state.paintLockMode = !state.paintLockMode;
-        if(state.movingLesson) state.movingLesson = null;
-        render();
-        showToast(state.paintLockMode ? "🖌️なぞりロックをONにしました" : "なぞりロックをOFFにしました");
-    },
-    setLock: (id, lockState) => {
-        let l = findLessonById(id);
-        if(l && l.isLocked !== lockState) {
-            l.isLocked = lockState;
-            // 簡易DOM操作で軽く見せる
-            document.querySelectorAll(`.lesson-cell[data-lesson-id="${id}"]`).forEach(el => {
-                if(lockState) {
-                    el.classList.add('opacity-80', 'saturate-50', 'brightness-90');
-                    if(!el.querySelector('.pin-icon')) {
-                        const pin = document.createElement('div');
-                        pin.className = "pin-icon absolute -top-1 -right-1 bg-slate-700 text-white text-[8px] w-3 h-3 flex items-center justify-center rounded-full shadow-md z-10 border border-white";
-                        pin.innerText = "📌";
-                        if(el.closest('#step10-birdeye-scroll')) {
-                             pin.className = "pin-icon absolute -top-0.5 -right-0.5 bg-slate-700 text-white text-[6px] w-2.5 h-2.5 flex items-center justify-center rounded-full shadow-md z-10";
-                        }
-                        el.appendChild(pin);
-                    }
-                } else {
-                    el.classList.remove('opacity-80', 'saturate-50', 'brightness-90');
-                    const pin = el.querySelector('.pin-icon');
-                    if(pin) pin.remove();
-                }
-            });
-            try{localStorage.setItem(STORAGE_KEY_DRAFT,JSON.stringify(state));}catch(e){}
-        }
-    },
-    toggleLock: (id) => {
-        let l = findLessonById(id);
-        if(l) {
-            l.isLocked = !l.isLocked;
-            render();
-            showToast(l.isLocked ? "📌固定しました" : "固定を解除しました");
-        }
-    },
-    lockAll: (doLock) => {
-        if(!state.generatedSchedule) return;
-        DAYS.forEach(d => {
-            getDynamicPeriods().forEach(p => {
-                (state.generatedSchedule[d]?.[p]||[]).forEach(l => l.isLocked = doLock);
-            });
-        });
-        (state.unassigned||[]).forEach(l => l.isLocked = doLock);
-        render();
-        showToast(doLock ? "すべての駒を固定しました" : "すべての固定を解除しました");
-    },
-    lockHomeroom: () => {
-        if(!state.generatedSchedule || !state.classAssignments) return;
-        let count = 0;
-        DAYS.forEach(d => {
-            getDynamicPeriods().forEach(p => {
-                (state.generatedSchedule[d]?.[p]||[]).forEach(l => {
-                    const cls = l.targets[0];
-                    const homeroomId = state.classAssignments[cls]?.homeroom;
-                    if(homeroomId && l.teacherIds.includes(homeroomId)) {
-                        l.isLocked = true;
-                        count++;
-                    }
-                });
-            });
-        });
-        render();
-        showToast(`担任授業を固定しました(${count}コマ)`);
-    },
-
     handleCellClick: (d, p, cls, lId = null) => {
-        if(state.paintLockMode) return;
         window.hideViolationPopup();
         if (!state.generatedSchedule) return;
         
