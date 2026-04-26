@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 17.2.1</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Smart TimeTable - Ver 17.3.0</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 <script>tailwind.config={darkMode:'class'}</script>
@@ -55,7 +55,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
             <button id="btn-prev" class="m3-btn-secondary w-[80px] md:w-[120px] relative z-10 !text-xs">戻る</button>
             <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none hidden md:flex">
                 <div class="text-[11px] font-black text-slate-800 dark:text-slate-100 leading-none">Smart TimeTable</div>
-                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 17.2.1 (Error-Handling Update)</div>
+                <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 17.3.0 (Joint-Class & Folder Export)</div>
             </div>
             <button id="btn-next" class="m3-btn-primary w-[140px] md:w-[180px] relative z-10 !text-xs"><span id="btn-next-text">次へ進む</span></button>
         </div>
@@ -124,8 +124,8 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 
 <script>
 var GAS_URL="https://script.google.com/macros/s/AKfycbyBGtPeS-wJycxNwPTFWBAXZG2iJ2o27oaAgtE-VgPd9QPISq8JTmOawTn9W3csfpJL/exec";
-const STORAGE_KEY_DRAFT = 'tt_v17_2_1_draft';
-const STORAGE_KEY_SLOTS = 'tt_v17_2_1_slots';
+const STORAGE_KEY_DRAFT = 'tt_v17_3_0_draft';
+const STORAGE_KEY_SLOTS = 'tt_v17_3_0_slots';
 
 var GRADES=[1,2,3,4,5,6], DAYS=['月','火','水','木','金'];
 function getDynamicPeriods() { let m=6; if(state.periods) Object.values(state.periods).forEach(dObj=>Object.values(dObj).forEach(v=>{if(parseInt(v)>m)m=parseInt(v);})); return Array.from({length:m},(_,i)=>i+1); }
@@ -417,6 +417,7 @@ function triggerCelebration() {
     }, 4000));
 }
 
+// 【Ver 17.3.0 修正】 合同授業のエラー誤検知を回避するため、レッスンIDで一意化してチェック
 function validateSchedule() {
     state.violations = {}; state.conflictingIds = [];
     const schedule = state.generatedSchedule;
@@ -437,26 +438,47 @@ function validateSchedule() {
                     dailyCls[d][c][l.subject].push({lesson: l, period: p});
                 });
             });
+            
+            // 教員重複チェック（同一IDの駒は1つの合同授業とみなす）
             Object.keys(tMap).forEach(tid => {
-                if(tMap[tid].length > 1) {
+                const uniqueLessons = [];
+                const seenIds = new Set();
+                tMap[tid].forEach(l => {
+                    if(!seenIds.has(l.id)) {
+                        seenIds.add(l.id);
+                        uniqueLessons.push(l);
+                    }
+                });
+                
+                if(uniqueLessons.length > 1) {
                     const tName = safeFind(state.teachers, 'id', tid)?.name || '不明';
-                    tMap[tid].forEach(l => {
+                    uniqueLessons.forEach(l => {
                         if(!state.violations[l.id]) state.violations[l.id]=[];
-                        const ots = tMap[tid].filter(x=>x.id!==l.id);
-                        state.violations[l.id].push(`教員重複: ${tName}先生が他クラス(${ots.map(x=>x.targets.join(',')).join('・')})で授業中`);
+                        const ots = uniqueLessons.filter(x=>x.id!==l.id);
+                        state.violations[l.id].push(`教員重複: ${tName}先生が別々の授業(${ots.map(x=>x.subject).join('・')})に配置されています`);
                         ots.forEach(x=>confSet.add(x.id));
                     });
                 }
             });
+            
+            // 教室重複チェック（同一IDの駒は1つの合同授業とみなす）
             Object.keys(rMap).forEach(rName => {
                 const roomDef = safeFind(state.rooms, 'name', rName);
                 if(roomDef) {
                     const cap = roomDef.capacity || 1;
-                    if(rMap[rName].length > cap) {
-                        rMap[rName].forEach(l => {
+                    const uniqueLessons = [];
+                    const seenIds = new Set();
+                    rMap[rName].forEach(l => {
+                        if(!seenIds.has(l.id)) {
+                            seenIds.add(l.id);
+                            uniqueLessons.push(l);
+                        }
+                    });
+                    if(uniqueLessons.length > cap) {
+                        uniqueLessons.forEach(l => {
                             if(!state.violations[l.id]) state.violations[l.id]=[];
-                            const ots = rMap[rName].filter(x=>x.id!==l.id);
-                            state.violations[l.id].push(`教室重複: ${rName}が定員オーバー(他: ${ots.map(x=>x.targets.join(',')).join('・')})`);
+                            const ots = uniqueLessons.filter(x=>x.id!==l.id);
+                            state.violations[l.id].push(`教室重複: ${rName}が定員オーバー(他: ${ots.map(x=>x.subject).join('・')})`);
                             ots.forEach(x=>confSet.add(x.id));
                         });
                     }
@@ -465,6 +487,7 @@ function validateSchedule() {
         });
     });
     
+    // 同日重複チェック
     DAYS.forEach(d => {
         Object.keys(dailyCls[d]).forEach(c => {
             Object.keys(dailyCls[d][c]).forEach(s => {
@@ -624,7 +647,7 @@ window.viewStep10 = ()=>{
                         ${[0,1,2,3].map(idx => `<select onchange="actions.setSpotlight('tea', this.value, ${idx})" class="text-[10px] text-black p-1 rounded outline-none font-bold w-16"><option value="">教員${idx+1}</option>${teachers.map(t => `<option value="${t.id}" ${state.spotlightTeas[idx]===t.id?'selected':''}>${t.name}</option>`).join('')}</select>`).join('')}
                         <button onclick="actions.clearSpotlight()" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-[9px] font-black transition-colors">✕ クリア</button>
                     </div>
-                    ${state.movingLesson && !state.paintLockMode ? `<span class="text-[10px] font-black bg-rose-600 px-2 py-0.5 rounded-full animate-pulse">👉 先をタップ</span>` : ''}
+                    ${state.movingLesson && !state.paintLockMode ? `<span class="text-[10px] font-black bg-rose-600 px-2 py-0.5 rounded-full animate-pulse">👉 対象(${state.movingLesson.targets.join(',')})の先をタップ</span>` : ''}
                 </div>
                 <div class="flex gap-2 items-center">
                     ${lockToolsHtml}
@@ -652,10 +675,12 @@ window.viewStep10 = ()=>{
                                 const isBanned = isBannedArea(d, p, cls, 'class');
                                 const bannedCls = isBanned ? 'bg-banned pointer-events-none' : (state.paintLockMode ? 'hover:bg-slate-100 dark:hover:bg-slate-800' : 'cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700');
                                 let hintCls = '';
-                                if (state.movingLesson && !state.paintLockMode && !isBanned) hintCls = getHintClass(d, p, cls);
+                                if (state.movingLesson && !state.paintLockMode && !isBanned && state.movingLesson.targets.includes(cls)) {
+                                    hintCls = getHintClass(d, p, cls);
+                                }
 
                                 if (ls.length === 0) {
-                                    const isSelCls = (state.movingLesson && !state.paintLockMode && state.movingLesson.cls===cls && state.movingLesson.day===d && state.movingLesson.period===p) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
+                                    const isSelCls = (state.movingLesson && !state.paintLockMode && state.movingLesson.targets.includes(cls) && state.movingLesson.day===d && state.movingLesson.period===p) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
                                     return `<td class="border ${borderCls} ${bgCls} p-0 relative transition-colors ${bannedCls} ${hintCls}" ${!isBanned?`onclick="actions.handleCellClick('${d}',${p},'${cls}')"`:''}><div class="${isSelCls}"></div></td>`;
                                 }
                                 
@@ -749,14 +774,18 @@ window.viewStep10 = ()=>{
                 
                 let hintCls = '';
                 if (state.movingLesson && !state.paintLockMode && !isBanned) {
-                    let targetCls = state.matrixAxis === 'class' ? rowId : (state.movingLesson.targets[0] || '');
-                    hintCls = getHintClass(d, p, targetCls);
+                    let isTargetRow = false;
+                    if (state.matrixAxis === 'class' && state.movingLesson.targets.includes(rowId)) isTargetRow = true;
+                    if (state.matrixAxis === 'teacher' && state.movingLesson.teacherIds.includes(rowId)) isTargetRow = true;
+                    if (isTargetRow) {
+                        hintCls = getHintClass(d, p, state.movingLesson.targets[0]);
+                    }
                 }
 
                 const lessons=(state.generatedSchedule?.[d]?.[p]||[]).filter(l=>state.matrixAxis==='class'?l.targets?.includes(rowId):state.matrixAxis==='teacher'?l.teacherIds?.includes(rowId):l.room===rowId);
                 
                 if(lessons.length===0){ 
-                    const isSelCls = (state.movingLesson && !state.paintLockMode && state.movingLesson.day===d && state.movingLesson.period===p && ((state.matrixAxis==='class'&&state.movingLesson.cls===rowId) || (state.matrixAxis==='teacher'&&state.movingLesson.teacherIds.includes(rowId)))) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
+                    const isSelCls = (state.movingLesson && !state.paintLockMode && state.movingLesson.day===d && state.movingLesson.period===p && ((state.matrixAxis==='class'&&state.movingLesson.targets.includes(rowId)) || (state.matrixAxis==='teacher'&&state.movingLesson.teacherIds.includes(rowId)))) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
                     tr+=`<td class="p-0 ${borderCls} ${bgCls} ${bannedCls} ${hintCls} relative align-top h-full transition-colors" ${!isBanned?`onclick="actions.handleCellClick('${d}',${p},'${state.matrixAxis==='class'?rowId:state.dashFilter}')"`:''}><div class="${isSelCls}"></div></td>`;
                 } else { 
                     const l=lessons[0]; const subT=state.matrixAxis==='class'?`${l.teacherName||'?'}`:`${l.targets?.join(',')}`;
@@ -794,10 +823,12 @@ window.viewStep10 = ()=>{
                 let hintCls = '';
                 if (state.movingLesson && !state.paintLockMode && !isBanned) {
                     let targetCls = state.dashView === 'class' ? state.dashFilter : (state.movingLesson.targets[0] || '');
-                    hintCls = getHintClass(d, p, targetCls);
+                    if (state.movingLesson.targets.includes(targetCls) || (state.dashView === 'teacher' && state.movingLesson.teacherIds.includes(state.dashFilter))) {
+                        hintCls = getHintClass(d, p, targetCls);
+                    }
                 }
 
-                const selCls = (state.movingLesson && !state.paintLockMode && state.movingLesson.day===d && state.movingLesson.period===p && ((state.dashView==='class'&&state.movingLesson.cls===state.dashFilter) || (state.dashView==='teacher'&&state.movingLesson.teacherIds.includes(state.dashFilter)))) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
+                const selCls = (state.movingLesson && !state.paintLockMode && state.movingLesson.day===d && state.movingLesson.period===p && ((state.dashView==='class'&&state.movingLesson.targets.includes(state.dashFilter)) || (state.dashView==='teacher'&&state.movingLesson.teacherIds.includes(state.dashFilter)))) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
                 
                 html+=`<div class="dash-cell border-b border-r bg-white dark:bg-slate-900 relative transition-colors ${bannedCls} ${hintCls}" ${!isBanned?`onclick="actions.handleCellClick('${d}',${p},'${state.dashFilter}','${ls.length>0?ls[0].id:''}')"`:''}><div class="${selCls}"></div>${ls.map(l=>{
                     const cStyle = getSubjectStyle(l.subject); const cClass = cStyle ? '' : getSubjectColorClass(l.subject);
@@ -981,7 +1012,6 @@ window.actions = {
         showToast("ハイライトをリセットしました");
     },
     
-    // --- ロック機能 ---
     togglePaintLockMode: () => {
         state.paintLockMode = !state.paintLockMode;
         if(state.movingLesson) state.movingLesson = null;
@@ -1213,7 +1243,6 @@ window.actions = {
             if(data.scoreCard) state.scoreCard = data.scoreCard; 
             if(data.reportDetails) state.reportDetails = data.reportDetails;
             
-            // 致命的エラー（Fatal Error）のハンドリング
             if(data.fatalError) {
                 hideLoading();
                 state.marathon.active = false;
@@ -1261,7 +1290,6 @@ window.actions = {
             if(data.scoreCard) state.scoreCard=data.scoreCard; 
             if(data.reportDetails) state.reportDetails=data.reportDetails; 
             
-            // 致命的エラー（Fatal Error）のハンドリング
             if(data.fatalError) {
                 hideLoading();
                 render();
@@ -1275,7 +1303,6 @@ window.actions = {
         } catch(e) { showToast("通信エラー","error"); hideLoading(); } 
     },
     
-    // エラーレポートモーダル (Fatal Error 専用)
     openFatalErrorModal: () => {
         let h = `<div class="flex justify-between items-center mb-4 border-b pb-2"><h3 class="text-lg font-black text-rose-600">🚨 致命的な配置エラー</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold text-xl hover:bg-slate-100 rounded px-2">✕</button></div><div id="modal-scroll" class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-3 pb-4">`; 
         h += `<div class="bg-rose-50 text-rose-800 p-3 rounded-lg text-sm font-bold border border-rose-200 shadow-sm">以下の理由により、AIが時間割を組むことができませんでした。<br>ダッシュボードで「全解除」ボタンを押してピン留め（固定）を外すか、条件を緩和してください。</div>`;
@@ -1296,7 +1323,6 @@ window.actions = {
     openReportModal:()=>{ 
         const sc = state.scoreCard; 
         if(!sc) {
-            // スコアカードがない場合（FatalError等）はエラーレポートへフォールバック
             if(state.reportDetails && Object.keys(state.reportDetails).length > 0) {
                 actions.openFatalErrorModal();
                 return;
@@ -1314,7 +1340,7 @@ window.actions = {
     },
 
     openExportModal:()=>{
-        let h = `<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0"><h3 class="text-lg font-black text-blue-900">🖨️ 出力設定 (10項目のマルチ印刷)</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold text-xl hover:bg-slate-100 rounded px-2">✕</button></div><div id="modal-scroll" class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-4 pb-4 text-sm font-bold text-slate-700">`;
+        let h = `<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0"><h3 class="text-lg font-black text-blue-900">🖨️ 出力設定 (マルチ印刷)</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold text-xl hover:bg-slate-100 rounded px-2">✕</button></div><div id="modal-scroll" class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-4 pb-4 text-sm font-bold text-slate-700">`;
         h += `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
                     <h4 class="text-xs font-black text-slate-500 mb-3 border-b pb-1">📄 PDF出力 (印刷用)</h4>
@@ -1333,7 +1359,15 @@ window.actions = {
                     <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="ss-indiv-teacher" class="w-4 h-4 text-emerald-600"><span>各教員別時間割</span></label>
                 </div>
               </div>`;
-        h += `<div class="bg-blue-50 text-blue-800 p-3 rounded-lg text-xs border border-blue-200">💡 ヒント: サーバーでファイルを生成するため、数秒〜十数秒かかります。完了後、ダウンロードリンクが表示されます。</div>`
+        
+        // 【Ver17.3.0 修正】 フォルダ指定入力欄の追加
+        h += `<div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200 mt-2">
+                <h4 class="text-xs font-black text-indigo-600 mb-2 border-b border-indigo-200 pb-1">📂 保存先フォルダの指定 (任意)</h4>
+                <p class="text-[10px] text-slate-500 mb-2">GoogleドライブのフォルダURL（またはフォルダID）を貼り付けると、その場所に保存されます。<br>空欄の場合は「マイドライブ」の直下に保存されます。</p>
+                <input type="text" id="export-folder-url" placeholder="https://drive.google.com/drive/folders/..." class="w-full p-2 border rounded-lg bg-white text-xs font-bold outline-none focus:border-indigo-500 mb-1">
+                <p class="text-[9px] text-slate-400">※Google Pickerによるクリック選択はAPIキーの設定が必要です。現在はURL自動抽出機能をデフォルトとしています。</p>
+              </div>`;
+
         h += `<div class="mt-2 flex justify-end shrink-0"><button onclick="actions.executeExport()" class="m3-btn-primary px-8">サーバーで生成</button></div>`;
         document.getElementById('modal-body').innerHTML = h + `</div>`; document.getElementById('modal-overlay').classList.remove('hidden');
     },
@@ -1348,7 +1382,20 @@ window.actions = {
     },
     
     executeExport: async function() {
+        // フォルダIDの抽出ロジック
+        let folderUrl = document.getElementById('export-folder-url')?.value || '';
+        let folderId = null;
+        if (folderUrl) {
+            const match = folderUrl.match(/\/folders\/([a-zA-Z0-9-_]+)/) || folderUrl.match(/id=([a-zA-Z0-9-_]+)/);
+            if (match) {
+                folderId = match[1];
+            } else {
+                folderId = folderUrl.trim(); // URLではない文字列が入った場合はそのままIDとして扱う
+            }
+        }
+
         const options = {
+            folderId: folderId, // 抽出したIDをバックエンドに送信
             pdf: {
                 matrixClass: document.getElementById('pdf-matrix-class')?.checked,
                 matrixTeacher: document.getElementById('pdf-matrix-teacher')?.checked,
@@ -1413,7 +1460,6 @@ window.actions = {
         }
     },
 
-    // --- SS同期（インポート）用機能追加 ---
     openImportSSModal: () => {
         document.getElementById('import-ss-url').value = '';
         document.getElementById('import-ss-errors').classList.add('hidden');
@@ -1443,7 +1489,7 @@ window.actions = {
 
             if (data.success) {
                 state.generatedSchedule = data.schedule;
-                state.unassigned = []; // インポートで上書きしたため、既存の未配置はリセット
+                state.unassigned = [];
                 state.currentStep = 10;
                 actions.initScheduleHistory();
                 
