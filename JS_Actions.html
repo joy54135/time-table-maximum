@@ -200,7 +200,20 @@ window.actions = {
     setGrade:(g,v)=>{state.grades[g]=Math.max(1,parseInt(v)||1); render();},
     updatePeriod:(g,d,v)=>{if(!state.periods[g])state.periods[g]={}; state.periods[g][d]=Math.max(0,Math.min(6,(parseInt(state.periods[g][d])||0)+v)); render();},
     setPeriod:(g,d,v)=>{if(!state.periods[g])state.periods[g]={}; state.periods[g][d]=Math.max(0,Math.min(6,parseInt(v)||0)); render();},
-    toggleBlock:(k)=>{state.globalBlocks[k]=!state.globalBlocks[k]; render();},
+    toggleBlock:(k)=>{
+        if(!state.globalBlocks) state.globalBlocks = {};
+        if(!state.unstableBlocks) state.unstableBlocks = {};
+        
+        if(!state.globalBlocks[k] && !state.unstableBlocks[k]) {
+            state.globalBlocks[k] = true; // 〇 -> ✕(不可)
+        } else if(state.globalBlocks[k]) {
+            state.globalBlocks[k] = false;
+            state.unstableBlocks[k] = true; // ✕ -> ☁️(不安定)
+        } else if(state.unstableBlocks[k]) {
+            state.unstableBlocks[k] = false; // ☁️ -> 〇(空き)
+        }
+        render();
+    },
     moveItem:(key, idx, dir)=>{ const arr=state[key]; if(!arr)return; const newIdx=idx+dir; if(newIdx<0 || newIdx>=arr.length)return; const temp=arr[idx]; arr[idx]=arr[newIdx]; arr[newIdx]=temp; render(); },
     toggleTeacherLoad: (tid) => { state.openTeacherLoadId = (state.openTeacherLoadId === tid) ? null : tid; render(); },
     
