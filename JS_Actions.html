@@ -153,7 +153,7 @@ window.actions = {
     undoSubjects:()=>{ if(state.subjectsUndoStack.length>0){ state.subjects=JSON.parse(state.subjectsUndoStack.pop()); render(); showToast("教科設定を戻しました"); }else showToast("戻せる履歴がありません","error"); },
     addSubject:(n)=>{ actions.pushUndoSubjects(); state.subjects.push({id:'s_'+Date.now(),name:n,stdHours:{1:0,2:0,3:0,4:0,5:0,6:0},defaultRoom:'通常教室',gradeRooms:{}, color: getDefaultHexColor(n)}); render(); },
     removeSubject:(id)=>{ actions.pushUndoSubjects(); state.subjects=state.subjects.filter(x=>x.id!==id); render(); },
-    setSubjectHour:(id,g,v)=>{ const s=safeFind(state.subjects,'id',id); if(s){ s.stdHours[g]=parseInt(v)||0; render(); }},
+    setSubjectHour:(id,g,v)=>{ const s=safeFind(state.subjects,'id',id); if(s){ s.stdHours[g]=parseFloat(v)||0; render(); }},
     updateSubject:(id,k,v)=>{ const s=safeFind(state.subjects,'id',id); if(s){ s[k]=v; render(); }},
     updateGradeRoom:(sid, g, val)=>{ const s=safeFind(state.subjects,'id',sid); if(s){ if(!s.gradeRooms)s.gradeRooms={}; s.gradeRooms[g]=val; render(); }},
     handleTeacherClick:(id)=>{ state.selectedTeacherId=id; render(); },
@@ -164,12 +164,23 @@ window.actions = {
     updateTeacher:(id,k,v)=>{ const t=safeFind(state.teachers,'id',id); if(t){ t[k]=v; render(); }},
     updateTeacherHomeroom:(tid,cls)=>{ const t=safeFind(state.teachers,'id',tid); if(t)t.homeroom=cls; render(); },
     toggleTeacherNG:(id,k)=>{ const t=safeFind(state.teachers,'id',id); if(t){ t.ngTimes[k]=!t.ngTimes[k]; render(); }},
-    updateBuilder:(k,v)=>{ state.specialBuilder[k]=v; render(); },
+    updateBuilder:(k,v)=>{ 
+        if(k==='hours') state.specialBuilder[k]=parseFloat(v)||1;
+        else state.specialBuilder[k]=v;
+        render(); 
+    },
     toggleBuilderTarget:(cls)=>{ const arr=state.specialBuilder.targets; const idx=arr.indexOf(cls); if(idx>-1) arr.splice(idx,1); else arr.push(cls); render(); },
     toggleBuilderTeacher:(tid)=>{ const arr=state.specialBuilder.teachers; const idx=arr.indexOf(tid); if(idx>-1) arr.splice(idx,1); else arr.push(tid); render(); },
     buildSpecialBlock:()=>{ const sb=state.specialBuilder; if(!sb.subjectId||sb.targets.length===0){showToast("教科と対象クラスを選択してください","error");return;} const s=safeFind(state.subjects,'id',sb.subjectId); const newId='sp_'+Date.now(); state.specialBlocks.unshift({id:newId,type:sb.type,subjectId:sb.subjectId,subject:s?s.name:'特殊',room:sb.room,hours:sb.hours,targets:[...sb.targets],teachers:sb.teachers.map(tid=>({id:tid,hours:sb.hours})),limitOnePerDay:false, fixedTimes:[]}); state.specialBuilder.targets=[]; state.specialBuilder.teachers=[]; state.openSpecialEdits[newId]=true; render(); showToast("特殊授業を作成しました","success"); },
     toggleSpecialEdit:(id)=>{ state.openSpecialEdits[id]=!state.openSpecialEdits[id]; render(); },
-    updateSpecialBlock:(id,k,v)=>{ const b=safeFind(state.specialBlocks,'id',id); if(b){ b[k]=v; render(); }},
+    updateSpecialBlock:(id,k,v)=>{ 
+        const b=safeFind(state.specialBlocks,'id',id); 
+        if(b){ 
+            if(k==='hours') b[k]=parseFloat(v)||1;
+            else b[k]=v; 
+            render(); 
+        }
+    },
     removeSpecialBlock:(i)=>{ state.specialBlocks.splice(i,1); render(); },
     updateSpecialFixedTime:(id,idx,val)=>{ const b=safeFind(state.specialBlocks,'id',id); if(b){ if(!b.fixedTimes)b.fixedTimes=[]; b.fixedTimes[idx]=val; render(); }},
     toggleSpecialTarget:(id,cls)=>{ const b=safeFind(state.specialBlocks,'id',id); if(b){ const i=b.targets.indexOf(cls); if(i>-1)b.targets.splice(i,1); else b.targets.push(cls); render(); }},
