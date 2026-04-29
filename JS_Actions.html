@@ -234,6 +234,7 @@ window.actions = {
         window.hideViolationPopup();
         if (!state.generatedSchedule) return;
         
+        // 駒を選択していない時：移動対象（またはグループ）を特定
         if (!state.movingLesson && lId) {
             const l = findLessonById(lId);
             if (l && l.isLocked) {
@@ -243,64 +244,76 @@ window.actions = {
         }
 
         if (state.movingLesson) {
-            if (d && p && d !== 'tray') {
-                let targetCls = cls || state.movingLesson.targets[0];
-                const res = checkSlotSuitability(d, p, targetCls, state.movingLesson);
-                if (res.status === 'danger') {
-                    showToast("⚠️ 配置ルールに違反する可能性があります", "error");
-                } else if (res.status === 'warning') {
-                    showToast("💡 連続・同日など一部ルールに抵触します", "info");
-                }
-            }
-
             const fromL = state.movingLesson;
             if (fromL.id === lId) { state.movingLesson = null; render(); return; }
-            let schedule = state.generatedSchedule;
             
-            let movingObj = null;
-            if (fromL.day && fromL.period) {
-                const fromList = schedule[fromL.day]?.[fromL.period] || [];
-                const lIndex = fromList.findIndex(x => x.id === fromL.id);
-                if(lIndex > -1) { movingObj = fromList[lIndex]; fromList.splice(lIndex, 1); }
+            let schedule = state.generatedSchedule;
+            const fromD = fromL.day;
+            const fromP = fromL.period;
+
+            // 1. 移動させる駒のグループ（合同授業すべて）を抽出
+            let movingGroup = [];
+            if (fromD && fromP) {
+                movingGroup = schedule[fromD][fromP].filter(l => l.id === fromL.id);
+                // 元の場所から削除
+                schedule[fromD][fromP] = schedule[fromD][fromP].filter(l => l.id !== fromL.id);
             } else {
                 const uIndex = state.unassigned.findIndex(x => x.id === fromL.id);
-                if(uIndex > -1) { movingObj = state.unassigned[uIndex]; state.unassigned.splice(uIndex, 1); }
-            }
-            if (!movingObj) { state.movingLesson = null; render(); return; }
-
-            if (d && p && d !== 'tray') {
-                const toList = schedule[d][p] || [];
-                if (!schedule[d][p]) schedule[d][p] = toList;
-                let targetL = null;
-                if (lId) {
-                    const tIndex = toList.findIndex(x => x.id === lId);
-                    if (tIndex > -1) {
-                        targetL = toList[tIndex];
-                        toList.splice(tIndex, 1);
-                        if (fromL.day && fromL.period) {
-                            if(!schedule[fromL.day][fromL.period]) schedule[fromL.day][fromL.period] = [];
-                            schedule[fromL.day][fromL.period].push(targetL);
-                        } else {
-                            state.unassigned.push(targetL);
-                        }
-                    }
+                if(uIndex > -1) {
+                    movingGroup = [state.unassigned[uIndex]];
+                    state.unassigned.splice(uIndex, 1);
                 }
-                toList.push(movingObj);
-                showToast(targetL ? "コマを入れ替えました" : "コマを移動しました", "success");
-            } else if (d === 'tray') {
-                state.unassigned.push(movingObj);
-                showToast("トレイに戻しました", "success");
             }
+
+            if (movingGroup.length === 0) { state.movingLesson = null; render(); return; }
+
+            // 2. 移動先（トレイまたは時間枠）への処理
+            if (d === 'tray') {
+                state.unassigned.push(...movingGroup);
+                showToast("トレイに戻しました", "success");
+            } else if (d && p) {
+                if (!schedule[d][p]) schedule[d][p] = [];
+                
+                // --- 【重要】一括入れ替えロジック ---
+                // 移動させる全クラスのリストを取得
+                const targetClasses = movingGroup.flatMap(m => m.targets);
+                
+                // 移動先の時間に「移動させるクラスのいずれか」が含まれる駒をすべて抽出（追い出す駒）
+                const bumpedGroup = schedule[d][p].filter(l => 
+                    l.targets.some(c => targetClasses.includes(c))
+                );
+                
+                // 移動先から追い出す駒を削除
+                schedule[d][p] = schedule[d][p].filter(l => 
+                    !l.targets.some(c => targetClasses.includes(c))
+                );
+                
+                // 移動先の時間に移動グループを追加
+                schedule[d][p].push(...movingGroup);
+
+                // 追い出した駒を、移動元の場所（またはトレイ）へ飛ばす
+                if (fromD && fromP) {
+                    if (!schedule[fromD][fromP]) schedule[fromD][fromP] = [];
+                    schedule[fromD][fromP].push(...bumpedGroup);
+                } else {
+                    state.unassigned.push(...bumpedGroup);
+                }
+                
+                showToast(bumpedGroup.length > 0 ? "合同授業を入れ替えました" : "駒を移動しました", "success");
+            }
+
             state.movingLesson = null;
             actions.pushScheduleHistory(); 
             validateSchedule();
             render();
         } else {
+            // 最初のクリック（駒の選択）
             if (!lId) return;
             if(state.violations && state.violations[lId]) { setTimeout(() => window.showViolationPopup(lId), 10); }
             
             if(d === 'tray') {
-                state.movingLesson = { id: lId, day: null, period: null, targets: safeFind(state.unassigned, 'id', lId)?.targets||[], teacherIds: safeFind(state.unassigned, 'id', lId)?.teacherIds||[] };
+                const target = safeFind(state.unassigned, 'id', lId);
+                state.movingLesson = { id: lId, day: null, period: null, targets: target?.targets||[], teacherIds: target?.teacherIds||[] };
             } else {
                 let obj = (state.generatedSchedule[d][p]||[]).find(x=>x.id===lId);
                 if(obj) state.movingLesson = { id: lId, day: d, period: p, cls: cls, targets: obj.targets, teacherIds: obj.teacherIds };
