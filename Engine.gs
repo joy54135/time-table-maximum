@@ -22,30 +22,23 @@ function generateSchedule(state, currentSchedule, currentUnassigned) {
 
   if (!currentSchedule || !currentUnassigned) {
     let lessons = [];
-    // 特殊授業（合同・分割）のパース（端数対応）
     if (state.specialBlocks) {
       state.specialBlocks.forEach(b => {
-        let tMap = {}; (b.teachers||[]).forEach(t => tMap[t.id] = parseFloat(t.hours)||0);
+        let tMap = {}; (b.teachers||[]).forEach(t => tMap[t.id] = parseInt(t.hours)||0);
         let fTimes = (b.fixedTimes || []).slice();
-        let bHours = parseFloat(b.hours) || 0;
-        let bWhole = Math.floor(bHours);
-        let bFrac = bHours - bWhole;
-
-        for (let i=0; i<Math.ceil(bHours); i++) {
+        for (let i=0; i<b.hours; i++) {
           let tIds = []; (b.teachers||[]).forEach(t => { if(tMap[t.id]>0) { tIds.push(t.id); tMap[t.id]--; }});
           let fTime = fTimes.length > 0 ? fTimes.shift() : null;
-          let isFrac = (i === bWhole && bFrac > 0);
-          lessons.push({ id:`sp_${b.id}_${i}`, subjectId:b.subjectId, subject:state.subjects.find(s=>s.id===b.subjectId)?.name||'特殊', targets:b.targets||[], teacherIds:tIds, teacherName:tIds.map(id=>teacherMap[id]||'').join(','), room:b.room||'通常教室', isSpecialist:true, length:1, totalHours:b.hours, type:'special', limitOnePerDay: b.limitOnePerDay === true, isFixed: !!fTime, fixedTime: fTime, isFraction: isFrac });
+          lessons.push({ id:`sp_${b.id}_${i}`, subjectId:b.subjectId, subject:state.subjects.find(s=>s.id===b.subjectId)?.name||'特殊', targets:b.targets||[], teacherIds:tIds, teacherName:tIds.map(id=>teacherMap[id]||'').join(','), room:b.room||'通常教室', isSpecialist:true, length:1, totalHours:b.hours, type:'special', limitOnePerDay: b.limitOnePerDay === true, isFixed: !!fTime, fixedTime: fTime });
         }
       });
     }
-    // 通常授業のパース（端数対応）
     if (state.classAssignments) {
       Object.keys(state.classAssignments).forEach(cls => {
         const grade = cls.split('-')[0], data = state.classAssignments[cls];
         state.subjects.forEach(sub => {
-          let stdHrs = parseFloat(sub.stdHours?.[grade])||0; if(stdHrs <= 0) return;
-          let specialHrs = 0; if (state.specialBlocks) { state.specialBlocks.forEach(b => { if (b.subjectId === sub.id && (b.targets||[]).includes(cls)) specialHrs += (parseFloat(b.hours) || 0); }); }
+          let stdHrs = parseInt(sub.stdHours?.[grade])||0; if(stdHrs === 0) return;
+          let specialHrs = 0; if (state.specialBlocks) { state.specialBlocks.forEach(b => { if (b.subjectId === sub.id && (b.targets||[]).includes(cls)) specialHrs += (parseInt(b.hours) || 0); }); }
           let remainingHrs = stdHrs - specialHrs; if (remainingHrs <= 0) return;
           const ovr = data.overrides?.[sub.id] || {}, rName = ovr.room || sub.defaultRoom || '通常教室';
           const isCont = rules.continuousClasses?.some(rc => rc.subject === sub.name && matchRuleTarget(rc, { targets: [cls] }));
@@ -53,28 +46,20 @@ function generateSchedule(state, currentSchedule, currentUnassigned) {
           const proc = (tId, h, aIdx) => {
             if(!tId) return; 
             const isSp = (roomObj[rName] || tId !== data.homeroom);
-            let localH = parseFloat(h);
-            let wholeH = Math.floor(localH);
-            let fracH = localH - wholeH;
-            
-            while(wholeH > 0 && fTimes.length > 0) {
+            let localH = h;
+            while(localH > 0 && fTimes.length > 0) {
               let fTime = fTimes.shift();
-              lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_f${wholeH}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: !!fTime, fixedTime: fTime });
-              wholeH--;
+              lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_f${localH}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: !!fTime, fixedTime: fTime });
+              localH--;
             }
-            if (isCont && wholeH >= 2) {
-              for(let i=0; i<Math.floor(wholeH/2); i++) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_p${i}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:2, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
-              if(wholeH%2 !== 0) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_s0`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+            if (isCont && localH >= 2) {
+              for(let i=0; i<Math.floor(localH/2); i++) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_p${i}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:2, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+              if(localH%2 !== 0) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_s0`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
             } else {
-              for(let i=0; i<wholeH; i++) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_${i}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
-            }
-            // 端数コマの追加生成
-            if (fracH > 0) {
-              let fTime = fTimes.length > 0 ? fTimes.shift() : null;
-              lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_frac`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: !!fTime, fixedTime: fTime, isFraction: true });
+              for(let i=0; i<localH; i++) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_${i}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
             }
           };
-          if (ovr.allocations?.length > 0) ovr.allocations.forEach((a,i) => proc(a.teacherId, a.hours, i)); else proc(ovr.teacherId||data.homeroom, remainingHrs, 0);
+          if (ovr.allocations?.length > 0) ovr.allocations.forEach((a,i) => proc(a.teacherId, parseInt(a.hours)||0, i)); else proc(ovr.teacherId||data.homeroom, remainingHrs, 0);
         });
       });
     }
@@ -127,16 +112,7 @@ function generateSchedule(state, currentSchedule, currentUnassigned) {
 
   freeLessons.sort((a,b) => getLessonDifficulty(b, teacherObj, roomObj) - getLessonDifficulty(a, teacherObj, roomObj));
   for (let lesson of freeLessons) {
-    let placed = false, candidates = []; DAYS.forEach(d => PERIODS.forEach(p => candidates.push({d, p}))); 
-    
-    // 【新機能】不安定枠(☁)に対する初期配置の優先度調整
-    candidates.sort(() => Math.random() - 0.5);
-    candidates.sort((a,b) => {
-        let aUn = (state.unstableBlocks && state.unstableBlocks[`${a.d}-${a.p}`]) ? 1 : 0;
-        let bUn = (state.unstableBlocks && state.unstableBlocks[`${b.d}-${b.p}`]) ? 1 : 0;
-        return lesson.isFraction ? (bUn - aUn) : (aUn - bUn); // 端数は優先、通常は回避
-    });
-
+    let placed = false, candidates = []; DAYS.forEach(d => PERIODS.forEach(p => candidates.push({d, p}))); candidates.sort(() => Math.random() - 0.5);
     for (let {d, p} of candidates) {
       if (p + (lesson.length||1) - 1 > Math.max(...PERIODS)) continue;
       let can = true;
@@ -212,240 +188,4 @@ function generateSchedule(state, currentSchedule, currentUnassigned) {
   }
   const scoreCard = evaluateSchedule(schedule, state, rules, pLevels, unassigned, teacherObj, DAYS, PERIODS);
   return { schedule, unassigned, isComplete: (unassigned.length === 0), reportDetails, fatalError: hasFatalError, scoreCard };
-}
-
-function evaluateSchedule(schedule, state, rules, pLevels, unassigned, teacherObj, DAYS, PERIODS) {
-  const scoreCard = { basic: { score: 100, details: [] }, advanced: { score: 100, rules: {} } };
-  let scheduledCount = 0; let unassignedCount = unassigned.length;
-  
-  const allScheduledLessons = [];
-  const lessonSet = new Set();
-  DAYS.forEach(d => PERIODS.forEach(p => { 
-      (schedule[d]?.[p]||[]).forEach(l => { 
-          if (!lessonSet.has(l.id)) {
-              lessonSet.add(l.id);
-              allScheduledLessons.push({ lesson: l, day: d, period: p });
-          }
-      }); 
-  }));
-  scheduledCount = lessonSet.size;
-  
-  let total = scheduledCount + unassignedCount;
-  if (total > 0) scoreCard.basic.score = Math.round((scheduledCount / total) * 100);
-  if (unassignedCount > 0) scoreCard.basic.details.push(`${unassignedCount}コマが未配置です。`);
-  else scoreCard.basic.details.push(`全 ${scheduledCount} コマの配置を完了しました。`);
-
-  const classSchedules = {};
-  if (state.classAssignments) {
-    Object.keys(state.classAssignments).forEach(cls => {
-      classSchedules[cls] = {};
-      DAYS.forEach(d => {
-        classSchedules[cls][d] = [];
-        PERIODS.forEach(p => { if (schedule[d] && schedule[d][p]) { const lessons = schedule[d][p].filter(l => l.targets.includes(cls)); if (lessons.length > 0) classSchedules[cls][d].push({ period: p, lessons }); } });
-      });
-    });
-  }
-
-  const evalRule = (key, name, logic) => {
-    const res = logic();
-    let score = 100;
-    if (res.targetCount > 0) score = Math.max(0, Math.round((1 - res.failures.length / res.targetCount) * 100));
-    scoreCard.advanced.rules[key] = { name, score, failures: res.failures };
-    return score;
-  };
-
-  evalRule('limitOneSubjectPerDayStrict', '1日1コマ制限(分散)', () => {
-    let targetCount = 0, failures = [];
-    const enforceOnePerDay = pLevels['limitOneSubjectPerDayStrict'] !== 'low';
-    Object.keys(classSchedules).forEach(cls => {
-      DAYS.forEach(d => {
-        const counts = {}; 
-        classSchedules[cls][d].forEach(slot => { slot.lessons.forEach(l => { 
-            if (!counts[l.subject]) counts[l.subject] = { ids: new Set(), totalHours: l.totalHours, limitOnePerDay: l.limitOnePerDay };
-            counts[l.subject].ids.add(l.id);
-        }); });
-        Object.entries(counts).forEach(([sub, info]) => { 
-          if (info.limitOnePerDay || (enforceOnePerDay && info.totalHours <= 5)) {
-            targetCount++; 
-            if (info.ids.size > 1) {
-                failures.push(`${cls} ${sub} が${d}曜に複数回(別コマとして)存在`); 
-            }
-          }
-        });
-      });
-    });
-    return { targetCount, failures };
-  });
-
-  if (rules.limitContinuousToSpecificPeriods) {
-    evalRule('limitContinuousToSpecificPeriods', '連続授業の特定枠限定', () => {
-      let targetCount = 0, failures = [];
-      allScheduledLessons.forEach(({lesson, day, period}) => {
-         if (lesson.length === 2) {
-            targetCount++;
-            if (period !== 1 && period !== 3 && period !== 5) failures.push(`${lesson.targets.join(',')} ${lesson.subject}(${day}曜${period}限) がペア枠外`);
-         }
-      });
-      return { targetCount, failures };
-    });
-  }
-
-  if (rules.exclusivePairs && rules.exclusivePairs.length > 0) {
-    evalRule('exclusivePairs', '同日実施回避(排他ペア)', () => {
-      let targetCount = 0, failures = [];
-      Object.keys(classSchedules).forEach(cls => {
-        DAYS.forEach(d => {
-           const todaySubjects = new Set();
-           classSchedules[cls][d].forEach(slot => slot.lessons.forEach(l => todaySubjects.add(l.subject)));
-           rules.exclusivePairs.forEach(pair => {
-             targetCount++; 
-             if (todaySubjects.has(pair.subject1) && todaySubjects.has(pair.subject2)) failures.push(`${cls} ${pair.subject1}と${pair.subject2} が${d}曜に同日実施`);
-           });
-        });
-      });
-      return { targetCount, failures };
-    });
-  }
-
-  if (rules.homeroomOnlyTimes && rules.homeroomOnlyTimes.length > 0) {
-    evalRule('homeroomOnlyTimes', '担任授業固定枠', () => {
-      let targetCount = 0, failures = [];
-      allScheduledLessons.forEach(({lesson, day, period}) => {
-         if (lesson.isSpecialist) {
-            for(let i=0; i<(lesson.length||1); i++){
-                if (rules.homeroomOnlyTimes.some(r => r.day === day && r.period === (period+i) && matchRuleTarget(r, lesson))) {
-                    failures.push(`${lesson.targets.join(',')} ${lesson.subject}(${day}曜${period+i}限) が担任固定枠に配置`);
-                }
-            }
-         }
-      });
-      targetCount = failures.length > 0 ? failures.length * 2 : 1; 
-      return { targetCount, failures };
-    });
-  }
-
-  if (rules.avoidSpecialistTimes && rules.avoidSpecialistTimes.length > 0) {
-    evalRule('avoidSpecialistTimes', '専科回避指定枠', () => {
-      let targetCount = 0, failures = [];
-      allScheduledLessons.forEach(({lesson, day, period}) => {
-         if (lesson.isSpecialist) {
-            targetCount++;
-            for(let i=0; i<(lesson.length||1); i++){
-               if (rules.avoidSpecialistTimes.some(r => r.day === day && r.period === (period+i))) failures.push(`${lesson.targets.join(',')} ${lesson.subject}(${day}曜${period+i}限) が専科回避枠に配置`);
-            }
-         }
-      });
-      return { targetCount, failures };
-    });
-  }
-
-  if (rules.avoidSpecificTimes && rules.avoidSpecificTimes.length > 0) {
-    evalRule('avoidSpecificTimes', '特定時間帯回避', () => {
-      let targetCount = 0, failures = [];
-      allScheduledLessons.forEach(({lesson, day, period}) => {
-         for(let i=0; i<(lesson.length||1); i++){
-            if (rules.avoidSpecificTimes.some(r => r.day === day && r.period === (period+i) && r.subject === lesson.subject && matchRuleTarget(r, lesson))) {
-               failures.push(`${lesson.targets.join(',')} ${lesson.subject}(${day}曜${period+i}限) が回避指定枠に配置`);
-            }
-         }
-         if (rules.avoidSpecificTimes.some(r => r.subject === lesson.subject && matchRuleTarget(r, lesson))) targetCount++;
-      });
-      return { targetCount, failures };
-    });
-  }
-
-  if (rules.amPrioritySubjects && rules.amPrioritySubjects.length > 0) {
-    evalRule('amPrioritySubjects', '午前優先配置', () => {
-      let targetCount = 0, failures = [];
-      allScheduledLessons.forEach(({lesson, day, period}) => {
-         if (isTargetRule(rules.amPrioritySubjects, lesson)) {
-            targetCount++;
-            if (period > 4) failures.push(`${lesson.targets.join(',')} ${lesson.subject}(${day}曜${period}限) が午後に配置`);
-         }
-      });
-      return { targetCount, failures };
-    });
-  }
-
-  if (rules.lastPeriodSubjects && rules.lastPeriodSubjects.length > 0) {
-    evalRule('lastPeriodSubjects', '最終コマ優先配置', () => {
-      let targetCount = 0, failures = [];
-      allScheduledLessons.forEach(({lesson, day, period}) => {
-         if (isTargetRule(rules.lastPeriodSubjects, lesson)) {
-            targetCount++;
-            const grade = lesson.targets[0].split('-')[0];
-            const maxP = state.periods[grade]?.[day] || Math.max(...PERIODS);
-            if (period + (lesson.length||1) - 1 !== maxP) failures.push(`${lesson.targets.join(',')} ${lesson.subject}(${day}曜${period}限) が最終コマ以外に配置`);
-         }
-      });
-      return { targetCount, failures };
-    });
-  }
-
-  if (rules.homeroomBufferSubjects && rules.homeroomBufferSubjects.length > 0) {
-    evalRule('homeroomBufferSubjects', '担任裁量バッファ', () => {
-      let targetCount = 0, failures = [];
-      allScheduledLessons.forEach(({lesson, day, period}) => {
-         if (isTargetRule(rules.homeroomBufferSubjects, lesson)) {
-            targetCount++;
-            const cls = lesson.targets[0], homeroomId = state.classAssignments?.[cls]?.homeroom;
-            if (homeroomId) {
-              let bufferOk = false;
-              const grade = cls.split('-')[0], maxP = state.periods[grade]?.[day] || Math.max(...PERIODS);
-              const checkBuffer = (pNow, pAdj) => {
-                if (pAdj < 1 || pAdj > maxP) return false;
-                if ((pNow === 4 && pAdj === 5) || (pNow === 5 && pAdj === 4)) return false; 
-                const existing = schedule[day][pAdj]?.filter(l => l.targets.includes(cls)) || [];
-                if (existing.length === 0) return true; 
-                if (existing.some(l => l.teacherIds.includes(homeroomId))) return true; 
-                return false;
-              };
-              if (checkBuffer(period, period - 1) || checkBuffer(period + (lesson.length||1) - 1, period + (lesson.length||1))) bufferOk = true;
-              if (!bufferOk) failures.push(`${lesson.targets.join(',')} ${lesson.subject}(${day}曜${period}限) の前後にバッファなし`);
-            }
-         }
-      });
-      return { targetCount, failures };
-    });
-  }
-
-  let advScores = Object.values(scoreCard.advanced.rules).map(r => r.score);
-  if (advScores.length > 0) scoreCard.advanced.score = Math.round(advScores.reduce((a,b)=>a+b, 0) / advScores.length);
-  return scoreCard;
-}
-
-function calcRulePenalty(lesson, d, p, schedule, state, rules, pLevels, PERIODS) {
-  let penalty = 0;
-  const isHigh = (k, def = false) => pLevels[k] !== undefined ? pLevels[k] === 'high' : def;
-  
-  // --- 【新機能】不安定枠(☁️) と 非整数(端数)授業の評価ロジック ---
-  let isUnstableSlot = (state.unstableBlocks && state.unstableBlocks[`${d}-${p}`]);
-  if (lesson.isFraction) {
-    if (isUnstableSlot) penalty -= 10000; // 端数授業は不安定枠を猛烈に優先
-    else penalty += 500; // 不安定枠以外(AB交互枠になる場所)は少しペナルティ
-  } else {
-    if (isUnstableSlot) penalty += 5000; // 通常の授業は不安定枠を全力で回避
-  }
-  
-  if (!isHigh('amPrioritySubjects') && isTargetRule(rules.amPrioritySubjects, lesson)) {
-    if (p > 4) penalty += 300; 
-  }
-  
-  if (!isHigh('lastPeriodSubjects') && isTargetRule(rules.lastPeriodSubjects, lesson)) {
-    const grade = lesson.targets[0].split('-')[0];
-    const maxP = state.periods[grade]?.[d] || Math.max(...PERIODS);
-    if (p + (lesson.length||1) - 1 !== maxP) penalty += 200; 
-  }
-
-  if (!isHigh('limitOneSubjectPerDayStrict', true)) {
-    const maxPeriod = Math.max(...PERIODS);
-    for(let i=1; i<=maxPeriod; i++) {
-      if (i >= p && i < p + (lesson.length||1)) continue; 
-      if (schedule[d][i] && schedule[d][i].some(l => l.id !== lesson.id && l.subject === lesson.subject && l.targets.some(t => lesson.targets.includes(t)))) {
-        penalty += 800; 
-      }
-    }
-  }
-
-  return penalty;
 }

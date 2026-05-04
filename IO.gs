@@ -1,16 +1,8 @@
 /**
  * ==========================================
  * File: IO.gs - スプレッドシート・ドライブ連携
- * Version: 18.1.0 (A/B Rotation Export)
  * ==========================================
  */
-
-// A/B週判定ユーティリティ
-function getWeekType(l) {
-    if(!l.isFraction) return 'both';
-    let sum=0; for(let i=0;i<l.id.length;i++) sum+=l.id.charCodeAt(i);
-    return sum%2===0 ? 'A' : 'B';
-}
 
 function handleImportFromSS(url, state) {
   try {
@@ -20,10 +12,8 @@ function handleImportFromSS(url, state) {
     const ssId = idMatch[1];
     const ss = SpreadsheetApp.openById(ssId);
     
-    // インポートは基本的に「全体(クラス)」またはそのA週/B週シートから行う想定ですが、
-    // ここでは一番左のシートを対象とするようフォールバックします
-    let sheet = ss.getSheetByName("全体(クラス)") || ss.getSheetByName("クラス(A週)") || ss.getSheets()[0];
-    if (!sheet) return { success: false, message: "対象のシートが見つかりません。" };
+    const sheet = ss.getSheetByName("全体(クラス)");
+    if (!sheet) return { success: false, message: "対象の「全体(クラス)」シートが見つかりません。エクスポート時のシート名を確認してください。" };
 
     const range = sheet.getDataRange();
     const values = range.getDisplayValues(); 
@@ -62,7 +52,7 @@ function handleImportFromSS(url, state) {
     for (let r = 2; r < values.length; r++) {
       const row = values[r];
       const clsName = row[0] ? row[0].toString().trim() : "";
-      if (!clsName || clsName === "Axis") continue; // ヘッダー除外
+      if (!clsName) continue;
 
       for (let c = 1; c < row.length; c++) {
         const cellValue = row[c] ? row[c].toString().trim() : "";
@@ -71,7 +61,7 @@ function handleImportFromSS(url, state) {
         const cellInfo = colMap[c];
         if (!cellInfo) continue;
 
-        const lines = cellValue.split('\n').map(l => l.trim().replace(/🔄[AB]\s*/g, '')); // 回転アイコンを除外してパース
+        const lines = cellValue.split('\n').map(l => l.trim());
         if (lines[0] === "重") continue;
 
         const subjectName = lines[0];
@@ -118,8 +108,7 @@ function handleImportFromSS(url, state) {
               type: 'normal',
               limitOnePerDay: false,
               isFixed: true, 
-              isLocked: true,
-              isFraction: false // インポート時は一旦通常コマとして扱う
+              isLocked: true 
             };
 
             importedSchedule[cellInfo.day][cellInfo.period].push(importedLesson);
@@ -162,59 +151,11 @@ function handleExport(schedule, data, options) {
     const defaultSheet = ss.getSheets()[0];
     let hasSheet = false;
     
-    // A週/B週ローテーションの有無を判定
-    let hasRotation = false;
-    const { DAYS, PERIODS } = getDynamicDaysAndPeriods(data);
-    DAYS.forEach(d => PERIODS.forEach(p => {
-        (schedule[d]?.[p]||[]).forEach(l => { if(l.isFraction) hasRotation = true; });
-    }));
-
-    // 回転がある場合は A週用・B週用のシートをセットで作成
-    if (reqMatrixClass) { 
-        if (hasRotation) {
-            createMatrixSheet(ss, `クラス(A週)`, schedule, data, 'class', 'A');
-            createMatrixSheet(ss, `クラス(B週)`, schedule, data, 'class', 'B');
-        } else {
-            createMatrixSheet(ss, `全体(クラス)`, schedule, data, 'class', 'all');
-        }
-        hasSheet = true; 
-    }
-    if (reqMatrixTeacher) { 
-        if (hasRotation) {
-            createMatrixSheet(ss, `教員(A週)`, schedule, data, 'teacher', 'A');
-            createMatrixSheet(ss, `教員(B週)`, schedule, data, 'teacher', 'B');
-        } else {
-            createMatrixSheet(ss, `全体(教員)`, schedule, data, 'teacher', 'all'); 
-        }
-        hasSheet = true; 
-    }
-    if (reqMatrixRoom) { 
-        if (hasRotation) {
-            createMatrixSheet(ss, `教室(A週)`, schedule, data, 'room', 'A');
-            createMatrixSheet(ss, `教室(B週)`, schedule, data, 'room', 'B');
-        } else {
-            createMatrixSheet(ss, `全体(教室)`, schedule, data, 'room', 'all'); 
-        }
-        hasSheet = true; 
-    }
-    if (reqIndivClass) { 
-        if (hasRotation) {
-            createIndividualSheet(ss, `各クラス(A週)`, schedule, data, 'class', 'A');
-            createIndividualSheet(ss, `各クラス(B週)`, schedule, data, 'class', 'B');
-        } else {
-            createIndividualSheet(ss, `各クラス`, schedule, data, 'class', 'all'); 
-        }
-        hasSheet = true; 
-    }
-    if (reqIndivTeacher) { 
-        if (hasRotation) {
-            createIndividualSheet(ss, `各教員(A週)`, schedule, data, 'teacher', 'A');
-            createIndividualSheet(ss, `各教員(B週)`, schedule, data, 'teacher', 'B');
-        } else {
-            createIndividualSheet(ss, `各教員`, schedule, data, 'teacher', 'all'); 
-        }
-        hasSheet = true; 
-    }
+    if (reqMatrixClass) { createMatrixSheet(ss, `全体(クラス)`, schedule, data, 'class'); hasSheet = true; }
+    if (reqMatrixTeacher) { createMatrixSheet(ss, `全体(教員)`, schedule, data, 'teacher'); hasSheet = true; }
+    if (reqMatrixRoom) { createMatrixSheet(ss, `全体(教室)`, schedule, data, 'room'); hasSheet = true; }
+    if (reqIndivClass) { createIndividualSheet(ss, `各クラス`, schedule, data, 'class'); hasSheet = true; }
+    if (reqIndivTeacher) { createIndividualSheet(ss, `各教員`, schedule, data, 'teacher'); hasSheet = true; }
 
     if (hasSheet) ss.deleteSheet(defaultSheet);
     
@@ -257,7 +198,7 @@ function handleExport(schedule, data, options) {
   }
 }
 
-function createMatrixSheet(ss, sheetName, schedule, data, type, weekFilter = 'all') {
+function createMatrixSheet(ss, sheetName, schedule, data, type) {
   const { DAYS, PERIODS } = getDynamicDaysAndPeriods(data);
   const sheet = ss.insertSheet(sheetName);
   
@@ -308,19 +249,13 @@ function createMatrixSheet(ss, sheetName, schedule, data, type, weekFilter = 'al
           else if (type === 'teacher') targetLessons = schedule[d][p].filter(l => l.teacherIds && l.teacherIds.includes(item.id));
           else if (type === 'room') targetLessons = schedule[d][p].filter(l => l.room === item.id);
           
-          // 該当する週(AまたはB)のコマだけをフィルタリング
-          targetLessons = targetLessons.filter(l => weekFilter === 'all' || getWeekType(l) === 'both' || getWeekType(l) === weekFilter);
-          
           if (targetLessons.length > 0) {
             let l = targetLessons[0];
             if (targetLessons.length > 1) { cellText = "重\n" + l.subject; cellColor = "#ffcdd2"; }
             else {
               let subT = type === 'class' ? (l.teacherName || '') : (l.targets ? l.targets.join(',') : '');
               if (type === 'room') subT = (l.targets ? l.targets.join(',') : '') + " " + (l.teacherName || '');
-              
-              // 回転枠の場合は視覚的な印をつける（PDF印刷時用）
-              let prefix = l.isFraction ? `🔄${getWeekType(l)} ` : "";
-              cellText = `${prefix}${l.subject}\n${subT}`;
+              cellText = `${l.subject}\n${subT}`;
               cellColor = getSubjectColor(l.subject, data);
             }
           }
@@ -345,7 +280,7 @@ function createMatrixSheet(ss, sheetName, schedule, data, type, weekFilter = 'al
   sheet.setFrozenColumns(1);
 }
 
-function createIndividualSheet(ss, sheetName, schedule, data, type, weekFilter = 'all') {
+function createIndividualSheet(ss, sheetName, schedule, data, type) {
   const { DAYS, PERIODS } = getDynamicDaysAndPeriods(data);
   const sheet = ss.insertSheet(sheetName);
   
@@ -362,8 +297,7 @@ function createIndividualSheet(ss, sheetName, schedule, data, type, weekFilter =
 
   let currentRow = 1;
   items.forEach(item => {
-    let weekSuffix = weekFilter !== 'all' ? ` (${weekFilter}週)` : '';
-    let title = type === 'class' ? `${item} 時間割${weekSuffix}` : `${item.name} 先生 時間割${weekSuffix}`;
+    let title = type === 'class' ? `${item} 時間割` : `${item.name} 先生 時間割`;
     let targetId = type === 'class' ? item : item.id;
     
     sheet.getRange(currentRow, 1, 1, DAYS.length + 1).merge().setValue(title).setFontWeight("bold").setFontSize(14).setBackground("#e2e8f0").setHorizontalAlignment("center").setVerticalAlignment("middle");
@@ -380,16 +314,11 @@ function createIndividualSheet(ss, sheetName, schedule, data, type, weekFilter =
         let cellText = "", cellColor = "#ffffff";
         if (schedule[d] && schedule[d][p]) {
           let targets = schedule[d][p].filter(l => l.targets && l.targets.includes(targetId) || (type==='teacher' && l.teacherIds && l.teacherIds.includes(targetId)));
-          
-          // 該当する週(AまたはB)のコマだけをフィルタリング
-          targets = targets.filter(l => weekFilter === 'all' || getWeekType(l) === 'both' || getWeekType(l) === weekFilter);
-
           if (targets.length > 0) {
              let l = targets[0];
              if (targets.length > 1) { cellText = "重複"; cellColor = "#ffcdd2"; }
              else {
-                 let prefix = l.isFraction ? `🔄${getWeekType(l)}\n` : "";
-                 cellText = type === 'class' ? `${prefix}${l.subject}\n(${l.teacherName || ''})` : `${prefix}${l.subject}\n(${l.targets ? l.targets.join(',') : ''})`;
+                 cellText = type === 'class' ? `${l.subject}\n(${l.teacherName || ''})` : `${l.subject}\n(${l.targets ? l.targets.join(',') : ''})`;
                  cellColor = getSubjectColor(l.subject, data);
              }
           }
