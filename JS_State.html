@@ -15,8 +15,8 @@ const step8Packages=[
   {id:"pkg3", title:"【児童配慮設定】", desc:"集中度に合わせた教科配置", items:[{key:"amPrioritySubjects", type:"array", fields:['target','exclude','subject'], format:"", title:"午前に優先配置", desc:"", tip:""},{key:"lastPeriodSubjects", type:"array", fields:['target','exclude','subject'], format:"", title:"最終コマに優先配置", desc:"", tip:""},{key:"avoidSpecificTimes", type:"array", fields:['target','exclude','subject','day','period'], format:"", title:"特定の時間帯回避", desc:"", tip:""}]}
 ];
 
-// --- 変更点: stitchMode と stitchTargetId を追加 ---
-var state={currentStep:1, grades:{1:3,2:3,3:3,4:3,5:3,6:3}, periods:{}, rooms:[], subjects:[], teachers:[], globalBlocks:{}, specialBlocks:[], classAssignments:{}, advancedRules:{priorities:{}}, ruleEditor:{}, openPkgs:{}, generatedSchedule:null, unassigned:[], reportDetails:{}, scoreCard:null, dashTab:'matrix', matrixAxis:'class', dashView:'class', dashFilter:'', marathon:{active:false, target:0, maxGen:10, currentGen:1, relaxRules:false}, best:{unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}, selectedTeacherId:null, editingTeacherId:null, editingSubjectId:null, editingTeacherLimitId:null, specialBuilder:{type:'joint', subjectId:'', hours:1, room:'通常教室', targets:[], teachers:[]}, openSpecialEdits:{}, subjectsUndoStack:[], rulesUndoStack:[], birdEyeMode:false, spotlightSub:'', spotlightTea:'', spotlightTeas:['','','',''], movingLesson:null, violations:{}, conflictingIds:[], activeViolationNode:null, scheduleHistory:[], historyIndex:-1, openTeacherLoadId:null, paintLockMode:false, stitchMode:false, stitchTargetId:null};
+// --- 変更点: splitMode を追加 ---
+var state={currentStep:1, grades:{1:3,2:3,3:3,4:3,5:3,6:3}, periods:{}, rooms:[], subjects:[], teachers:[], globalBlocks:{}, specialBlocks:[], classAssignments:{}, advancedRules:{priorities:{}}, ruleEditor:{}, openPkgs:{}, generatedSchedule:null, unassigned:[], reportDetails:{}, scoreCard:null, dashTab:'matrix', matrixAxis:'class', dashView:'class', dashFilter:'', marathon:{active:false, target:0, maxGen:10, currentGen:1, relaxRules:false}, best:{unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}, selectedTeacherId:null, editingTeacherId:null, editingSubjectId:null, editingTeacherLimitId:null, specialBuilder:{type:'joint', subjectId:'', hours:1, room:'通常教室', targets:[], teachers:[]}, openSpecialEdits:{}, subjectsUndoStack:[], rulesUndoStack:[], birdEyeMode:false, spotlightSub:'', spotlightTea:'', spotlightTeas:['','','',''], movingLesson:null, violations:{}, conflictingIds:[], activeViolationNode:null, scheduleHistory:[], historyIndex:-1, openTeacherLoadId:null, paintLockMode:false, stitchMode:false, stitchTargetId:null, splitMode:false};
 let slotsData = Array(10).fill(null);
 let exportAbortController = null;
 let isPainting = false;
@@ -40,9 +40,10 @@ function forceInitState(){
     state.birdEyeMode=false; state.spotlightSub=''; state.spotlightTea=''; if(!state.spotlightTeas) state.spotlightTeas=['','','','']; state.movingLesson=null; state.violations={}; state.conflictingIds=[];
     if(!state.scheduleHistory) state.scheduleHistory=[]; if(state.historyIndex===undefined) state.historyIndex=-1; if(state.openTeacherLoadId===undefined) state.openTeacherLoadId=null;
     if(state.paintLockMode===undefined) state.paintLockMode=false;
-    // --- 追加 ---
     if(state.stitchMode===undefined) state.stitchMode=false;
     if(state.stitchTargetId===undefined) state.stitchTargetId=null;
+    // --- 追加 ---
+    if(state.splitMode===undefined) state.splitMode=false;
 }
 
 function load(){ 
@@ -58,7 +59,7 @@ function load(){
     render(); 
 }
 
-function showToast(msg,type='info'){const t=document.getElementById('toast'),m=document.getElementById('toast-msg');if(!t||!m)return; t.className=`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm z-[9999] transition-all opacity-100 ${type==='success'?'bg-emerald-600 text-white':(type==='error'?'bg-rose-600 text-white':'bg-blue-600 text-white')}`; m.innerText=msg; setTimeout(()=>t.classList.replace('opacity-100','opacity-0'),3000);}
+function showToast(msg,type='info'){const t=document.getElementById('toast'),m=document.getElementById('toast-msg');if(!t||!m)return; t.className=`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm flex items-center gap-2 z-[9999] transition-all opacity-100 ${type==='success'?'bg-emerald-600 text-white':(type==='error'?'bg-rose-600 text-white':'bg-blue-600 text-white')}`; m.innerText=msg; setTimeout(()=>t.classList.replace('opacity-100','opacity-0'),3000);}
 function showLoading(t,d,showC=false){const l=document.getElementById('loading-overlay'),cBtn=document.getElementById('btn-cancel-gen');if(l){document.getElementById('loading-title').innerText=t;document.getElementById('loading-desc').innerText=d;if(showC)cBtn.classList.remove('hidden');else cBtn.classList.add('hidden');l.classList.replace('hidden','flex');}}
 function hideLoading(){stopGenTimer();const l=document.getElementById('loading-overlay');if(l)l.classList.replace('flex','hidden');}
 function startGenTimer(){sStart=Date.now();if(genTimerInt)clearInterval(genTimerInt);genTimerInt=setInterval(()=>{const t=document.getElementById('loading-timer');if(t&&sStart)t.innerText=((Date.now()-sStart)/1000).toFixed(1)+'s';},100);} function stopGenTimer(){clearInterval(genTimerInt);genTimerInt=null;}
@@ -140,7 +141,7 @@ function checkSlotSuitability(d, p, targetCls, movingLesson) {
 }
 
 function getHintClass(d, p, targetCls) {
-    if (!state.movingLesson || state.paintLockMode) return '';
+    if (!state.movingLesson || state.paintLockMode || state.stitchMode || state.splitMode) return '';
     const res = checkSlotSuitability(d, p, targetCls, state.movingLesson);
     if (res.status === 'safe') return 'slot-safe';
     if (res.status === 'warning') return 'slot-warning';
