@@ -3,7 +3,7 @@ window.actions = {
     toggleDarkMode: () => { const h = document.documentElement; h.classList.toggle('dark'); localStorage.setItem('tt_theme', h.classList.contains('dark') ? 'dark' : 'light'); },
     hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem(STORAGE_KEY_DRAFT);localStorage.removeItem(STORAGE_KEY_SLOTS);location.reload();}},
     
-    // --- 新規追加: 最新設定から「あるべき授業リスト」を構築（決定論的ID） ---
+    // 最新設定から「あるべき授業リスト」を構築（決定論的ID）
     buildExpectedLessons: () => {
         let lessons = [];
         const teacherMap = {}; (state.teachers||[]).forEach(t => teacherMap[t.id] = t.name);
@@ -65,7 +65,7 @@ window.actions = {
         return lessons;
     },
 
-    // --- 新規追加: 盤面と設定の非破壊同期とインスタンス・ステッチ（結合） ---
+    // --- 修正: マイグレーション(移行)マップを用いた強力な自己修復・ステッチ ---
     syncScheduleData: () => {
         if (!state.generatedSchedule && (!state.unassigned || state.unassigned.length === 0)) return false;
 
@@ -74,16 +74,18 @@ window.actions = {
         expected.forEach(l => expectedMap.set(l.id, l));
 
         let updatedCount = 0, addedCount = 0, removedCount = 0;
-        const syncedInstances = new Map(); // ステッチ（結合）用のキャッシュ
+        const syncedInstances = new Map(); // 新ID -> インスタンス のキャッシュ
+        const idMigrationMap = new Map();  // 旧ID/仮ID -> 新ID の変換キャッシュ
 
-        // 同一IDの取得（ステッチ）とプロパティ更新
         const syncLesson = (l) => {
             const exp = expectedMap.get(l.id);
             if (exp) {
                 let isUpdated = false;
                 if (l.teacherName !== exp.teacherName || l.room !== exp.room || JSON.stringify(l.teacherIds) !== JSON.stringify(exp.teacherIds) || l.length !== exp.length) isUpdated = true;
                 Object.assign(l, exp, { isLocked: l.isLocked || false, isFixed: exp.isFixed || l.isFixed || false });
+                
                 syncedInstances.set(l.id, l);
+                idMigrationMap.set(l.id, l.id); // 自身へのマッピングを記録
                 expectedMap.delete(l.id);
                 if (isUpdated) updatedCount++;
                 return l; 
@@ -91,7 +93,6 @@ window.actions = {
             return null;
         };
 
-        // フォールバック（スプシ等から読み込んだ仮IDや、設定変更でIDが変わったものを推測して正規化）
         const fallbackMatch = (l) => {
            let bestMatchIdx = expected.findIndex(al => expectedMap.has(al.id) && al.subjectId === l.subjectId && al.targets.slice().sort().join(',') === l.targets.slice().sort().join(',') && al.length === l.length);
            if (bestMatchIdx === -1) bestMatchIdx = expected.findIndex(al => expectedMap.has(al.id) && al.subjectId === l.subjectId && al.targets.includes(l.targets[0]) && al.length === l.length);
@@ -101,6 +102,9 @@ window.actions = {
            if (bestMatchIdx > -1) {
                const exp = expected[bestMatchIdx];
                Object.assign(l, exp, { isLocked: l.isLocked || false, isFixed: exp.isFixed || l.isFixed || false });
+               
+               idMigrationMap.set(l.id, exp.id); // 旧ID -> 新ID の変換を記憶（これが超重要）
+               
                l.id = exp.id; // 新しい正規IDに上書き
                syncedInstances.set(exp.id, l);
                expectedMap.delete(exp.id);
@@ -111,14 +115,21 @@ window.actions = {
            return null;
         };
 
-        // 盤面の同期とステッチ（ニコイチの結合）
+        // 盤面の同期とステッチ（ニコイチの完全結合）
         DAYS.forEach(d => {
             getDynamicPeriods().forEach(p => {
                 if (state.generatedSchedule[d] && state.generatedSchedule[d][p]) {
                     let newCell = [];
                     state.generatedSchedule[d][p].forEach(l => {
-                        let sl = syncedInstances.has(l.id) ? syncedInstances.get(l.id) : (expectedMap.has(l.id) ? syncLesson(l) : fallbackMatch(l));
-                        if (sl) newCell.push(sl);
+                        // 1. すでに旧IDからの変換実績があれば、その参照を引っ張ってくる（ニコイチ結合成功）
+                        if (idMigrationMap.has(l.id)) {
+                            const newId = idMigrationMap.get(l.id);
+                            newCell.push(syncedInstances.get(newId));
+                        } else {
+                        // 2. 未処理のIDなら、正規マッチングかフォールバック検索を行う
+                            let sl = expectedMap.has(l.id) ? syncLesson(l) : fallbackMatch(l);
+                            if (sl) newCell.push(sl);
+                        }
                     });
                     state.generatedSchedule[d][p] = newCell;
                 }
@@ -129,10 +140,15 @@ window.actions = {
         if (state.unassigned) {
             let newUnassigned = [];
             state.unassigned.forEach(l => {
-                let sl = syncedInstances.has(l.id) ? syncedInstances.get(l.id) : (expectedMap.has(l.id) ? syncLesson(l) : fallbackMatch(l));
-                if (sl) newUnassigned.push(sl);
+                if (idMigrationMap.has(l.id)) {
+                    newUnassigned.push(syncedInstances.get(idMigrationMap.get(l.id)));
+                } else {
+                    let sl = expectedMap.has(l.id) ? syncLesson(l) : fallbackMatch(l);
+                    if (sl) newUnassigned.push(sl);
+                }
             });
-            state.unassigned = newUnassigned;
+            // 同一参照の重複を取り除く（トレイに同じコマが2つ入るのを防ぐ）
+            state.unassigned = Array.from(new Set(newUnassigned));
         } else {
             state.unassigned = [];
         }
@@ -152,7 +168,6 @@ window.actions = {
         return { updatedCount, addedCount, removedCount };
     },
 
-    // --- 既存メソッドへの同期フックの追加 ---
     jumpToResult:()=>{
         const syncRes = actions.syncScheduleData();
         state.currentStep=10;
@@ -179,7 +194,9 @@ window.actions = {
             state.historyIndex--;
             const snap = state.scheduleHistory[state.historyIndex];
             state.generatedSchedule = JSON.parse(JSON.stringify(snap.schedule)); state.unassigned = JSON.parse(JSON.stringify(snap.unassigned));
-            state.movingLesson = null; actions.syncScheduleData(); render(); showToast("操作を戻しました");
+            state.movingLesson = null; 
+            actions.syncScheduleData(); // ステッチ再適用
+            render(); showToast("操作を戻しました");
         }
     },
     redoSchedule: () => {
@@ -187,7 +204,9 @@ window.actions = {
             state.historyIndex++;
             const snap = state.scheduleHistory[state.historyIndex];
             state.generatedSchedule = JSON.parse(JSON.stringify(snap.schedule)); state.unassigned = JSON.parse(JSON.stringify(snap.unassigned));
-            state.movingLesson = null; actions.syncScheduleData(); render(); showToast("やり直しました");
+            state.movingLesson = null; 
+            actions.syncScheduleData(); // ステッチ再適用
+            render(); showToast("やり直しました");
         }
     },
 
@@ -519,7 +538,21 @@ window.actions = {
         }
     },
 
-    importData:()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];const r=new FileReader();r.onload=ev=>{Object.assign(state,JSON.parse(ev.target.result));forceInitState();actions.syncScheduleData();render();showToast("読み込み完了","success");};r.readAsText(f);};i.click();},
+    importData:()=>{
+        const i=document.createElement('input');i.type='file';i.accept='.json';
+        i.onchange=e=>{
+            const f=e.target.files[0];const r=new FileReader();
+            r.onload=ev=>{
+                Object.assign(state,JSON.parse(ev.target.result));
+                forceInitState();
+                actions.syncScheduleData(); 
+                render();
+                showToast("読み込み完了","success");
+            };
+            r.readAsText(f);
+        };
+        i.click();
+    },
 
     startExportData: () => {
         const defaultFileName = `時間割データ_${new Date().toLocaleDateString('ja-JP').split('/').join('')}_未配置${state.unassigned?.length||0}.json`;
