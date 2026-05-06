@@ -3,7 +3,7 @@ window.actions = {
     toggleDarkMode: () => { const h = document.documentElement; h.classList.toggle('dark'); localStorage.setItem('tt_theme', h.classList.contains('dark') ? 'dark' : 'light'); },
     hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem(STORAGE_KEY_DRAFT);localStorage.removeItem(STORAGE_KEY_SLOTS);location.reload();}},
     
-    // 最新の設定からあるべき授業リストを構築
+    // --- 新規追加: 最新設定から「あるべき授業リスト」を構築（決定論的ID） ---
     buildExpectedLessons: () => {
         let lessons = [];
         const teacherMap = {}; (state.teachers||[]).forEach(t => teacherMap[t.id] = t.name);
@@ -31,30 +31,41 @@ window.actions = {
               const ovr = data.overrides?.[sub.id] || {}, rName = ovr.room || sub.defaultRoom || '通常教室';
               const isCont = rules.continuousClasses?.some(rc => rc.subject === sub.name && matchRuleTarget(rc, { targets: [cls] }));
               let fTimes = (ovr.fixedTimes || []).slice();
-              const proc = (tId, h, aIdx) => {
+              let lessonCounter = 0; // 教員分担順に依存しない連番
+              
+              const proc = (tId, h) => {
                 if(!tId) return; 
                 const isSp = (roomObj[rName] || tId !== data.homeroom);
                 let localH = h;
                 while(localH > 0 && fTimes.length > 0) {
                   let fTime = fTimes.shift();
-                  lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_f${localH}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: !!fTime, fixedTime: fTime });
-                  localH--;
+                  lessons.push({ id:`n_${cls}_${sub.id}_f${lessonCounter}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: !!fTime, fixedTime: fTime });
+                  localH--; lessonCounter++;
                 }
                 if (isCont && localH >= 2) {
-                  for(let i=0; i<Math.floor(localH/2); i++) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_p${i}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:2, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
-                  if(localH%2 !== 0) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_s0`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+                  for(let i=0; i<Math.floor(localH/2); i++) {
+                    lessons.push({ id:`n_${cls}_${sub.id}_p${lessonCounter}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:2, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+                    lessonCounter++;
+                  }
+                  if(localH%2 !== 0) {
+                    lessons.push({ id:`n_${cls}_${sub.id}_s${lessonCounter}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+                    lessonCounter++;
+                  }
                 } else {
-                  for(let i=0; i<localH; i++) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_${i}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+                  for(let i=0; i<localH; i++) {
+                    lessons.push({ id:`n_${cls}_${sub.id}_${lessonCounter}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+                    lessonCounter++;
+                  }
                 }
               };
-              if (ovr.allocations?.length > 0) ovr.allocations.forEach((a,i) => proc(a.teacherId, parseInt(a.hours)||0, i)); else proc(ovr.teacherId||data.homeroom, remainingHrs, 0);
+              if (ovr.allocations?.length > 0) ovr.allocations.forEach(a => proc(a.teacherId, parseInt(a.hours)||0)); else proc(ovr.teacherId||data.homeroom, remainingHrs);
             });
           });
         }
         return lessons;
     },
 
-    // --- 修正: 盤面と設定の非破壊同期とインスタンスステッチ ---
+    // --- 新規追加: 盤面と設定の非破壊同期とインスタンス・ステッチ（結合） ---
     syncScheduleData: () => {
         if (!state.generatedSchedule && (!state.unassigned || state.unassigned.length === 0)) return false;
 
@@ -65,32 +76,49 @@ window.actions = {
         let updatedCount = 0, addedCount = 0, removedCount = 0;
         const syncedInstances = new Map(); // ステッチ（結合）用のキャッシュ
 
-        // 盤面の同期とステッチ（再結合）
+        // 同一IDの取得（ステッチ）とプロパティ更新
+        const syncLesson = (l) => {
+            const exp = expectedMap.get(l.id);
+            if (exp) {
+                let isUpdated = false;
+                if (l.teacherName !== exp.teacherName || l.room !== exp.room || JSON.stringify(l.teacherIds) !== JSON.stringify(exp.teacherIds) || l.length !== exp.length) isUpdated = true;
+                Object.assign(l, exp, { isLocked: l.isLocked || false, isFixed: exp.isFixed || l.isFixed || false });
+                syncedInstances.set(l.id, l);
+                expectedMap.delete(l.id);
+                if (isUpdated) updatedCount++;
+                return l; 
+            }
+            return null;
+        };
+
+        // フォールバック（スプシ等から読み込んだ仮IDや、設定変更でIDが変わったものを推測して正規化）
+        const fallbackMatch = (l) => {
+           let bestMatchIdx = expected.findIndex(al => expectedMap.has(al.id) && al.subjectId === l.subjectId && al.targets.slice().sort().join(',') === l.targets.slice().sort().join(',') && al.length === l.length);
+           if (bestMatchIdx === -1) bestMatchIdx = expected.findIndex(al => expectedMap.has(al.id) && al.subjectId === l.subjectId && al.targets.includes(l.targets[0]) && al.length === l.length);
+           // 長さが違っても（読み込み直後など）推測
+           if (bestMatchIdx === -1) bestMatchIdx = expected.findIndex(al => expectedMap.has(al.id) && al.subjectId === l.subjectId && al.targets.includes(l.targets[0]));
+           
+           if (bestMatchIdx > -1) {
+               const exp = expected[bestMatchIdx];
+               Object.assign(l, exp, { isLocked: l.isLocked || false, isFixed: exp.isFixed || l.isFixed || false });
+               l.id = exp.id; // 新しい正規IDに上書き
+               syncedInstances.set(exp.id, l);
+               expectedMap.delete(exp.id);
+               updatedCount++;
+               return l;
+           }
+           removedCount++;
+           return null;
+        };
+
+        // 盤面の同期とステッチ（ニコイチの結合）
         DAYS.forEach(d => {
             getDynamicPeriods().forEach(p => {
                 if (state.generatedSchedule[d] && state.generatedSchedule[d][p]) {
                     let newCell = [];
                     state.generatedSchedule[d][p].forEach(l => {
-                        let exp = expectedMap.get(l.id);
-                        if (exp) {
-                            let isUpdated = false;
-                            if (l.teacherName !== exp.teacherName || l.room !== exp.room || JSON.stringify(l.teacherIds) !== JSON.stringify(exp.teacherIds) || l.length !== exp.length) {
-                                isUpdated = true;
-                            }
-                            Object.assign(l, exp, { 
-                                isLocked: l.isLocked || false,
-                                isFixed: exp.isFixed || l.isFixed || false
-                            });
-                            syncedInstances.set(l.id, l);
-                            expectedMap.delete(l.id);
-                            if (isUpdated) updatedCount++;
-                            newCell.push(l);
-                        } else if (syncedInstances.has(l.id)) {
-                            // ステッチ: 既に同期済みの同一IDインスタンスがあれば参照を統合（連続授業）
-                            newCell.push(syncedInstances.get(l.id));
-                        } else {
-                            removedCount++; // 設定から消えた駒
-                        }
+                        let sl = syncedInstances.has(l.id) ? syncedInstances.get(l.id) : (expectedMap.has(l.id) ? syncLesson(l) : fallbackMatch(l));
+                        if (sl) newCell.push(sl);
                     });
                     state.generatedSchedule[d][p] = newCell;
                 }
@@ -101,27 +129,15 @@ window.actions = {
         if (state.unassigned) {
             let newUnassigned = [];
             state.unassigned.forEach(l => {
-                let exp = expectedMap.get(l.id);
-                if (exp) {
-                    let isUpdated = false;
-                    if (l.teacherName !== exp.teacherName || l.room !== exp.room || JSON.stringify(l.teacherIds) !== JSON.stringify(exp.teacherIds) || l.length !== exp.length) isUpdated = true;
-                    Object.assign(l, exp, { isLocked: l.isLocked || false, isFixed: exp.isFixed || l.isFixed || false });
-                    syncedInstances.set(l.id, l);
-                    expectedMap.delete(l.id);
-                    if(isUpdated) updatedCount++;
-                    newUnassigned.push(l);
-                } else if (syncedInstances.has(l.id)) {
-                    newUnassigned.push(syncedInstances.get(l.id));
-                } else {
-                    removedCount++;
-                }
+                let sl = syncedInstances.has(l.id) ? syncedInstances.get(l.id) : (expectedMap.has(l.id) ? syncLesson(l) : fallbackMatch(l));
+                if (sl) newUnassigned.push(sl);
             });
             state.unassigned = newUnassigned;
         } else {
             state.unassigned = [];
         }
 
-        // 余った expectedMap は新規追加された授業なのでトレイへ
+        // 余った設定上の駒は新規追加分としてトレイへ
         expectedMap.forEach(exp => {
             state.unassigned.push(exp);
             addedCount++;
@@ -129,22 +145,19 @@ window.actions = {
 
         if (updatedCount > 0 || addedCount > 0 || removedCount > 0) {
             actions.pushScheduleHistory();
-            if (typeof validateSchedule === 'function') validateSchedule();
-            return { updatedCount, addedCount, removedCount };
         }
-        
-        // 変更がなくてもステッチによる参照結合が行われているため再検証
+        // ステッチによる参照結合が行われているため再検証し、エラーを消去
         if (typeof validateSchedule === 'function') validateSchedule();
-        return false;
+        
+        return { updatedCount, addedCount, removedCount };
     },
 
+    // --- 既存メソッドへの同期フックの追加 ---
     jumpToResult:()=>{
         const syncRes = actions.syncScheduleData();
         state.currentStep=10;
         render();
-        if (syncRes) {
-            showToast(`設定同期: 更新${syncRes.updatedCount}件, 追加${syncRes.addedCount}件, 削除${syncRes.removedCount}件`, "success");
-        }
+        if (syncRes) showToast(`設定同期: 更新${syncRes.updatedCount}件, 追加${syncRes.addedCount}件, 削除${syncRes.removedCount}件`, "success");
     },
     
     initScheduleHistory: () => {
@@ -166,9 +179,7 @@ window.actions = {
             state.historyIndex--;
             const snap = state.scheduleHistory[state.historyIndex];
             state.generatedSchedule = JSON.parse(JSON.stringify(snap.schedule)); state.unassigned = JSON.parse(JSON.stringify(snap.unassigned));
-            state.movingLesson = null; 
-            actions.syncScheduleData(); // 履歴を戻した際にもステッチを再適用
-            render(); showToast("操作を戻しました");
+            state.movingLesson = null; actions.syncScheduleData(); render(); showToast("操作を戻しました");
         }
     },
     redoSchedule: () => {
@@ -176,9 +187,7 @@ window.actions = {
             state.historyIndex++;
             const snap = state.scheduleHistory[state.historyIndex];
             state.generatedSchedule = JSON.parse(JSON.stringify(snap.schedule)); state.unassigned = JSON.parse(JSON.stringify(snap.unassigned));
-            state.movingLesson = null; 
-            actions.syncScheduleData(); // 履歴を進めた際にもステッチを再適用
-            render(); showToast("やり直しました");
+            state.movingLesson = null; actions.syncScheduleData(); render(); showToast("やり直しました");
         }
     },
 
@@ -291,8 +300,7 @@ window.actions = {
         const slotData = slotsData[i].data;
         Object.assign(state, JSON.parse(JSON.stringify(slotData)));
         try { localStorage.setItem(STORAGE_KEY_DRAFT, JSON.stringify(state)); } catch(e){}
-        // ロード直後にステッチ（結合）処理を実行
-        actions.syncScheduleData(); 
+        actions.syncScheduleData(); // ロード直後にステッチを実行しニコイチを修復
         render();
         showToast("ロード完了しました", "success");
     },
@@ -511,21 +519,7 @@ window.actions = {
         }
     },
 
-    importData:()=>{
-        const i=document.createElement('input');i.type='file';i.accept='.json';
-        i.onchange=e=>{
-            const f=e.target.files[0];const r=new FileReader();
-            r.onload=ev=>{
-                Object.assign(state,JSON.parse(ev.target.result));
-                forceInitState();
-                actions.syncScheduleData(); // 追加: JSONロード直後のステッチ
-                render();
-                showToast("読み込み完了","success");
-            };
-            r.readAsText(f);
-        };
-        i.click();
-    },
+    importData:()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];const r=new FileReader();r.onload=ev=>{Object.assign(state,JSON.parse(ev.target.result));forceInitState();actions.syncScheduleData();render();showToast("読み込み完了","success");};r.readAsText(f);};i.click();},
 
     startExportData: () => {
         const defaultFileName = `時間割データ_${new Date().toLocaleDateString('ja-JP').split('/').join('')}_未配置${state.unassigned?.length||0}.json`;
