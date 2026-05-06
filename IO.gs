@@ -4,6 +4,57 @@
  * ==========================================
  */
 
+// --- 新規追加: インポート時の正規ID割り当て用のリスト構築 ---
+function buildExpectedLessonsForImport(state) {
+    let lessons = [];
+    const teacherMap = {}; (state.teachers||[]).forEach(t => teacherMap[t.id] = t.name);
+    const roomObj = {}; (state.rooms||[]).forEach(r => roomObj[r.name] = r);
+    const rules = state.advancedRules || {};
+
+    if (state.specialBlocks) {
+      state.specialBlocks.forEach(b => {
+        let tMap = {}; (b.teachers||[]).forEach(t => tMap[t.id] = parseInt(t.hours)||0);
+        let fTimes = (b.fixedTimes || []).slice();
+        for (let i=0; i<b.hours; i++) {
+          let tIds = []; (b.teachers||[]).forEach(t => { if(tMap[t.id]>0) { tIds.push(t.id); tMap[t.id]--; }});
+          let fTime = fTimes.length > 0 ? fTimes.shift() : null;
+          lessons.push({ id:`sp_${b.id}_${i}`, subjectId:b.subjectId, subject:state.subjects.find(s=>s.id===b.subjectId)?.name||'特殊', targets:b.targets||[], teacherIds:tIds, teacherName:tIds.map(id=>teacherMap[id]||'').join(','), room:b.room||'通常教室', isSpecialist:true, length:1, totalHours:b.hours, type:'special', limitOnePerDay: b.limitOnePerDay === true, isFixed: !!fTime, fixedTime: fTime });
+        }
+      });
+    }
+    if (state.classAssignments) {
+      Object.keys(state.classAssignments).forEach(cls => {
+        const grade = cls.split('-')[0], data = state.classAssignments[cls];
+        (state.subjects||[]).forEach(sub => {
+          let stdHrs = parseInt(sub.stdHours?.[grade])||0; if(stdHrs === 0) return;
+          let specialHrs = 0; if (state.specialBlocks) { state.specialBlocks.forEach(b => { if (b.subjectId === sub.id && (b.targets||[]).includes(cls)) specialHrs += (parseInt(b.hours) || 0); }); }
+          let remainingHrs = stdHrs - specialHrs; if (remainingHrs <= 0) return;
+          const ovr = data.overrides?.[sub.id] || {}, rName = ovr.room || sub.defaultRoom || '通常教室';
+          const isCont = rules.continuousClasses?.some(rc => rc.subject === sub.name && matchRuleTarget(rc, { targets: [cls] }));
+          let fTimes = (ovr.fixedTimes || []).slice();
+          const proc = (tId, h, aIdx) => {
+            if(!tId) return; 
+            const isSp = (roomObj[rName] || tId !== data.homeroom);
+            let localH = h;
+            while(localH > 0 && fTimes.length > 0) {
+              let fTime = fTimes.shift();
+              lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_f${localH}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: !!fTime, fixedTime: fTime });
+              localH--;
+            }
+            if (isCont && localH >= 2) {
+              for(let i=0; i<Math.floor(localH/2); i++) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_p${i}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:2, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+              if(localH%2 !== 0) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_s0`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+            } else {
+              for(let i=0; i<localH; i++) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_${i}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+            }
+          };
+          if (ovr.allocations?.length > 0) ovr.allocations.forEach((a,i) => proc(a.teacherId, parseInt(a.hours)||0, i)); else proc(ovr.teacherId||data.homeroom, remainingHrs, 0);
+        });
+      });
+    }
+    return lessons;
+}
+
 function handleImportFromSS(url, state) {
   try {
     const idMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
@@ -49,6 +100,7 @@ function handleImportFromSS(url, state) {
     const subjectMap = {};
     (state.subjects || []).forEach(s => subjectMap[s.name.trim()] = s.id);
 
+    // 一旦、スプレッドシートの記述通りに仮の駒を生成・マージする
     for (let r = 2; r < values.length; r++) {
       const row = values[r];
       const clsName = row[0] ? row[0].toString().trim() : "";
@@ -88,12 +140,13 @@ function handleImportFromSS(url, state) {
         );
 
         if (existingLesson) {
+            // 合同授業等の場合、ターゲットを追加
             if (!existingLesson.targets.includes(clsName)) {
                 existingLesson.targets.push(clsName);
             }
-            importCount++;
         } else {
-            const lessonId = `imp_${subId}_${cellInfo.day}${cellInfo.period}_${tIds.join('-')}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            // 仮のIDで登録
+            const lessonId = `tmp_${subId}_${clsName}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
             const importedLesson = {
               id: lessonId,
               subjectId: subId,
@@ -110,19 +163,53 @@ function handleImportFromSS(url, state) {
               isFixed: true, 
               isLocked: true 
             };
-
             importedSchedule[cellInfo.day][cellInfo.period].push(importedLesson);
-            importCount++;
         }
       }
     }
+
+    // --- 既存の同期ロジックとの互換性確保 ---
+    // 生成した仮のスケジュールに対して、設定に基づく正規のIDを割り当てる
+    const availableLessons = buildExpectedLessonsForImport(state);
+
+    DAYS.forEach(d => {
+      PERIODS.forEach(p => {
+        importedSchedule[d][p].forEach(l => {
+          let bestMatchIdx = -1;
+          
+          // 1. 対象クラスと教科が完全一致するものを探す（特殊・合同授業など）
+          bestMatchIdx = availableLessons.findIndex(al => 
+            al.subjectId === l.subjectId && 
+            al.targets.slice().sort().join(',') === l.targets.slice().sort().join(',')
+          );
+
+          // 2. なければ、代表クラス（targets[0]）と教科が一致するものを探す
+          if (bestMatchIdx === -1) {
+            bestMatchIdx = availableLessons.findIndex(al => 
+              al.subjectId === l.subjectId && 
+              al.targets.includes(l.targets[0])
+            );
+          }
+
+          if (bestMatchIdx > -1) {
+            // 正規IDと属性を適用（これによりフロントエンドでの同期が破綻しない）
+            l.id = availableLessons[bestMatchIdx].id;
+            availableLessons.splice(bestMatchIdx, 1); // 割り当て済みの枠を消費
+            importCount++;
+          } else {
+            // 設定にない、あるいは設定のコマ数を超過している授業
+            errorLog.push(`${l.targets.join(',')}の${d}曜${p}限: 「${l.subject}」は設定コマ数を超過しているか、未登録のパターンです。(同期時に消去される可能性があります)`);
+          }
+        });
+      });
+    });
 
     return { 
       success: true, 
       schedule: importedSchedule, 
       importCount: importCount, 
       errors: errorLog,
-      message: `スプレッドシートから ${importCount} 件のコマを読み込み、合同授業を最適化しました。` 
+      message: `スプレッドシートから ${importCount} 件のコマを正規IDで読み込みました。` 
     };
 
   } catch (e) {
