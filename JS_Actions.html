@@ -3,7 +3,6 @@ window.actions = {
     toggleDarkMode: () => { const h = document.documentElement; h.classList.toggle('dark'); localStorage.setItem('tt_theme', h.classList.contains('dark') ? 'dark' : 'light'); },
     hardReset:()=>{if(confirm("すべてリセットしますか？")){localStorage.removeItem(STORAGE_KEY_DRAFT);localStorage.removeItem(STORAGE_KEY_SLOTS);location.reload();}},
     
-    // 最新設定から「あるべき授業リスト」を構築（決定論的ID）
     buildExpectedLessons: () => {
         let lessons = [];
         const teacherMap = {}; (state.teachers||[]).forEach(t => teacherMap[t.id] = t.name);
@@ -31,7 +30,7 @@ window.actions = {
               const ovr = data.overrides?.[sub.id] || {}, rName = ovr.room || sub.defaultRoom || '通常教室';
               const isCont = rules.continuousClasses?.some(rc => rc.subject === sub.name && matchRuleTarget(rc, { targets: [cls] }));
               let fTimes = (ovr.fixedTimes || []).slice();
-              let lessonCounter = 0; // 教員分担順に依存しない連番
+              let lessonCounter = 0; 
               
               const proc = (tId, h) => {
                 if(!tId) return; 
@@ -65,7 +64,6 @@ window.actions = {
         return lessons;
     },
 
-    // --- 修正: マイグレーション(移行)マップを用いた強力な自己修復・ステッチ ---
     syncScheduleData: () => {
         if (!state.generatedSchedule && (!state.unassigned || state.unassigned.length === 0)) return false;
 
@@ -74,8 +72,8 @@ window.actions = {
         expected.forEach(l => expectedMap.set(l.id, l));
 
         let updatedCount = 0, addedCount = 0, removedCount = 0;
-        const syncedInstances = new Map(); // 新ID -> インスタンス のキャッシュ
-        const idMigrationMap = new Map();  // 旧ID/仮ID -> 新ID の変換キャッシュ
+        const syncedInstances = new Map(); 
+        const idMigrationMap = new Map();  
 
         const syncLesson = (l) => {
             const exp = expectedMap.get(l.id);
@@ -85,7 +83,7 @@ window.actions = {
                 Object.assign(l, exp, { isLocked: l.isLocked || false, isFixed: exp.isFixed || l.isFixed || false });
                 
                 syncedInstances.set(l.id, l);
-                idMigrationMap.set(l.id, l.id); // 自身へのマッピングを記録
+                idMigrationMap.set(l.id, l.id); 
                 expectedMap.delete(l.id);
                 if (isUpdated) updatedCount++;
                 return l; 
@@ -96,16 +94,15 @@ window.actions = {
         const fallbackMatch = (l) => {
            let bestMatchIdx = expected.findIndex(al => expectedMap.has(al.id) && al.subjectId === l.subjectId && al.targets.slice().sort().join(',') === l.targets.slice().sort().join(',') && al.length === l.length);
            if (bestMatchIdx === -1) bestMatchIdx = expected.findIndex(al => expectedMap.has(al.id) && al.subjectId === l.subjectId && al.targets.includes(l.targets[0]) && al.length === l.length);
-           // 長さが違っても（読み込み直後など）推測
            if (bestMatchIdx === -1) bestMatchIdx = expected.findIndex(al => expectedMap.has(al.id) && al.subjectId === l.subjectId && al.targets.includes(l.targets[0]));
            
            if (bestMatchIdx > -1) {
                const exp = expected[bestMatchIdx];
                Object.assign(l, exp, { isLocked: l.isLocked || false, isFixed: exp.isFixed || l.isFixed || false });
                
-               idMigrationMap.set(l.id, exp.id); // 旧ID -> 新ID の変換を記憶（これが超重要）
+               idMigrationMap.set(l.id, exp.id); 
                
-               l.id = exp.id; // 新しい正規IDに上書き
+               l.id = exp.id; 
                syncedInstances.set(exp.id, l);
                expectedMap.delete(exp.id);
                updatedCount++;
@@ -115,18 +112,15 @@ window.actions = {
            return null;
         };
 
-        // 盤面の同期とステッチ（ニコイチの完全結合）
         DAYS.forEach(d => {
             getDynamicPeriods().forEach(p => {
                 if (state.generatedSchedule[d] && state.generatedSchedule[d][p]) {
                     let newCell = [];
                     state.generatedSchedule[d][p].forEach(l => {
-                        // 1. すでに旧IDからの変換実績があれば、その参照を引っ張ってくる（ニコイチ結合成功）
                         if (idMigrationMap.has(l.id)) {
                             const newId = idMigrationMap.get(l.id);
                             newCell.push(syncedInstances.get(newId));
                         } else {
-                        // 2. 未処理のIDなら、正規マッチングかフォールバック検索を行う
                             let sl = expectedMap.has(l.id) ? syncLesson(l) : fallbackMatch(l);
                             if (sl) newCell.push(sl);
                         }
@@ -136,7 +130,6 @@ window.actions = {
             });
         });
 
-        // トレイの同期とステッチ
         if (state.unassigned) {
             let newUnassigned = [];
             state.unassigned.forEach(l => {
@@ -147,13 +140,11 @@ window.actions = {
                     if (sl) newUnassigned.push(sl);
                 }
             });
-            // 同一参照の重複を取り除く（トレイに同じコマが2つ入るのを防ぐ）
             state.unassigned = Array.from(new Set(newUnassigned));
         } else {
             state.unassigned = [];
         }
 
-        // 余った設定上の駒は新規追加分としてトレイへ
         expectedMap.forEach(exp => {
             state.unassigned.push(exp);
             addedCount++;
@@ -162,7 +153,6 @@ window.actions = {
         if (updatedCount > 0 || addedCount > 0 || removedCount > 0) {
             actions.pushScheduleHistory();
         }
-        // ステッチによる参照結合が行われているため再検証し、エラーを消去
         if (typeof validateSchedule === 'function') validateSchedule();
         
         return { updatedCount, addedCount, removedCount };
@@ -194,9 +184,8 @@ window.actions = {
             state.historyIndex--;
             const snap = state.scheduleHistory[state.historyIndex];
             state.generatedSchedule = JSON.parse(JSON.stringify(snap.schedule)); state.unassigned = JSON.parse(JSON.stringify(snap.unassigned));
-            state.movingLesson = null; 
-            actions.syncScheduleData(); // ステッチ再適用
-            render(); showToast("操作を戻しました");
+            state.movingLesson = null; state.stitchTargetId = null;
+            actions.syncScheduleData(); render(); showToast("操作を戻しました");
         }
     },
     redoSchedule: () => {
@@ -204,12 +193,360 @@ window.actions = {
             state.historyIndex++;
             const snap = state.scheduleHistory[state.historyIndex];
             state.generatedSchedule = JSON.parse(JSON.stringify(snap.schedule)); state.unassigned = JSON.parse(JSON.stringify(snap.unassigned));
-            state.movingLesson = null; 
-            actions.syncScheduleData(); // ステッチ再適用
-            render(); showToast("やり直しました");
+            state.movingLesson = null; state.stitchTargetId = null;
+            actions.syncScheduleData(); render(); showToast("やり直しました");
         }
     },
 
+    // --- 新規追加: 手動結合・分割モードの制御 ---
+    toggleStitchMode: () => {
+        state.stitchMode = !state.stitchMode;
+        if(state.stitchMode) {
+            state.paintLockMode = false;
+            state.splitMode = false;
+            state.movingLesson = null;
+            state.stitchTargetId = null;
+            showToast("🧶 結合する1つ目の駒を選んでください");
+        }
+        render();
+    },
+    toggleSplitMode: () => {
+        state.splitMode = !state.splitMode;
+        if(state.splitMode) {
+            state.paintLockMode = false;
+            state.stitchMode = false;
+            state.movingLesson = null;
+            showToast("✂️ 分割したい連続授業を選んでください");
+        }
+        render();
+    },
+
+    // --- 新規追加: 盤面一括修復（自動ステッチ） ---
+    autoStitchAll: () => {
+        if(!state.generatedSchedule) return;
+        let stitchedCount = 0;
+        const classes = Object.keys(state.classAssignments || {});
+        
+        classes.forEach(cls => {
+            DAYS.forEach(d => {
+                let prevLesson = null;
+                getDynamicPeriods().forEach(p => {
+                    if(!state.generatedSchedule[d] || !state.generatedSchedule[d][p]) return;
+                    let ls = state.generatedSchedule[d][p];
+                    let currentIdx = ls.findIndex(l => l.targets?.includes(cls));
+                    
+                    if (currentIdx > -1) {
+                        let current = ls[currentIdx];
+                        // 教科と教員が同じで、IDが異なる（分断されている）場合のみ結合
+                        if (prevLesson && 
+                            prevLesson.subjectId === current.subjectId && 
+                            prevLesson.id !== current.id && 
+                            prevLesson.teacherIds.slice().sort().join(',') === current.teacherIds.slice().sort().join(',')) {
+                            
+                            const newLength = (prevLesson.length || 1) + (current.length || 1);
+                            const oldId = current.id;
+                            
+                            // current と同IDの駒をすべて prevLesson に置き換える
+                            DAYS.forEach(dd => {
+                                getDynamicPeriods().forEach(pp => {
+                                    if(state.generatedSchedule[dd]?.[pp]) {
+                                        let idx = state.generatedSchedule[dd][pp].findIndex(x => x.id === oldId);
+                                        if(idx > -1) state.generatedSchedule[dd][pp][idx] = prevLesson;
+                                    }
+                                });
+                            });
+                            
+                            prevLesson.length = newLength;
+                            stitchedCount++;
+                        } else {
+                            prevLesson = current;
+                        }
+                    } else {
+                        prevLesson = null;
+                    }
+                });
+            });
+        });
+        
+        if (stitchedCount > 0) {
+            actions.pushScheduleHistory();
+            validateSchedule();
+            render();
+            showToast(`✨ ${stitchedCount} 箇所の連続授業を自動修復しました！`, "success");
+        } else {
+            showToast("修復が必要な連続授業は見つかりませんでした", "info");
+        }
+    },
+
+    togglePaintLockMode: () => {
+        state.paintLockMode = !state.paintLockMode;
+        if(state.paintLockMode) {
+            state.stitchMode = false;
+            state.splitMode = false;
+            state.movingLesson = null;
+        }
+        render();
+        showToast(state.paintLockMode ? "🖌️なぞりロックをONにしました" : "なぞりロックをOFFにしました");
+    },
+    setLock: (id, lockState) => {
+        let l = findLessonById(id);
+        if(l && l.isLocked !== lockState) {
+            l.isLocked = lockState;
+            document.querySelectorAll(`.lesson-cell[data-lesson-id="${id}"]`).forEach(el => {
+                if(lockState) {
+                    el.classList.add('opacity-80', 'saturate-50', 'brightness-90');
+                    if(!el.querySelector('.pin-icon')) {
+                        const pin = document.createElement('div');
+                        pin.className = "pin-icon absolute -top-1 -right-1 bg-slate-700 text-white text-[8px] w-3 h-3 flex items-center justify-center rounded-full shadow-md z-10 border border-white";
+                        pin.innerText = "📌";
+                        if(el.closest('#step10-birdeye-scroll')) {
+                             pin.className = "pin-icon absolute -top-0.5 -right-0.5 bg-slate-700 text-white text-[6px] w-2.5 h-2.5 flex items-center justify-center rounded-full shadow-md z-10";
+                        }
+                        el.appendChild(pin);
+                    }
+                } else {
+                    el.classList.remove('opacity-80', 'saturate-50', 'brightness-90');
+                    const pin = el.querySelector('.pin-icon');
+                    if(pin) pin.remove();
+                }
+            });
+            try{localStorage.setItem(STORAGE_KEY_DRAFT,JSON.stringify(state));}catch(e){}
+        }
+    },
+    toggleLock: (id) => {
+        let l = findLessonById(id);
+        if(l) {
+            l.isLocked = !l.isLocked;
+            render();
+            showToast(l.isLocked ? "📌固定しました" : "固定を解除しました");
+        }
+    },
+    lockAll: (doLock) => {
+        if(!state.generatedSchedule) return;
+        DAYS.forEach(d => {
+            getDynamicPeriods().forEach(p => {
+                (state.generatedSchedule[d]?.[p]||[]).forEach(l => l.isLocked = doLock);
+            });
+        });
+        (state.unassigned||[]).forEach(l => l.isLocked = doLock);
+        render();
+        showToast(doLock ? "すべての駒を固定しました" : "すべての固定を解除しました");
+    },
+    lockHomeroom: () => {
+        if(!state.generatedSchedule || !state.classAssignments) return;
+        let count = 0;
+        DAYS.forEach(d => {
+            getDynamicPeriods().forEach(p => {
+                (state.generatedSchedule[d]?.[p]||[]).forEach(l => {
+                    const cls = l.targets[0];
+                    const homeroomId = state.classAssignments[cls]?.homeroom;
+                    if(homeroomId && l.teacherIds.includes(homeroomId)) {
+                        l.isLocked = true;
+                        count++;
+                    }
+                });
+            });
+        });
+        render();
+        showToast(`担任授業を固定しました(${count}コマ)`);
+    },
+
+    handleCellClick: (d, p, cls, lId = null) => {
+        if(state.paintLockMode) return;
+        window.hideViolationPopup();
+        if (!state.generatedSchedule) return;
+
+        // --- 新規追加: ハサミ（分割）モード処理 ---
+        if (state.splitMode) {
+            if (!lId) return;
+            const target = findLessonById(lId);
+            if (!target) return;
+            if ((target.length || 1) <= 1) {
+                showToast("分割できるのは連続授業だけです", "warning");
+                return;
+            }
+            if (target.isLocked || target.isFixed) {
+                showToast("📌 固定されている駒は分割できません", "error");
+                return;
+            }
+
+            let foundParts = [];
+            DAYS.forEach(day => {
+                getDynamicPeriods().forEach(period => {
+                    if (state.generatedSchedule[day]?.[period]) {
+                        const idx = state.generatedSchedule[day][period].findIndex(l => l.id === lId);
+                        if (idx > -1) foundParts.push({ day, period, lesson: state.generatedSchedule[day][period][idx] });
+                    }
+                });
+            });
+
+            foundParts.forEach((part, index) => {
+                let newLesson = JSON.parse(JSON.stringify(part.lesson));
+                newLesson.id = newLesson.id + "_split_" + Date.now() + "_" + index;
+                newLesson.length = 1;
+                newLesson.totalHours = 1;
+                state.generatedSchedule[part.day][part.period] = state.generatedSchedule[part.day][part.period].filter(l => l.id !== lId);
+                state.generatedSchedule[part.day][part.period].push(newLesson);
+            });
+
+            state.unassigned.filter(l => l.id === lId).forEach((trayL, index) => {
+               state.unassigned = state.unassigned.filter(l => l.id !== lId);
+               for(let i=0; i<(trayL.length||1); i++) {
+                   let newLesson = JSON.parse(JSON.stringify(trayL));
+                   newLesson.id = newLesson.id + "_split_tray_" + Date.now() + "_" + i;
+                   newLesson.length = 1;
+                   newLesson.totalHours = 1;
+                   state.unassigned.push(newLesson);
+               }
+            });
+
+            state.splitMode = false;
+            actions.pushScheduleHistory();
+            validateSchedule();
+            render();
+            showToast("✂️ 授業を分割しました", "success");
+            return;
+        }
+
+        // --- 新規追加: 手動結合（ステッチ）モード処理 ---
+        if (state.stitchMode) {
+            if (!lId) return;
+            const target = findLessonById(lId);
+            if (!target) return;
+
+            if (!state.stitchTargetId) {
+                state.stitchTargetId = lId;
+                render();
+                return;
+            } else {
+                if (state.stitchTargetId === lId) {
+                    state.stitchTargetId = null;
+                    render();
+                    return;
+                }
+                const firstTarget = findLessonById(state.stitchTargetId);
+                if (!firstTarget) {
+                    state.stitchTargetId = null;
+                    render();
+                    return;
+                }
+
+                if (firstTarget.subjectId !== target.subjectId || firstTarget.targets.slice().sort().join(',') !== target.targets.slice().sort().join(',')) {
+                    showToast("教科やクラスが異なるため結合できません", "error");
+                    state.stitchTargetId = null;
+                    render();
+                    return;
+                }
+                if (firstTarget.isLocked || target.isLocked || firstTarget.isFixed || target.isFixed) {
+                    showToast("📌 固定されている駒は結合できません", "error");
+                    state.stitchTargetId = null;
+                    render();
+                    return;
+                }
+
+                const newLength = (firstTarget.length || 1) + (target.length || 1);
+                const baseId = firstTarget.id;
+
+                DAYS.forEach(day => {
+                    getDynamicPeriods().forEach(period => {
+                        if (state.generatedSchedule[day]?.[period]) {
+                            const index = state.generatedSchedule[day][period].findIndex(x => x.id === lId);
+                            if(index > -1) state.generatedSchedule[day][period][index] = firstTarget; 
+                        }
+                    });
+                });
+
+                let newUnassigned = [];
+                state.unassigned.forEach(l => { if (l.id !== lId) newUnassigned.push(l); });
+                state.unassigned = newUnassigned;
+
+                firstTarget.length = newLength;
+                DAYS.forEach(day => {
+                    getDynamicPeriods().forEach(period => {
+                        if (state.generatedSchedule[day]?.[period]) {
+                            state.generatedSchedule[day][period].forEach(l => { if (l.id === baseId) l.length = newLength; });
+                        }
+                    });
+                });
+
+                state.stitchMode = false;
+                state.stitchTargetId = null;
+                actions.pushScheduleHistory();
+                validateSchedule();
+                render();
+                showToast("🧶 授業を結合しました！", "success");
+                return;
+            }
+        }
+        
+        if (!state.movingLesson && lId) {
+            const l = findLessonById(lId);
+            if (l && l.isLocked) {
+                showToast("📌 固定されているため移動できません", "error");
+                return;
+            }
+        }
+
+        if (state.movingLesson) {
+            const fromL = state.movingLesson;
+            if (fromL.id === lId) { state.movingLesson = null; render(); return; }
+            
+            let schedule = state.generatedSchedule;
+            const fromD = fromL.day;
+            const fromP = fromL.period;
+
+            let movingGroup = [];
+            if (fromD && fromP) {
+                movingGroup = schedule[fromD][fromP].filter(l => l.id === fromL.id);
+                schedule[fromD][fromP] = schedule[fromD][fromP].filter(l => l.id !== fromL.id);
+            } else {
+                const uIndex = state.unassigned.findIndex(x => x.id === fromL.id);
+                if(uIndex > -1) {
+                    movingGroup = [state.unassigned[uIndex]];
+                    state.unassigned.splice(uIndex, 1);
+                }
+            }
+
+            if (movingGroup.length === 0) { state.movingLesson = null; render(); return; }
+
+            if (d === 'tray') {
+                state.unassigned.push(...movingGroup);
+                showToast("トレイに戻しました", "success");
+            } else if (d && p) {
+                if (!schedule[d][p]) schedule[d][p] = [];
+                const targetClasses = movingGroup.flatMap(m => m.targets);
+                const bumpedGroup = schedule[d][p].filter(l => l.targets.some(c => targetClasses.includes(c)));
+                schedule[d][p] = schedule[d][p].filter(l => !l.targets.some(c => targetClasses.includes(c)));
+                schedule[d][p].push(...movingGroup);
+
+                if (fromD && fromP) {
+                    if (!schedule[fromD][fromP]) schedule[fromD][fromP] = [];
+                    schedule[fromD][fromP].push(...bumpedGroup);
+                } else {
+                    state.unassigned.push(...bumpedGroup);
+                }
+                showToast(bumpedGroup.length > 0 ? "合同授業を入れ替えました" : "駒を移動しました", "success");
+            }
+
+            state.movingLesson = null;
+            actions.pushScheduleHistory(); 
+            validateSchedule();
+            render();
+        } else {
+            if (!lId) return;
+            if(state.violations && state.violations[lId]) { setTimeout(() => window.showViolationPopup(lId), 10); }
+            if(d === 'tray') {
+                const target = safeFind(state.unassigned, 'id', lId);
+                state.movingLesson = { id: lId, day: null, period: null, targets: target?.targets||[], teacherIds: target?.teacherIds||[] };
+            } else {
+                let obj = (state.generatedSchedule[d][p]||[]).find(x=>x.id===lId);
+                if(obj) state.movingLesson = { id: lId, day: d, period: p, cls: cls, targets: obj.targets, teacherIds: obj.teacherIds };
+            }
+            render();
+        }
+    },
+
+    // ... (以降のインポートやエクスポート関数はそのまま) ...
     openSlotModal: (mode = 'save') => {
         const container = document.getElementById('slot-list-container');
         const titleEl = document.getElementById('slot-modal-title');
@@ -319,7 +656,7 @@ window.actions = {
         const slotData = slotsData[i].data;
         Object.assign(state, JSON.parse(JSON.stringify(slotData)));
         try { localStorage.setItem(STORAGE_KEY_DRAFT, JSON.stringify(state)); } catch(e){}
-        actions.syncScheduleData(); // ロード直後にステッチを実行しニコイチを修復
+        actions.syncScheduleData();
         render();
         showToast("ロード完了しました", "success");
     },
@@ -397,147 +734,6 @@ window.actions = {
         showToast("ハイライトをリセットしました");
     },
     
-    togglePaintLockMode: () => {
-        state.paintLockMode = !state.paintLockMode;
-        if(state.movingLesson) state.movingLesson = null;
-        render();
-        showToast(state.paintLockMode ? "🖌️なぞりロックをONにしました" : "なぞりロックをOFFにしました");
-    },
-    setLock: (id, lockState) => {
-        let l = findLessonById(id);
-        if(l && l.isLocked !== lockState) {
-            l.isLocked = lockState;
-            document.querySelectorAll(`.lesson-cell[data-lesson-id="${id}"]`).forEach(el => {
-                if(lockState) {
-                    el.classList.add('opacity-80', 'saturate-50', 'brightness-90');
-                    if(!el.querySelector('.pin-icon')) {
-                        const pin = document.createElement('div');
-                        pin.className = "pin-icon absolute -top-1 -right-1 bg-slate-700 text-white text-[8px] w-3 h-3 flex items-center justify-center rounded-full shadow-md z-10 border border-white";
-                        pin.innerText = "📌";
-                        if(el.closest('#step10-birdeye-scroll')) {
-                             pin.className = "pin-icon absolute -top-0.5 -right-0.5 bg-slate-700 text-white text-[6px] w-2.5 h-2.5 flex items-center justify-center rounded-full shadow-md z-10";
-                        }
-                        el.appendChild(pin);
-                    }
-                } else {
-                    el.classList.remove('opacity-80', 'saturate-50', 'brightness-90');
-                    const pin = el.querySelector('.pin-icon');
-                    if(pin) pin.remove();
-                }
-            });
-            try{localStorage.setItem(STORAGE_KEY_DRAFT,JSON.stringify(state));}catch(e){}
-        }
-    },
-    toggleLock: (id) => {
-        let l = findLessonById(id);
-        if(l) {
-            l.isLocked = !l.isLocked;
-            render();
-            showToast(l.isLocked ? "📌固定しました" : "固定を解除しました");
-        }
-    },
-    lockAll: (doLock) => {
-        if(!state.generatedSchedule) return;
-        DAYS.forEach(d => {
-            getDynamicPeriods().forEach(p => {
-                (state.generatedSchedule[d]?.[p]||[]).forEach(l => l.isLocked = doLock);
-            });
-        });
-        (state.unassigned||[]).forEach(l => l.isLocked = doLock);
-        render();
-        showToast(doLock ? "すべての駒を固定しました" : "すべての固定を解除しました");
-    },
-    lockHomeroom: () => {
-        if(!state.generatedSchedule || !state.classAssignments) return;
-        let count = 0;
-        DAYS.forEach(d => {
-            getDynamicPeriods().forEach(p => {
-                (state.generatedSchedule[d]?.[p]||[]).forEach(l => {
-                    const cls = l.targets[0];
-                    const homeroomId = state.classAssignments[cls]?.homeroom;
-                    if(homeroomId && l.teacherIds.includes(homeroomId)) {
-                        l.isLocked = true;
-                        count++;
-                    }
-                });
-            });
-        });
-        render();
-        showToast(`担任授業を固定しました(${count}コマ)`);
-    },
-
-    handleCellClick: (d, p, cls, lId = null) => {
-        if(state.paintLockMode) return;
-        window.hideViolationPopup();
-        if (!state.generatedSchedule) return;
-        
-        if (!state.movingLesson && lId) {
-            const l = findLessonById(lId);
-            if (l && l.isLocked) {
-                showToast("📌 固定されているため移動できません", "error");
-                return;
-            }
-        }
-
-        if (state.movingLesson) {
-            const fromL = state.movingLesson;
-            if (fromL.id === lId) { state.movingLesson = null; render(); return; }
-            
-            let schedule = state.generatedSchedule;
-            const fromD = fromL.day;
-            const fromP = fromL.period;
-
-            let movingGroup = [];
-            if (fromD && fromP) {
-                movingGroup = schedule[fromD][fromP].filter(l => l.id === fromL.id);
-                schedule[fromD][fromP] = schedule[fromD][fromP].filter(l => l.id !== fromL.id);
-            } else {
-                const uIndex = state.unassigned.findIndex(x => x.id === fromL.id);
-                if(uIndex > -1) {
-                    movingGroup = [state.unassigned[uIndex]];
-                    state.unassigned.splice(uIndex, 1);
-                }
-            }
-
-            if (movingGroup.length === 0) { state.movingLesson = null; render(); return; }
-
-            if (d === 'tray') {
-                state.unassigned.push(...movingGroup);
-                showToast("トレイに戻しました", "success");
-            } else if (d && p) {
-                if (!schedule[d][p]) schedule[d][p] = [];
-                const targetClasses = movingGroup.flatMap(m => m.targets);
-                const bumpedGroup = schedule[d][p].filter(l => l.targets.some(c => targetClasses.includes(c)));
-                schedule[d][p] = schedule[d][p].filter(l => !l.targets.some(c => targetClasses.includes(c)));
-                schedule[d][p].push(...movingGroup);
-
-                if (fromD && fromP) {
-                    if (!schedule[fromD][fromP]) schedule[fromD][fromP] = [];
-                    schedule[fromD][fromP].push(...bumpedGroup);
-                } else {
-                    state.unassigned.push(...bumpedGroup);
-                }
-                showToast(bumpedGroup.length > 0 ? "合同授業を入れ替えました" : "駒を移動しました", "success");
-            }
-
-            state.movingLesson = null;
-            actions.pushScheduleHistory(); 
-            validateSchedule();
-            render();
-        } else {
-            if (!lId) return;
-            if(state.violations && state.violations[lId]) { setTimeout(() => window.showViolationPopup(lId), 10); }
-            if(d === 'tray') {
-                const target = safeFind(state.unassigned, 'id', lId);
-                state.movingLesson = { id: lId, day: null, period: null, targets: target?.targets||[], teacherIds: target?.teacherIds||[] };
-            } else {
-                let obj = (state.generatedSchedule[d][p]||[]).find(x=>x.id===lId);
-                if(obj) state.movingLesson = { id: lId, day: d, period: p, cls: cls, targets: obj.targets, teacherIds: obj.teacherIds };
-            }
-            render();
-        }
-    },
-
     importData:()=>{
         const i=document.createElement('input');i.type='file';i.accept='.json';
         i.onchange=e=>{
@@ -873,7 +1069,6 @@ window.actions = {
             if (data.success) {
                 state.generatedSchedule = data.schedule; state.unassigned = []; state.currentStep = 10; actions.initScheduleHistory();
                 
-                // 追加: スプシ同期直後のステッチ
                 actions.syncScheduleData();
 
                 if (data.errors && data.errors.length > 0) {
@@ -884,6 +1079,363 @@ window.actions = {
                 render();
             } else showToast(data.message, "error");
         } catch (e) { btn.innerHTML = '読み込む'; btn.disabled = false; showToast("通信エラーが発生しました", "error"); }
+    },
+
+    // --- 新規追加: 手動結合（ステッチ）モード ---
+    toggleStitchMode: () => {
+        state.stitchMode = !state.stitchMode;
+        if(state.stitchMode) {
+            state.paintLockMode = false;
+            state.splitMode = false;
+            state.movingLesson = null;
+            state.stitchTargetId = null;
+            showToast("🧶 結合する1つ目の駒を選んでください");
+        }
+        render();
+    },
+
+    // --- 新規追加: 分割（ハサミ）モード ---
+    toggleSplitMode: () => {
+        state.splitMode = !state.splitMode;
+        if(state.splitMode) {
+            state.paintLockMode = false;
+            state.stitchMode = false;
+            state.movingLesson = null;
+            showToast("✂️ 分割したい連続授業を選んでください");
+        }
+        render();
+    },
+
+    // --- 新規追加: 一括自動修復（オートステッチ） ---
+    autoStitchAll: () => {
+        if(!state.generatedSchedule) return;
+        let stitchedCount = 0;
+        const classes = Object.keys(state.classAssignments || {});
+        
+        classes.forEach(cls => {
+            DAYS.forEach(d => {
+                let prevLesson = null;
+                getDynamicPeriods().forEach(p => {
+                    if(!state.generatedSchedule[d] || !state.generatedSchedule[d][p]) return;
+                    let ls = state.generatedSchedule[d][p];
+                    let currentIdx = ls.findIndex(l => l.targets?.includes(cls));
+                    
+                    if (currentIdx > -1) {
+                        let current = ls[currentIdx];
+                        // クラス・教科・教員が同じで、IDが分断されている場合のみ結合
+                        if (prevLesson && 
+                            prevLesson.subjectId === current.subjectId && 
+                            prevLesson.id !== current.id && 
+                            prevLesson.teacherIds.slice().sort().join(',') === current.teacherIds.slice().sort().join(',')) {
+                            
+                            const newLength = (prevLesson.length || 1) + (current.length || 1);
+                            const oldId = current.id;
+                            
+                            // current と同IDの駒をすべて prevLesson の参照に置き換える
+                            DAYS.forEach(dd => {
+                                getDynamicPeriods().forEach(pp => {
+                                    if(state.generatedSchedule[dd]?.[pp]) {
+                                        let idx = state.generatedSchedule[dd][pp].findIndex(x => x.id === oldId);
+                                        if(idx > -1) state.generatedSchedule[dd][pp][idx] = prevLesson;
+                                    }
+                                });
+                            });
+                            
+                            prevLesson.length = newLength;
+                            stitchedCount++;
+                        } else {
+                            prevLesson = current;
+                        }
+                    } else {
+                        prevLesson = null;
+                    }
+                });
+            });
+        });
+        
+        if (stitchedCount > 0) {
+            actions.pushScheduleHistory();
+            validateSchedule();
+            render();
+            showToast(`✨ ${stitchedCount} 箇所の連続授業を自動修復しました！`, "success");
+        } else {
+            showToast("修復が必要な連続授業は見つかりませんでした", "info");
+        }
+    },
+
+    togglePaintLockMode: () => {
+        state.paintLockMode = !state.paintLockMode;
+        if(state.paintLockMode) {
+            state.stitchMode = false;
+            state.splitMode = false;
+            state.movingLesson = null;
+        }
+        render();
+        showToast(state.paintLockMode ? "🖌️なぞりロックをONにしました" : "なぞりロックをOFFにしました");
+    },
+    
+    setLock: (id, lockState) => {
+        let l = findLessonById(id);
+        if(l && l.isLocked !== lockState) {
+            l.isLocked = lockState;
+            document.querySelectorAll(`.lesson-cell[data-lesson-id="${id}"]`).forEach(el => {
+                if(lockState) {
+                    el.classList.add('opacity-80', 'saturate-50', 'brightness-90');
+                    if(!el.querySelector('.pin-icon')) {
+                        const pin = document.createElement('div');
+                        pin.className = "pin-icon absolute -top-1 -right-1 bg-slate-700 text-white text-[8px] w-3 h-3 flex items-center justify-center rounded-full shadow-md z-10 border border-white";
+                        pin.innerText = "📌";
+                        if(el.closest('#step10-birdeye-scroll')) {
+                             pin.className = "pin-icon absolute -top-0.5 -right-0.5 bg-slate-700 text-white text-[6px] w-2.5 h-2.5 flex items-center justify-center rounded-full shadow-md z-10";
+                        }
+                        el.appendChild(pin);
+                    }
+                } else {
+                    el.classList.remove('opacity-80', 'saturate-50', 'brightness-90');
+                    const pin = el.querySelector('.pin-icon');
+                    if(pin) pin.remove();
+                }
+            });
+            try{localStorage.setItem(STORAGE_KEY_DRAFT,JSON.stringify(state));}catch(e){}
+        }
+    },
+    toggleLock: (id) => {
+        let l = findLessonById(id);
+        if(l) {
+            l.isLocked = !l.isLocked;
+            render();
+            showToast(l.isLocked ? "📌固定しました" : "固定を解除しました");
+        }
+    },
+    lockAll: (doLock) => {
+        if(!state.generatedSchedule) return;
+        DAYS.forEach(d => {
+            getDynamicPeriods().forEach(p => {
+                (state.generatedSchedule[d]?.[p]||[]).forEach(l => l.isLocked = doLock);
+            });
+        });
+        (state.unassigned||[]).forEach(l => l.isLocked = doLock);
+        render();
+        showToast(doLock ? "すべての駒を固定しました" : "すべての固定を解除しました");
+    },
+    lockHomeroom: () => {
+        if(!state.generatedSchedule || !state.classAssignments) return;
+        let count = 0;
+        DAYS.forEach(d => {
+            getDynamicPeriods().forEach(p => {
+                (state.generatedSchedule[d]?.[p]||[]).forEach(l => {
+                    const cls = l.targets[0];
+                    const homeroomId = state.classAssignments[cls]?.homeroom;
+                    if(homeroomId && l.teacherIds.includes(homeroomId)) {
+                        l.isLocked = true;
+                        count++;
+                    }
+                });
+            });
+        });
+        render();
+        showToast(`担任授業を固定しました(${count}コマ)`);
+    },
+
+    // --- 修正: 各モードに応じたクリック処理の分岐 ---
+    handleCellClick: (d, p, cls, lId = null) => {
+        if(state.paintLockMode) return;
+        window.hideViolationPopup();
+        if (!state.generatedSchedule) return;
+
+        // --- ハサミ（分割）モード処理 ---
+        if (state.splitMode) {
+            if (!lId) return;
+            const target = findLessonById(lId);
+            if (!target) return;
+            if ((target.length || 1) <= 1) {
+                showToast("分割できるのは連続授業だけです", "warning");
+                return;
+            }
+            if (target.isLocked || target.isFixed) {
+                showToast("📌 固定されている駒は分割できません", "error");
+                return;
+            }
+
+            let foundParts = [];
+            DAYS.forEach(day => {
+                getDynamicPeriods().forEach(period => {
+                    if (state.generatedSchedule[day]?.[period]) {
+                        const idx = state.generatedSchedule[day][period].findIndex(l => l.id === lId);
+                        if (idx > -1) foundParts.push({ day, period, lesson: state.generatedSchedule[day][period][idx] });
+                    }
+                });
+            });
+
+            foundParts.forEach((part, index) => {
+                let newLesson = JSON.parse(JSON.stringify(part.lesson));
+                newLesson.id = newLesson.id + "_split_" + Date.now() + "_" + index;
+                newLesson.length = 1;
+                newLesson.totalHours = 1;
+                state.generatedSchedule[part.day][part.period] = state.generatedSchedule[part.day][part.period].filter(l => l.id !== lId);
+                state.generatedSchedule[part.day][part.period].push(newLesson);
+            });
+
+            state.unassigned.filter(l => l.id === lId).forEach((trayL) => {
+               state.unassigned = state.unassigned.filter(l => l.id !== lId);
+               for(let i=0; i<(trayL.length||1); i++) {
+                   let newLesson = JSON.parse(JSON.stringify(trayL));
+                   newLesson.id = newLesson.id + "_split_tray_" + Date.now() + "_" + i;
+                   newLesson.length = 1;
+                   newLesson.totalHours = 1;
+                   state.unassigned.push(newLesson);
+               }
+            });
+
+            state.splitMode = false;
+            actions.pushScheduleHistory();
+            validateSchedule();
+            render();
+            showToast("✂️ 授業を分割しました", "success");
+            return;
+        }
+
+        // --- 手動結合（ステッチ）モード処理 ---
+        if (state.stitchMode) {
+            if (!lId) return;
+            const target = findLessonById(lId);
+            if (!target) return;
+
+            if (!state.stitchTargetId) {
+                state.stitchTargetId = lId;
+                render();
+                return;
+            } else {
+                if (state.stitchTargetId === lId) {
+                    state.stitchTargetId = null; // キャンセル
+                    render();
+                    return;
+                }
+                const firstTarget = findLessonById(state.stitchTargetId);
+                if (!firstTarget) {
+                    state.stitchTargetId = null;
+                    render();
+                    return;
+                }
+
+                // ガード: 教科とクラスが一致するか
+                if (firstTarget.subjectId !== target.subjectId || firstTarget.targets.slice().sort().join(',') !== target.targets.slice().sort().join(',')) {
+                    showToast("教科やクラスが異なるため結合できません", "error");
+                    state.stitchTargetId = null;
+                    render();
+                    return;
+                }
+                if (firstTarget.isLocked || target.isLocked || firstTarget.isFixed || target.isFixed) {
+                    showToast("📌 固定されている駒は結合できません", "error");
+                    state.stitchTargetId = null;
+                    render();
+                    return;
+                }
+
+                const newLength = (firstTarget.length || 1) + (target.length || 1);
+                const baseId = firstTarget.id;
+
+                // 2つ目の駒の参照を1つ目に置き換える
+                DAYS.forEach(day => {
+                    getDynamicPeriods().forEach(period => {
+                        if (state.generatedSchedule[day]?.[period]) {
+                            const index = state.generatedSchedule[day][period].findIndex(x => x.id === lId);
+                            if(index > -1) state.generatedSchedule[day][period][index] = firstTarget; 
+                        }
+                    });
+                });
+
+                // トレイ内の整理
+                let newUnassigned = [];
+                state.unassigned.forEach(l => { if (l.id !== lId) newUnassigned.push(l); });
+                state.unassigned = newUnassigned;
+
+                // Lengthの合算
+                firstTarget.length = newLength;
+                DAYS.forEach(day => {
+                    getDynamicPeriods().forEach(period => {
+                        if (state.generatedSchedule[day]?.[period]) {
+                            state.generatedSchedule[day][period].forEach(l => { if (l.id === baseId) l.length = newLength; });
+                        }
+                    });
+                });
+
+                state.stitchMode = false;
+                state.stitchTargetId = null;
+                actions.pushScheduleHistory();
+                validateSchedule();
+                render();
+                showToast("🧶 授業を結合しました！", "success");
+                return;
+            }
+        }
+        
+        // --- 通常の移動モード ---
+        if (!state.movingLesson && lId) {
+            const l = findLessonById(lId);
+            if (l && l.isLocked) {
+                showToast("📌 固定されているため移動できません", "error");
+                return;
+            }
+        }
+
+        if (state.movingLesson) {
+            const fromL = state.movingLesson;
+            if (fromL.id === lId) { state.movingLesson = null; render(); return; }
+            
+            let schedule = state.generatedSchedule;
+            const fromD = fromL.day;
+            const fromP = fromL.period;
+
+            let movingGroup = [];
+            if (fromD && fromP) {
+                movingGroup = schedule[fromD][fromP].filter(l => l.id === fromL.id);
+                schedule[fromD][fromP] = schedule[fromD][fromP].filter(l => l.id !== fromL.id);
+            } else {
+                const uIndex = state.unassigned.findIndex(x => x.id === fromL.id);
+                if(uIndex > -1) {
+                    movingGroup = [state.unassigned[uIndex]];
+                    state.unassigned.splice(uIndex, 1);
+                }
+            }
+
+            if (movingGroup.length === 0) { state.movingLesson = null; render(); return; }
+
+            if (d === 'tray') {
+                state.unassigned.push(...movingGroup);
+                showToast("トレイに戻しました", "success");
+            } else if (d && p) {
+                if (!schedule[d][p]) schedule[d][p] = [];
+                const targetClasses = movingGroup.flatMap(m => m.targets);
+                const bumpedGroup = schedule[d][p].filter(l => l.targets.some(c => targetClasses.includes(c)));
+                schedule[d][p] = schedule[d][p].filter(l => !l.targets.some(c => targetClasses.includes(c)));
+                schedule[d][p].push(...movingGroup);
+
+                if (fromD && fromP) {
+                    if (!schedule[fromD][fromP]) schedule[fromD][fromP] = [];
+                    schedule[fromD][fromP].push(...bumpedGroup);
+                } else {
+                    state.unassigned.push(...bumpedGroup);
+                }
+                showToast(bumpedGroup.length > 0 ? "合同授業を入れ替えました" : "駒を移動しました", "success");
+            }
+
+            state.movingLesson = null;
+            actions.pushScheduleHistory(); 
+            validateSchedule();
+            render();
+        } else {
+            if (!lId) return;
+            if(state.violations && state.violations[lId]) { setTimeout(() => window.showViolationPopup(lId), 10); }
+            if(d === 'tray') {
+                const target = safeFind(state.unassigned, 'id', lId);
+                state.movingLesson = { id: lId, day: null, period: null, targets: target?.targets||[], teacherIds: target?.teacherIds||[] };
+            } else {
+                let obj = (state.generatedSchedule[d][p]||[]).find(x=>x.id===lId);
+                if(obj) state.movingLesson = { id: lId, day: d, period: p, cls: cls, targets: obj.targets, teacherIds: obj.teacherIds };
+            }
+            render();
+        }
     }
 };
 
