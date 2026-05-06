@@ -4,7 +4,7 @@
  * ==========================================
  */
 
-// インポート時の正規ID割り当て用のリスト構築
+// インポート時の正規ID割り当て用のリスト構築（教員順に依存しない連番ID）
 function buildExpectedLessonsForImport(state) {
     let lessons = [];
     const teacherMap = {}; (state.teachers||[]).forEach(t => teacherMap[t.id] = t.name);
@@ -32,23 +32,35 @@ function buildExpectedLessonsForImport(state) {
           const ovr = data.overrides?.[sub.id] || {}, rName = ovr.room || sub.defaultRoom || '通常教室';
           const isCont = rules.continuousClasses?.some(rc => rc.subject === sub.name && matchRuleTarget(rc, { targets: [cls] }));
           let fTimes = (ovr.fixedTimes || []).slice();
-          const proc = (tId, h, aIdx) => {
+          let lessonCounter = 0; // 教員分担順に依存しない連番
+          
+          const proc = (tId, h) => {
             if(!tId) return; 
             const isSp = (roomObj[rName] || tId !== data.homeroom);
             let localH = h;
             while(localH > 0 && fTimes.length > 0) {
               let fTime = fTimes.shift();
-              lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_f${localH}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: !!fTime, fixedTime: fTime });
-              localH--;
+              lessons.push({ id:`n_${cls}_${sub.id}_f${lessonCounter}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: !!fTime, fixedTime: fTime });
+              localH--; lessonCounter++;
             }
             if (isCont && localH >= 2) {
-              for(let i=0; i<Math.floor(localH/2); i++) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_p${i}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:2, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
-              if(localH%2 !== 0) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_s0`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+              for(let i=0; i<Math.floor(localH/2); i++) {
+                lessons.push({ id:`n_${cls}_${sub.id}_p${lessonCounter}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:2, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+                lessonCounter++;
+              }
+              if(localH%2 !== 0) {
+                lessons.push({ id:`n_${cls}_${sub.id}_s${lessonCounter}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+                lessonCounter++;
+              }
             } else {
-              for(let i=0; i<localH; i++) lessons.push({ id:`n_${cls}_${sub.id}_a${aIdx}_${i}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+              for(let i=0; i<localH; i++) {
+                lessons.push({ id:`n_${cls}_${sub.id}_${lessonCounter}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+                lessonCounter++;
+              }
             }
           };
-          if (ovr.allocations?.length > 0) ovr.allocations.forEach((a,i) => proc(a.teacherId, parseInt(a.hours)||0, i)); else proc(ovr.teacherId||data.homeroom, remainingHrs, 0);
+          if (ovr.allocations?.length > 0) ovr.allocations.forEach((a) => proc(a.teacherId, parseInt(a.hours)||0)); 
+          else proc(ovr.teacherId||data.homeroom, remainingHrs);
         });
       });
     }
@@ -145,7 +157,7 @@ function handleImportFromSS(url, state) {
                 existingLesson.targets.push(clsName);
             }
         } else {
-            // 単発の仮IDで登録（後で結合処理を行う）
+            // 単発の仮IDで登録（後で垂直ステッチ処理を行う）
             const lessonId = `tmp_${subId}_${clsName}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
             const importedLesson = {
               id: lessonId,
@@ -198,7 +210,7 @@ function handleImportFromSS(url, state) {
     });
 
     // --- 既存の同期ロジックとの互換性確保 ---
-    // 生成した仮のスケジュールに対して、設定に基づく正規のIDを割り当てる
+    // ステッチされた仮のスケジュールに対して、設定に基づく正規のIDを割り当てる
     const availableLessons = buildExpectedLessonsForImport(state);
 
     DAYS.forEach(d => {
