@@ -4,7 +4,7 @@
  * ==========================================
  */
 
-// --- 新規追加: インポート時の正規ID割り当て用のリスト構築 ---
+// インポート時の正規ID割り当て用のリスト構築
 function buildExpectedLessonsForImport(state) {
     let lessons = [];
     const teacherMap = {}; (state.teachers||[]).forEach(t => teacherMap[t.id] = t.name);
@@ -145,7 +145,7 @@ function handleImportFromSS(url, state) {
                 existingLesson.targets.push(clsName);
             }
         } else {
-            // 仮のIDで登録
+            // 単発の仮IDで登録（後で結合処理を行う）
             const lessonId = `tmp_${subId}_${clsName}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
             const importedLesson = {
               id: lessonId,
@@ -168,6 +168,35 @@ function handleImportFromSS(url, state) {
       }
     }
 
+    // --- 新規追加: 垂直ステッチ（連続授業の検出と結合） ---
+    const classes = Object.keys(state.classAssignments || {});
+    classes.forEach(cls => {
+      DAYS.forEach(d => {
+        let prevLesson = null;
+        PERIODS.forEach(p => {
+          let ls = importedSchedule[d][p];
+          if (!ls) return;
+          let currentIdx = ls.findIndex(l => l.targets.includes(cls));
+          if (currentIdx > -1) {
+            let current = ls[currentIdx];
+            // 直前の時限と同じ教科・教員なら結合して length を増やす
+            if (prevLesson && 
+                prevLesson.subjectId === current.subjectId && 
+                prevLesson.teacherIds.slice().sort().join(',') === current.teacherIds.slice().sort().join(',')) {
+              
+              current.id = prevLesson.id;
+              prevLesson.length += 1;
+              current.length = prevLesson.length; 
+            } else {
+              prevLesson = current;
+            }
+          } else {
+            prevLesson = null;
+          }
+        });
+      });
+    });
+
     // --- 既存の同期ロジックとの互換性確保 ---
     // 生成した仮のスケジュールに対して、設定に基づく正規のIDを割り当てる
     const availableLessons = buildExpectedLessonsForImport(state);
@@ -175,26 +204,49 @@ function handleImportFromSS(url, state) {
     DAYS.forEach(d => {
       PERIODS.forEach(p => {
         importedSchedule[d][p].forEach(l => {
+          // すでに正規IDが割り当て済みならスキップ
+          if (!l.id.startsWith('tmp_')) return;
+
           let bestMatchIdx = -1;
           
-          // 1. 対象クラスと教科が完全一致するものを探す（特殊・合同授業など）
+          // 1. 対象クラス・教科・【長さ】が完全一致するものを探す（ニコイチや特殊授業）
           bestMatchIdx = availableLessons.findIndex(al => 
             al.subjectId === l.subjectId && 
-            al.targets.slice().sort().join(',') === l.targets.slice().sort().join(',')
+            al.targets.slice().sort().join(',') === l.targets.slice().sort().join(',') &&
+            al.length === l.length
           );
 
-          // 2. なければ、代表クラス（targets[0]）と教科が一致するものを探す
+          // 2. 代表クラス・教科・【長さ】が一致するものを探す
           if (bestMatchIdx === -1) {
             bestMatchIdx = availableLessons.findIndex(al => 
+              al.subjectId === l.subjectId && 
+              al.targets.includes(l.targets[0]) &&
+              al.length === l.length
+            );
+          }
+          
+          // 3. 長さ無視のフォールバック（設定が変わっている場合）
+          if (bestMatchIdx === -1) {
+             bestMatchIdx = availableLessons.findIndex(al => 
               al.subjectId === l.subjectId && 
               al.targets.includes(l.targets[0])
             );
           }
 
           if (bestMatchIdx > -1) {
-            // 正規IDと属性を適用（これによりフロントエンドでの同期が破綻しない）
-            l.id = availableLessons[bestMatchIdx].id;
-            availableLessons.splice(bestMatchIdx, 1); // 割り当て済みの枠を消費
+            const assignedId = availableLessons[bestMatchIdx].id;
+            const tmpId = l.id;
+            // 同じ tmp_ ID を持つ連続コマすべてに同じ正規IDを振る
+            DAYS.forEach(dd => {
+              PERIODS.forEach(pp => {
+                importedSchedule[dd][pp].forEach(ll => {
+                  if (ll.id === tmpId) {
+                    ll.id = assignedId;
+                  }
+                });
+              });
+            });
+            availableLessons.splice(bestMatchIdx, 1);
             importCount++;
           } else {
             // 設定にない、あるいは設定のコマ数を超過している授業
