@@ -15,7 +15,6 @@ const step8Packages=[
   {id:"pkg3", title:"【児童配慮設定】", desc:"集中度に合わせた教科配置", items:[{key:"amPrioritySubjects", type:"array", fields:['target','exclude','subject'], format:"", title:"午前に優先配置", desc:"", tip:""},{key:"lastPeriodSubjects", type:"array", fields:['target','exclude','subject'], format:"", title:"最終コマに優先配置", desc:"", tip:""},{key:"avoidSpecificTimes", type:"array", fields:['target','exclude','subject','day','period'], format:"", title:"特定の時間帯回避", desc:"", tip:""}]}
 ];
 
-// --- 変更点: splitMode を追加 ---
 var state={currentStep:1, grades:{1:3,2:3,3:3,4:3,5:3,6:3}, periods:{}, rooms:[], subjects:[], teachers:[], globalBlocks:{}, specialBlocks:[], classAssignments:{}, advancedRules:{priorities:{}}, ruleEditor:{}, openPkgs:{}, generatedSchedule:null, unassigned:[], reportDetails:{}, scoreCard:null, dashTab:'matrix', matrixAxis:'class', dashView:'class', dashFilter:'', marathon:{active:false, target:0, maxGen:10, currentGen:1, relaxRules:false}, best:{unassignedCount:9999, schedule:null, unassigned:null, scoreCard:null, reportDetails:null}, selectedTeacherId:null, editingTeacherId:null, editingSubjectId:null, editingTeacherLimitId:null, specialBuilder:{type:'joint', subjectId:'', hours:1, room:'通常教室', targets:[], teachers:[]}, openSpecialEdits:{}, subjectsUndoStack:[], rulesUndoStack:[], birdEyeMode:false, spotlightSub:'', spotlightTea:'', spotlightTeas:['','','',''], movingLesson:null, violations:{}, conflictingIds:[], activeViolationNode:null, scheduleHistory:[], historyIndex:-1, openTeacherLoadId:null, paintLockMode:false, stitchMode:false, stitchTargetId:null, splitMode:false};
 let slotsData = Array(10).fill(null);
 let exportAbortController = null;
@@ -42,7 +41,6 @@ function forceInitState(){
     if(state.paintLockMode===undefined) state.paintLockMode=false;
     if(state.stitchMode===undefined) state.stitchMode=false;
     if(state.stitchTargetId===undefined) state.stitchTargetId=null;
-    // --- 追加 ---
     if(state.splitMode===undefined) state.splitMode=false;
 }
 
@@ -83,13 +81,14 @@ function findLessonById(id) {
     return (state.unassigned||[]).find(x=>x.id===id);
 }
 
+// --- 変更: 理由をより具体的に可視化するための強化 ---
 function checkSlotSuitability(d, p, targetCls, movingLesson) {
     if (!movingLesson) return { status: 'none', messages: [] };
     let msgs = [];
     let status = 'safe';
 
     const g = targetCls ? targetCls.split('-')[0] : '';
-    if (g && p > (state.periods[g]?.[d] || 0)) return { status: 'danger', messages: ['学年時限外'] };
+    if (g && p > (state.periods[g]?.[d] || 0)) return { status: 'danger', messages: ['時限外'] };
     if (state.globalBlocks[`${d}-${p}`]) return { status: 'danger', messages: ['全校不可枠'] };
 
     let isTeacherDanger = false;
@@ -97,14 +96,14 @@ function checkSlotSuitability(d, p, targetCls, movingLesson) {
         const t = safeFind(state.teachers, 'id', tid);
         if (t?.ngTimes?.[`${d}-${p}`]) {
             isTeacherDanger = true;
-            msgs.push(`${t.name}先生: NG枠`);
+            msgs.push(`${t.name}:NG枠`);
         }
         const concurrent = (state.generatedSchedule?.[d]?.[p] || []).filter(l => 
             l.id !== movingLesson.id && l.teacherIds?.includes(tid)
         );
         if (concurrent.length > 0) {
             isTeacherDanger = true;
-            msgs.push(`${t.name}先生: 重複`);
+            msgs.push(`${t.name}:授業中`);
         }
     });
     if(isTeacherDanger) status = 'danger';
@@ -117,7 +116,7 @@ function checkSlotSuitability(d, p, targetCls, movingLesson) {
             );
             if (concurrent.length >= (roomDef.capacity || 1)) {
                 status = 'danger';
-                msgs.push(`教室満室: ${movingLesson.room}`);
+                msgs.push(`${movingLesson.room}:満室`);
             }
         }
     }
@@ -140,13 +139,35 @@ function checkSlotSuitability(d, p, targetCls, movingLesson) {
     return { status, messages: msgs };
 }
 
-function getHintClass(d, p, targetCls) {
-    if (!state.movingLesson || state.paintLockMode || state.stitchMode || state.splitMode) return '';
+// --- 新規追加: ヒートマップ用のスタイルとメッセージを返す ---
+function getHintData(d, p, targetCls) {
+    if (!state.movingLesson || state.paintLockMode || state.stitchMode || state.splitMode) return { cls: '', msg: '' };
     const res = checkSlotSuitability(d, p, targetCls, state.movingLesson);
-    if (res.status === 'safe') return 'slot-safe';
-    if (res.status === 'warning') return 'slot-warning';
-    if (res.status === 'danger') return 'slot-danger';
-    return '';
+    if (res.status === 'safe') return { cls: 'bg-emerald-100/60 dark:bg-emerald-900/40 border-emerald-400 shadow-[inset_0_0_8px_rgba(16,185,129,0.3)]', msg: '' };
+    if (res.status === 'warning') return { cls: 'bg-amber-100/60 dark:bg-amber-900/40 border-amber-400 shadow-[inset_0_0_8px_rgba(245,158,11,0.3)]', msg: res.messages.join(',') };
+    if (res.status === 'danger') return { cls: 'bg-rose-100/80 dark:bg-rose-900/60 border-rose-500 shadow-[inset_0_0_12px_rgba(244,63,94,0.4)]', msg: res.messages.join(',') };
+    return { cls: '', msg: '' };
+}
+
+// --- 新規追加: トレイの駒が持つ致命的エラーを事前診断 ---
+function diagnoseLesson(lesson) {
+    let safeCount = 0, warningCount = 0, dangerCount = 0, validSlots = 0;
+    const g = lesson.targets[0].split('-')[0];
+
+    DAYS.forEach(d => {
+        getDynamicPeriods().forEach(p => {
+            if (p > (state.periods[g]?.[d] || 0)) return; // 学年時限外は対象外
+            validSlots++;
+            const res = checkSlotSuitability(d, p, lesson.targets[0], lesson);
+            if (res.status === 'safe') safeCount++;
+            else if (res.status === 'warning') warningCount++;
+            else if (res.status === 'danger') dangerCount++;
+        });
+    });
+
+    if (dangerCount >= validSlots) return 'fatal'; // どこにも置けない
+    if (safeCount > 0) return 'safe'; // 置ける
+    return 'warning'; // 努力ルール違反等で押し出しが必要
 }
 
 function saveUIState(){

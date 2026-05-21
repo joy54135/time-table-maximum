@@ -76,7 +76,6 @@ window.viewStep9=()=>{const uS=Array.from(new Set((state.subjects||[]).map(s=>s.
 
         if(n>0||a>0){if(df===0){cl='bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 font-black';t='✓';}else if(df<0){cl='bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 font-black';t=df;}else{cl='bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 font-black';t='+'+df;}}return `<td class="p-2 border-b dark:border-slate-700 border-r dark:border-slate-700 ${cl}">${t}</td>`}).join('')}</tr>`).join('')}</tbody></table></div><div class="mt-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 p-3 rounded-2xl shrink-0 flex flex-col md:flex-row justify-between items-center gap-3"><div class="flex flex-col gap-1"><div class="flex gap-2 items-center"><span class="text-xs font-bold text-slate-500 dark:text-slate-400">目標:</span><select id="m-tgt" onchange="actions.updateMarathon('target',parseInt(this.value))" class="p-1 rounded border dark:bg-slate-700 dark:border-slate-600 dark:text-white text-xs font-black"><option value="0" ${m.target===0?'selected':''}>未配置 0</option><option value="1" ${m.target===1?'selected':''}>1コマ以下</option><option value="3" ${m.target===3?'selected':''}>3コマ以下</option></select><span class="text-xs font-bold text-slate-500 ml-2 dark:text-slate-400">チャレンジ回数:</span><select id="m-max" onchange="actions.updateMarathon('maxGen',parseInt(this.value, 10))" class="p-1 rounded border dark:bg-slate-700 dark:border-slate-600 dark:text-white text-xs font-black">${marathonGens.map(v=>`<option value="${v}" ${parseInt(m.maxGen, 10)===v?'selected':''}>${v===Infinity?'無制限':v+'回'}</option>`).join('')}</select></div><label class="flex items-center gap-1 cursor-pointer mt-1"><input type="checkbox" ${m.relaxRules?'checked':''} onchange="actions.updateMarathon('relaxRules',this.checked)" class="w-3 h-3"><span class="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">💡 ルール緩和モード(全て努力で試算)</span></label></div><div class="flex gap-2 w-full md:w-auto">${state.generatedSchedule?`<button onclick="actions.jumpToResult()" class="flex-1 bg-white dark:bg-slate-700 border dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 py-2 px-4 rounded-xl font-black text-xs transition-colors dark:text-slate-200">今の配置を維持</button>`:''}<button onclick="actions.startGeneration()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-xl font-black text-sm shadow-md transition-colors">☕ 1からAIにお任せ</button></div></div></div></div>`;};
 
-// --- 手動駒追加用モーダルUI ---
 window.openAddLessonModal = () => {
     const clsKeys = Object.keys(state.classAssignments||{});
     if(clsKeys.length===0) { showToast("クラスが設定されていません","error"); return; }
@@ -152,9 +151,16 @@ window.viewStep10 = ()=>{
                     else if(state.movingLesson?.id===l.id) ringCls='ring-2 ring-rose-500 scale-95 opacity-80';
                     else if(state.violations&&state.violations[l.id]) ringCls='ring-2 ring-rose-500 shadow-rose-500 shadow-lg';
 
+                    // --- 新規追加: トレイ駒の配置可能性診断ドット ---
+                    const diag = typeof diagnoseLesson === 'function' ? diagnoseLesson(l) : 'none';
+                    let dotHtml = '';
+                    if (diag === 'fatal') dotHtml = `<div class="absolute top-1 left-1 w-2.5 h-2.5 bg-rose-500 rounded-full shadow border-2 border-white dark:border-slate-800 animate-pulse z-20" title="致命的エラー: 物理的に空き枠が存在しません"></div>`;
+                    else if (diag === 'warning') dotHtml = `<div class="absolute top-1 left-1 w-2.5 h-2.5 bg-amber-400 rounded-full shadow border-2 border-white dark:border-slate-800 z-20" title="入れ替え調整が必要です"></div>`;
+
                     return `
                     <div onclick="event.stopPropagation(); actions.handleCellClick('tray', null, null, '${l.id}')" ondblclick="event.stopPropagation(); actions.toggleLock('${l.id}')" class="lesson-cell w-16 h-12 shrink-0 rounded-[4px] border cursor-pointer flex flex-col items-center justify-center relative overflow-hidden ${ringCls} ${getSubjectColorClass(l.subject)} ${lockStyleCls} transition-all dark:border-opacity-50" data-lesson-id="${l.id}" ${getSubjectStyle(l.subject)?`style="${getSubjectStyle(l.subject)}"`:''}>
                         <div class="absolute inset-0 bg-slate-900/60 opacity-0 dark:opacity-100 pointer-events-none z-0"></div>
+                        ${dotHtml}
                         <div class="relative z-10 flex flex-col items-center w-full">
                             ${lockIcon}
                             <span class="text-[10px] font-black truncate w-full text-center px-0.5 leading-none text-slate-800 dark:text-white">${l.subject}</span>
@@ -213,14 +219,20 @@ window.viewStep10 = ()=>{
                                 
                                 const isBanned = isBannedArea(d, p, cls, 'class');
                                 const bannedCls = isBanned ? 'bg-banned pointer-events-none' : (state.paintLockMode ? 'hover:bg-slate-100 dark:hover:bg-slate-800' : 'cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700');
+                                
+                                // --- 新規追加: ヒートマップデータの取得 ---
                                 let hintCls = '';
+                                let hintMsg = '';
                                 if (state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode && !isBanned && state.movingLesson.targets.includes(cls)) {
-                                    hintCls = getHintClass(d, p, cls);
+                                    const hintData = getHintData(d, p, cls);
+                                    hintCls = hintData.cls;
+                                    hintMsg = hintData.msg;
                                 }
+                                let hintHtml = hintMsg ? `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-20 px-0.5 text-center"><span class="text-[clamp(5px,0.7vw,8px)] font-black ${hintCls.includes('rose') ? 'text-rose-600 dark:text-rose-300' : 'text-amber-600 dark:text-amber-300'} bg-white/95 dark:bg-slate-900/95 px-1 py-0.5 rounded shadow-sm leading-tight rotate-[-5deg] backdrop-blur-sm">${hintMsg.replace(/,/g, '<br>')}</span></div>` : '';
 
                                 if (ls.length === 0) {
                                     const isSelCls = (state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode && state.movingLesson.targets.includes(cls) && state.movingLesson.day===d && state.movingLesson.period===p) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
-                                    return `<td class="border ${borderCls} ${bgCls} p-0 relative transition-colors ${bannedCls} ${hintCls}" ${!isBanned?`onclick="actions.handleCellClick('${d}',${p},'${cls}')"`:''}><div class="${isSelCls}"></div></td>`;
+                                    return `<td class="border ${borderCls} ${bgCls} p-0 relative transition-colors ${bannedCls}" ${!isBanned?`onclick="actions.handleCellClick('${d}',${p},'${cls}')"`:''}><div class="absolute inset-0 pointer-events-none ${hintCls}"></div>${hintHtml}<div class="${isSelCls}"></div></td>`;
                                 }
                                 
                                 const l = ls[0];
@@ -249,7 +261,9 @@ window.viewStep10 = ()=>{
                                 const cStyle = getSubjectStyle(l.subject);
                                 const cClass = cStyle ? '' : getSubjectColorClass(l.subject);
                                 
-                                return `<td class="border ${borderCls} ${bgCls} p-0 ${bannedCls} ${hintCls} align-middle relative transition-colors" ${!isBanned||isSel?`onclick="actions.handleCellClick('${d}',${p},'${cls}','${l.id}')"`:''}>
+                                return `<td class="border ${borderCls} ${bgCls} p-0 ${bannedCls} align-middle relative transition-colors" ${!isBanned||isSel?`onclick="actions.handleCellClick('${d}',${p},'${cls}','${l.id}')"`:''}>
+                                    <div class="absolute inset-0 pointer-events-none ${hintCls}"></div>
+                                    ${hintHtml}
                                     <div class="lesson-cell w-full h-full flex flex-col items-center justify-center m-0 overflow-hidden relative z-0 ${cClass} ${dimCls} ${ringCls} transition-all select-none dark:border-opacity-50 border-transparent" data-lesson-id="${l.id}" ondblclick="actions.toggleLock('${l.id}')" ${cStyle?`style="${cStyle}"`:''}>
                                         <div class="absolute inset-0 bg-slate-900/60 opacity-0 dark:opacity-100 pointer-events-none z-0"></div>
                                         <div class="relative z-10 flex flex-col items-center w-full">
@@ -323,21 +337,26 @@ window.viewStep10 = ()=>{
                 const isBanned = isBannedArea(d, p, rowId, state.matrixAxis);
                 const bannedCls = isBanned ? 'bg-banned pointer-events-none' : (state.paintLockMode ? 'hover:bg-slate-50 dark:hover:bg-slate-800' : 'cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700');
                 
+                // --- 新規追加: ヒートマップデータの取得 ---
                 let hintCls = '';
+                let hintMsg = '';
                 if (state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode && !isBanned) {
                     let isTargetRow = false;
                     if (state.matrixAxis === 'class' && state.movingLesson.targets.includes(rowId)) isTargetRow = true;
                     if (state.matrixAxis === 'teacher' && state.movingLesson.teacherIds.includes(rowId)) isTargetRow = true;
                     if (isTargetRow) {
-                        hintCls = getHintClass(d, p, state.movingLesson.targets[0]);
+                        const hintData = getHintData(d, p, state.movingLesson.targets[0]);
+                        hintCls = hintData.cls;
+                        hintMsg = hintData.msg;
                     }
                 }
+                let hintHtml = hintMsg ? `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-20 px-0.5 text-center"><span class="text-[clamp(6px,0.8vw,9px)] font-black ${hintCls.includes('rose') ? 'text-rose-600 dark:text-rose-300' : 'text-amber-600 dark:text-amber-300'} bg-white/95 dark:bg-slate-900/95 px-1 py-0.5 rounded shadow-sm leading-tight rotate-[-5deg] backdrop-blur-sm">${hintMsg.replace(/,/g, '<br>')}</span></div>` : '';
 
                 const lessons=(state.generatedSchedule?.[d]?.[p]||[]).filter(l=>state.matrixAxis==='class'?l.targets?.includes(rowId):state.matrixAxis==='teacher'?l.teacherIds?.includes(rowId):l.room===rowId);
                 
                 if(lessons.length===0){ 
                     const isSelCls = (state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode && state.movingLesson.day===d && state.movingLesson.period===p && ((state.matrixAxis==='class'&&state.movingLesson.targets.includes(rowId)) || (state.matrixAxis==='teacher'&&state.movingLesson.teacherIds.includes(rowId)))) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
-                    tr+=`<td class="p-0 ${borderCls} ${bgCls} ${bannedCls} ${hintCls} relative align-top h-full transition-colors" ${!isBanned?`onclick="actions.handleCellClick('${d}',${p},'${state.matrixAxis==='class'?rowId:state.dashFilter}')"`:''}><div class="${isSelCls}"></div></td>`;
+                    tr+=`<td class="p-0 ${borderCls} ${bgCls} ${bannedCls} relative align-top h-full transition-colors" ${!isBanned?`onclick="actions.handleCellClick('${d}',${p},'${state.matrixAxis==='class'?rowId:state.dashFilter}')"`:''}><div class="absolute inset-0 pointer-events-none ${hintCls}"></div>${hintHtml}<div class="${isSelCls}"></div></td>`;
                 } else { 
                     const l=lessons[0]; const subT=state.matrixAxis==='class'?`${l.teacherName||'?'}`:`${l.targets?.join(',')}`;
                     const cStyle = getSubjectStyle(l.subject); const cClass = cStyle ? '' : getSubjectColorClass(l.subject);
@@ -355,7 +374,9 @@ window.viewStep10 = ()=>{
                     const lockIcon = isLocked ? `<div class="pin-icon absolute -top-1 -right-1 bg-slate-700 text-white text-[8px] w-3 h-3 flex items-center justify-center rounded-full shadow-md z-10 border border-white">📌</div>` : (isFixed ? `<div class="pin-icon absolute -top-1 -right-1 bg-indigo-600 text-white text-[8px] w-3 h-3 flex items-center justify-center rounded-full shadow-md z-10 border border-white">⚙️</div>` : '');
                     const lockStyleCls = (isLocked || isFixed) ? 'opacity-80 saturate-50 brightness-90' : '';
 
-                    tr+=`<td class="p-0.5 ${borderCls} ${bgCls} ${bannedCls} ${hintCls} align-top h-full transition-colors" ${!isBanned||isSel?`onclick="actions.handleCellClick('${d}',${p},'${state.matrixAxis==='class'?rowId:state.dashFilter}','${l.id}')"`:''}>
+                    tr+=`<td class="p-0.5 ${borderCls} ${bgCls} ${bannedCls} align-top h-full transition-colors relative" ${!isBanned||isSel?`onclick="actions.handleCellClick('${d}',${p},'${state.matrixAxis==='class'?rowId:state.dashFilter}','${l.id}')"`:''}>
+                        <div class="absolute inset-0 pointer-events-none ${hintCls}"></div>
+                        ${hintHtml}
                         <div class="lesson-cell flex flex-col items-center justify-center p-0.5 rounded-[4px] border ${cClass} ${ringCls} ${lockStyleCls} shadow-sm relative overflow-hidden h-full min-h-[40px] select-none dark:border-opacity-50" data-lesson-id="${l.id}" ondblclick="actions.toggleLock('${l.id}')" ${cStyle?`style="${cStyle}"`:''}>
                             <div class="absolute inset-0 bg-slate-900/60 opacity-0 dark:opacity-100 pointer-events-none z-0"></div>
                             <div class="relative z-10 flex flex-col items-center w-full">
@@ -380,17 +401,25 @@ window.viewStep10 = ()=>{
                 const isBanned = isBannedArea(d, p, state.dashFilter, state.dashView);
                 const bannedCls = isBanned ? 'bg-banned pointer-events-none' : (state.paintLockMode ? 'hover:bg-slate-50 dark:hover:bg-slate-800' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800');
                 
+                // --- 新規追加: ヒートマップデータの取得 ---
                 let hintCls = '';
+                let hintMsg = '';
                 if (state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode && !isBanned) {
                     let targetCls = state.dashView === 'class' ? state.dashFilter : (state.movingLesson.targets[0] || '');
                     if (state.movingLesson.targets.includes(targetCls) || (state.dashView === 'teacher' && state.movingLesson.teacherIds.includes(state.dashFilter))) {
-                        hintCls = getHintClass(d, p, targetCls);
+                        const hintData = getHintData(d, p, targetCls);
+                        hintCls = hintData.cls;
+                        hintMsg = hintData.msg;
                     }
                 }
+                let hintHtml = hintMsg ? `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-20 px-0.5 text-center"><span class="text-[clamp(8px,1vw,12px)] font-black ${hintCls.includes('rose') ? 'text-rose-600 dark:text-rose-300' : 'text-amber-600 dark:text-amber-300'} bg-white/95 dark:bg-slate-900/95 px-1.5 py-0.5 rounded shadow-sm leading-tight rotate-[-5deg] backdrop-blur-sm">${hintMsg.replace(/,/g, '<br>')}</span></div>` : '';
 
                 const selCls = (state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode && state.movingLesson.day===d && state.movingLesson.period===p && ((state.dashView==='class'&&state.movingLesson.targets.includes(state.dashFilter)) || (state.dashView==='teacher'&&state.movingLesson.teacherIds.includes(state.dashFilter)))) ? 'ring-2 ring-rose-500 inset-0 absolute z-10' : '';
                 
-                html+=`<div class="dash-cell border-b border-r dark:border-slate-700 bg-white dark:bg-slate-900 relative transition-colors ${bannedCls} ${hintCls}" ${!isBanned?`onclick="actions.handleCellClick('${d}',${p},'${state.dashFilter}','${ls.length>0?ls[0].id:''}')"`:''}><div class="${selCls}"></div>${ls.map(l=>{
+                html+=`<div class="dash-cell border-b border-r dark:border-slate-700 bg-white dark:bg-slate-900 relative transition-colors ${bannedCls}" ${!isBanned?`onclick="actions.handleCellClick('${d}',${p},'${state.dashFilter}','${ls.length>0?ls[0].id:''}')"`:''}>
+                    <div class="absolute inset-0 pointer-events-none ${hintCls}"></div>
+                    ${hintHtml}
+                    <div class="${selCls}"></div>${ls.map(l=>{
                     const cStyle = getSubjectStyle(l.subject); const cClass = cStyle ? '' : getSubjectColorClass(l.subject);
                     const isSel = state.movingLesson && !state.paintLockMode && !state.stitchMode && !state.splitMode && state.movingLesson.id === l.id;
                     const isVio = state.violations && state.violations[l.id];
