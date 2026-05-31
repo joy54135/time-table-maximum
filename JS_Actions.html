@@ -1110,6 +1110,37 @@ window.actions = {
         document.getElementById('modal-body').innerHTML = h + `</div>`; document.getElementById('modal-overlay').classList.remove('hidden'); 
     },
 
+    openExportModal:()=>{
+        let h = `<div class="flex justify-between items-center mb-4 border-b pb-2 shrink-0"><h3 class="text-lg font-black text-blue-900">🖨️ 出力設定 (マルチ印刷)</h3><button onclick="actions.closeModal()" class="text-slate-400 font-bold text-xl hover:bg-slate-100 rounded px-2">✕</button></div><div id="modal-scroll" class="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-4 pb-4 text-sm font-bold text-slate-700">`;
+        h += `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <h4 class="text-xs font-black text-slate-500 mb-3 border-b pb-1">📄 PDF出力 (印刷用)</h4>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="pdf-matrix-class" checked class="w-4 h-4"><span>全校クラス時間割</span></label>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="pdf-matrix-teacher" checked class="w-4 h-4"><span>全校教員時間割</span></label>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="pdf-matrix-room" class="w-4 h-4"><span>全校教室時間割</span></label>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="pdf-indiv-class" checked class="w-4 h-4"><span>各クラス別時間割</span></label>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="pdf-indiv-teacher" class="w-4 h-4"><span>各教員別時間割</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="pdf-subject-hours" checked class="w-4 h-4 text-fuchsia-600"><span>各クラス教科時数一覧</span></label>
+                </div>
+                <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+                    <h4 class="text-xs font-black text-emerald-600 mb-3 border-b border-emerald-200 pb-1">📊 スプレッドシート (編集用)</h4>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="ss-matrix-class" checked class="w-4 h-4 text-emerald-600"><span>全校クラス時間割</span></label>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="ss-matrix-teacher" checked class="w-4 h-4 text-emerald-600"><span>全校教員時間割</span></label>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="ss-matrix-room" class="w-4 h-4 text-emerald-600"><span>全校教室時間割</span></label>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="ss-indiv-class" checked class="w-4 h-4 text-emerald-600"><span>各クラス別時間割</span></label>
+                    <label class="flex items-center gap-2 mb-2 cursor-pointer"><input type="checkbox" id="ss-indiv-teacher" class="w-4 h-4 text-emerald-600"><span>各教員別時間割</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="ss-subject-hours" checked class="w-4 h-4 text-fuchsia-600"><span>各クラス教科時数一覧</span></label>
+                </div>
+              </div>`;
+        h += `<div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200 mt-2">
+                <h4 class="text-xs font-black text-indigo-600 mb-2 border-b border-indigo-200 pb-1">📂 保存先フォルダの指定 (任意)</h4>
+                <p class="text-[10px] text-slate-500 mb-2">GoogleドライブのフォルダURL（またはフォルダID）を貼り付けると、その場所に保存されます。</p>
+                <input type="text" id="export-folder-url" placeholder="https://drive.google.com/drive/folders/..." class="w-full p-2 border rounded-lg bg-white text-xs font-bold outline-none focus:border-indigo-500 mb-1">
+              </div>`;
+        h += `<div class="mt-2 flex justify-end shrink-0"><button onclick="actions.executeExport()" class="m3-btn-primary px-8">サーバーで生成</button></div>`;
+        document.getElementById('modal-body').innerHTML = h + `</div>`; document.getElementById('modal-overlay').classList.remove('hidden');
+    },
+
     executeExport: async function() {
         let folderUrl = document.getElementById('export-folder-url')?.value || '';
         let folderId = null;
