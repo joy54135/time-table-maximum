@@ -290,7 +290,7 @@ function handleExport(schedule, data, options) {
     let pdfOpts = options.pdf || {};
     let ssOpts = options.spreadsheet || {};
     if (!options.pdf && !options.spreadsheet) {
-        ssOpts = { matrixClass: true, individualClass: true };
+        ssOpts = { matrixClass: true, individualClass: true, subjectHours: true };
     }
 
     const reqMatrixClass = ssOpts.matrixClass || pdfOpts.matrixClass;
@@ -298,6 +298,8 @@ function handleExport(schedule, data, options) {
     const reqMatrixRoom = ssOpts.matrixRoom || pdfOpts.matrixRoom;
     const reqIndivClass = ssOpts.individualClass || pdfOpts.individualClass;
     const reqIndivTeacher = ssOpts.individualTeacher || pdfOpts.individualTeacher;
+    // --- 新規追加: 教科時数出力フラグ ---
+    const reqSubjectHours = ssOpts.subjectHours || pdfOpts.subjectHours;
 
     const defaultSheet = ss.getSheets()[0];
     let hasSheet = false;
@@ -307,6 +309,8 @@ function handleExport(schedule, data, options) {
     if (reqMatrixRoom) { createMatrixSheet(ss, `全体(教室)`, schedule, data, 'room'); hasSheet = true; }
     if (reqIndivClass) { createIndividualSheet(ss, `各クラス`, schedule, data, 'class'); hasSheet = true; }
     if (reqIndivTeacher) { createIndividualSheet(ss, `各教員`, schedule, data, 'teacher'); hasSheet = true; }
+    // --- 新規追加: 教科時数シート作成関数の呼び出し ---
+    if (reqSubjectHours) { createSubjectHoursSheet(ss, `教科時数一覧`, schedule, data); hasSheet = true; }
 
     if (hasSheet) ss.deleteSheet(defaultSheet);
     
@@ -328,6 +332,7 @@ function handleExport(schedule, data, options) {
     const ssFile = DriveApp.getFileById(ss.getId());
 
     if (wantsPdf) {
+        // PDF出力のURLパラメータ構築
         const url = `https://docs.google.com/spreadsheets/d/${ss.getId()}/export?exportFormat=pdf&format=pdf&size=A3&portrait=false&fitw=true&top_margin=0.5&bottom_margin=0.5&left_margin=0.5&right_margin=0.5&sheetnames=false&printtitle=false&pagenumbers=false&gridlines=false&fzr=false`;
         const token = ScriptApp.getOAuthToken();
         const response = UrlFetchApp.fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
@@ -346,6 +351,110 @@ function handleExport(schedule, data, options) {
     return { success: true, urls: resultUrls };
   } catch (e) {
     return { success: false, message: e.message };
+  }
+}
+
+// --- 新規追加: 各クラスの教科時数一覧シート作成ロジック ---
+function createSubjectHoursSheet(ss, sheetName, schedule, data) {
+  const { DAYS, PERIODS } = getDynamicDaysAndPeriods(data);
+  const sheet = ss.insertSheet(sheetName);
+  
+  // 1. クラスリストの取得
+  let classes = [];
+  if (data.grades) {
+    Object.keys(data.grades).sort((a,b) => parseInt(a) - parseInt(b)).forEach(g => {
+      for (let c = 1; c <= data.grades[g]; c++) classes.push(`${g}-${c}`);
+    });
+  } else if (data.classAssignments) {
+    classes = Object.keys(data.classAssignments).sort();
+  }
+
+  // 2. 教科リストの取得
+  let subjects = [];
+  if (data.subjects) {
+    subjects = data.subjects.map(s => s.name);
+  }
+
+  // 集計用マップの初期化
+  let counts = {};
+  classes.forEach(c => {
+    counts[c] = {};
+    subjects.forEach(s => counts[c][s] = 0);
+  });
+
+  // 3. 盤面のスケジュールを走査してカウント
+  DAYS.forEach(d => {
+    PERIODS.forEach(p => {
+      if (schedule[d] && schedule[d][p]) {
+        schedule[d][p].forEach(lesson => {
+          let sub = lesson.subject;
+          // 未知の教科（特殊等）があった場合はリストに追加
+          if (!subjects.includes(sub)) {
+            subjects.push(sub);
+            classes.forEach(c => { if(counts[c]) counts[c][sub] = 0; });
+          }
+          if (lesson.targets) {
+            lesson.targets.forEach(c => {
+              if (counts[c] !== undefined) {
+                counts[c][sub] = (counts[c][sub] || 0) + 1;
+              }
+            });
+          }
+        });
+      }
+    });
+  });
+
+  // 4. スプレッドシート出力用の二次元配列（表）を組み立てる
+  let gridValues = [];
+  let headerRow = ["教科 \\ クラス", ...classes, "合計"];
+  gridValues.push(headerRow);
+
+  subjects.forEach(sub => {
+    let row = [sub];
+    let rowTotal = 0;
+    classes.forEach(c => {
+      let count = counts[c][sub] || 0;
+      row.push(count > 0 ? count : "");
+      rowTotal += count;
+    });
+    row.push(rowTotal > 0 ? rowTotal : "");
+    gridValues.push(row);
+  });
+
+  // クラスごとの合計行
+  let totalRow = ["合計"];
+  let allTotal = 0;
+  classes.forEach(c => {
+    let colTotal = 0;
+    subjects.forEach(sub => { colTotal += (counts[c][sub] || 0); });
+    totalRow.push(colTotal > 0 ? colTotal : "");
+    allTotal += colTotal;
+  });
+  totalRow.push(allTotal > 0 ? allTotal : "");
+  gridValues.push(totalRow);
+
+  const numRows = gridValues.length;
+  const numCols = gridValues[0].length;
+
+  // 5. シートへ書き込みとスタイリング
+  sheet.getRange(1, 1, numRows, numCols).setValues(gridValues).setHorizontalAlignment("center").setVerticalAlignment("middle").setFontSize(10);
+  
+  // 見出し行と合計行・列の背景色
+  sheet.getRange(1, 1, 1, numCols).setFontWeight("bold").setBackground("#e2e8f0");
+  sheet.getRange(1, 1, numRows, 1).setFontWeight("bold").setBackground("#f8fafc");
+  sheet.getRange(numRows, 1, 1, numCols).setFontWeight("bold").setBackground("#f1f5f9");
+  sheet.getRange(1, numCols, numRows, 1).setFontWeight("bold").setBackground("#f1f5f9");
+  sheet.getRange(numRows, numCols, 1, 1).setBackground("#e2e8f0");
+  
+  sheet.getRange(1, 1, numRows, numCols).setBorder(true, true, true, true, true, true);
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(1);
+  
+  // 列幅の調整
+  sheet.setColumnWidth(1, 120);
+  for(let i = 2; i <= numCols; i++){
+     sheet.setColumnWidth(i, 45);
   }
 }
 
