@@ -4,6 +4,58 @@
  * ==========================================
  */
 
+// --- 新規追加: 不足していたユーティリティ関数 ---
+function getDynamicDaysAndPeriods(state) {
+  const DAYS = ['月','火','水','木','金'];
+  let maxPeriod = 6;
+  if (state && state.periods) {
+    Object.values(state.periods).forEach(dObj => {
+      Object.values(dObj).forEach(v => {
+        if (parseInt(v) > maxPeriod) maxPeriod = parseInt(v);
+      });
+    });
+  }
+  const PERIODS = Array.from({length: maxPeriod}, (_, i) => i + 1);
+  return { DAYS, PERIODS };
+}
+
+function getSubjectColor(subjectName, state) {
+    if (!subjectName) return '#ffffff';
+    let hex = '#F8FAFC'; 
+    if (state && state.subjects) {
+        const sub = state.subjects.find(s => s.name === subjectName);
+        if (sub && sub.color) {
+            hex = sub.color;
+        } else {
+            if(subjectName.includes('国')||subjectName.includes('書')) hex = '#EFF6FF';
+            else if(subjectName.includes('算')||subjectName.includes('数')) hex = '#FEFCE8';
+            else if(subjectName.includes('体')) hex = '#FEF2F2';
+            else if(subjectName.includes('理')) hex = '#F0FDF4';
+            else if(subjectName.includes('社')) hex = '#FFF7ED';
+            else if(subjectName.includes('外')||subjectName.includes('英')) hex = '#FAF5FF';
+            else if(subjectName.includes('音')) hex = '#FDF2F8';
+            else if(subjectName.includes('図')||subjectName.includes('工')) hex = '#ECFEFF';
+        }
+    }
+    return lightenHex(hex, 0.7); // スプシ上で文字が見やすいように色を薄くする
+}
+
+function lightenHex(hex, factor) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (!result) return hex;
+    let r = parseInt(result[1], 16);
+    let g = parseInt(result[2], 16);
+    let b = parseInt(result[3], 16);
+    
+    r = Math.round(r + (255 - r) * factor);
+    g = Math.round(g + (255 - g) * factor);
+    b = Math.round(b + (255 - b) * factor);
+    
+    return "#" + (1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1);
+}
+// ----------------------------------------------
+
+
 // インポート時の正規ID割り当て用のリスト構築（教員順に依存しない連番ID）
 function buildExpectedLessonsForImport(state) {
     let lessons = [];
@@ -32,7 +84,7 @@ function buildExpectedLessonsForImport(state) {
           const ovr = data.overrides?.[sub.id] || {}, rName = ovr.room || sub.defaultRoom || '通常教室';
           const isCont = rules.continuousClasses?.some(rc => rc.subject === sub.name && matchRuleTarget(rc, { targets: [cls] }));
           let fTimes = (ovr.fixedTimes || []).slice();
-          let lessonCounter = 0; // 教員分担順に依存しない連番
+          let lessonCounter = 0; 
           
           const proc = (tId, h) => {
             if(!tId) return; 
@@ -152,12 +204,10 @@ function handleImportFromSS(url, state) {
         );
 
         if (existingLesson) {
-            // 合同授業等の場合、ターゲットを追加
             if (!existingLesson.targets.includes(clsName)) {
                 existingLesson.targets.push(clsName);
             }
         } else {
-            // 単発の仮IDで登録（後で垂直ステッチ処理を行う）
             const lessonId = `tmp_${subId}_${clsName}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
             const importedLesson = {
               id: lessonId,
@@ -180,7 +230,6 @@ function handleImportFromSS(url, state) {
       }
     }
 
-    // --- 新規追加: 垂直ステッチ（連続授業の検出と結合） ---
     const classes = Object.keys(state.classAssignments || {});
     classes.forEach(cls => {
       DAYS.forEach(d => {
@@ -191,7 +240,6 @@ function handleImportFromSS(url, state) {
           let currentIdx = ls.findIndex(l => l.targets.includes(cls));
           if (currentIdx > -1) {
             let current = ls[currentIdx];
-            // 直前の時限と同じ教科・教員なら結合して length を増やす
             if (prevLesson && 
                 prevLesson.subjectId === current.subjectId && 
                 prevLesson.teacherIds.slice().sort().join(',') === current.teacherIds.slice().sort().join(',')) {
@@ -209,26 +257,21 @@ function handleImportFromSS(url, state) {
       });
     });
 
-    // --- 既存の同期ロジックとの互換性確保 ---
-    // ステッチされた仮のスケジュールに対して、設定に基づく正規のIDを割り当てる
     const availableLessons = buildExpectedLessonsForImport(state);
 
     DAYS.forEach(d => {
       PERIODS.forEach(p => {
         importedSchedule[d][p].forEach(l => {
-          // すでに正規IDが割り当て済みならスキップ
           if (!l.id.startsWith('tmp_')) return;
 
           let bestMatchIdx = -1;
           
-          // 1. 対象クラス・教科・【長さ】が完全一致するものを探す（ニコイチや特殊授業）
           bestMatchIdx = availableLessons.findIndex(al => 
             al.subjectId === l.subjectId && 
             al.targets.slice().sort().join(',') === l.targets.slice().sort().join(',') &&
             al.length === l.length
           );
 
-          // 2. 代表クラス・教科・【長さ】が一致するものを探す
           if (bestMatchIdx === -1) {
             bestMatchIdx = availableLessons.findIndex(al => 
               al.subjectId === l.subjectId && 
@@ -237,7 +280,6 @@ function handleImportFromSS(url, state) {
             );
           }
           
-          // 3. 長さ無視のフォールバック（設定が変わっている場合）
           if (bestMatchIdx === -1) {
              bestMatchIdx = availableLessons.findIndex(al => 
               al.subjectId === l.subjectId && 
@@ -248,7 +290,6 @@ function handleImportFromSS(url, state) {
           if (bestMatchIdx > -1) {
             const assignedId = availableLessons[bestMatchIdx].id;
             const tmpId = l.id;
-            // 同じ tmp_ ID を持つ連続コマすべてに同じ正規IDを振る
             DAYS.forEach(dd => {
               PERIODS.forEach(pp => {
                 importedSchedule[dd][pp].forEach(ll => {
@@ -261,7 +302,6 @@ function handleImportFromSS(url, state) {
             availableLessons.splice(bestMatchIdx, 1);
             importCount++;
           } else {
-            // 設定にない、あるいは設定のコマ数を超過している授業
             errorLog.push(`${l.targets.join(',')}の${d}曜${p}限: 「${l.subject}」は設定コマ数を超過しているか、未登録のパターンです。(同期時に消去される可能性があります)`);
           }
         });
@@ -298,7 +338,6 @@ function handleExport(schedule, data, options) {
     const reqMatrixRoom = ssOpts.matrixRoom || pdfOpts.matrixRoom;
     const reqIndivClass = ssOpts.individualClass || pdfOpts.individualClass;
     const reqIndivTeacher = ssOpts.individualTeacher || pdfOpts.individualTeacher;
-    // --- 新規追加: 教科時数出力フラグ ---
     const reqSubjectHours = ssOpts.subjectHours || pdfOpts.subjectHours;
 
     const defaultSheet = ss.getSheets()[0];
@@ -309,7 +348,6 @@ function handleExport(schedule, data, options) {
     if (reqMatrixRoom) { createMatrixSheet(ss, `全体(教室)`, schedule, data, 'room'); hasSheet = true; }
     if (reqIndivClass) { createIndividualSheet(ss, `各クラス`, schedule, data, 'class'); hasSheet = true; }
     if (reqIndivTeacher) { createIndividualSheet(ss, `各教員`, schedule, data, 'teacher'); hasSheet = true; }
-    // --- 新規追加: 教科時数シート作成関数の呼び出し ---
     if (reqSubjectHours) { createSubjectHoursSheet(ss, `教科時数一覧`, schedule, data); hasSheet = true; }
 
     if (hasSheet) ss.deleteSheet(defaultSheet);
@@ -332,7 +370,6 @@ function handleExport(schedule, data, options) {
     const ssFile = DriveApp.getFileById(ss.getId());
 
     if (wantsPdf) {
-        // PDF出力のURLパラメータ構築
         const url = `https://docs.google.com/spreadsheets/d/${ss.getId()}/export?exportFormat=pdf&format=pdf&size=A3&portrait=false&fitw=true&top_margin=0.5&bottom_margin=0.5&left_margin=0.5&right_margin=0.5&sheetnames=false&printtitle=false&pagenumbers=false&gridlines=false&fzr=false`;
         const token = ScriptApp.getOAuthToken();
         const response = UrlFetchApp.fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
@@ -354,12 +391,10 @@ function handleExport(schedule, data, options) {
   }
 }
 
-// --- 新規追加: 各クラスの教科時数一覧シート作成ロジック ---
 function createSubjectHoursSheet(ss, sheetName, schedule, data) {
   const { DAYS, PERIODS } = getDynamicDaysAndPeriods(data);
   const sheet = ss.insertSheet(sheetName);
   
-  // 1. クラスリストの取得
   let classes = [];
   if (data.grades) {
     Object.keys(data.grades).sort((a,b) => parseInt(a) - parseInt(b)).forEach(g => {
@@ -369,29 +404,25 @@ function createSubjectHoursSheet(ss, sheetName, schedule, data) {
     classes = Object.keys(data.classAssignments).sort();
   }
 
-  // 2. 教科リストの取得
   let subjects = [];
   if (data.subjects) {
     subjects = data.subjects.map(s => s.name);
   }
 
-  // 集計用マップの初期化
   let counts = {};
   classes.forEach(c => {
     counts[c] = {};
     subjects.forEach(s => counts[c][s] = 0);
   });
 
-  // 3. 盤面のスケジュールを走査してカウント
   DAYS.forEach(d => {
     PERIODS.forEach(p => {
       if (schedule[d] && schedule[d][p]) {
         schedule[d][p].forEach(lesson => {
           let sub = lesson.subject;
-          // 未知の教科（特殊等）があった場合はリストに追加
           if (!subjects.includes(sub)) {
             subjects.push(sub);
-            classes.forEach(c => { if(counts[c]) counts[c][sub] = 0; });
+            classes.forEach(c => { if(counts[c]===undefined)counts[c]={}; counts[c][sub] = 0; });
           }
           if (lesson.targets) {
             lesson.targets.forEach(c => {
@@ -405,7 +436,6 @@ function createSubjectHoursSheet(ss, sheetName, schedule, data) {
     });
   });
 
-  // 4. スプレッドシート出力用の二次元配列（表）を組み立てる
   let gridValues = [];
   let headerRow = ["教科 \\ クラス", ...classes, "合計"];
   gridValues.push(headerRow);
@@ -422,7 +452,6 @@ function createSubjectHoursSheet(ss, sheetName, schedule, data) {
     gridValues.push(row);
   });
 
-  // クラスごとの合計行
   let totalRow = ["合計"];
   let allTotal = 0;
   classes.forEach(c => {
@@ -437,10 +466,8 @@ function createSubjectHoursSheet(ss, sheetName, schedule, data) {
   const numRows = gridValues.length;
   const numCols = gridValues[0].length;
 
-  // 5. シートへ書き込みとスタイリング
   sheet.getRange(1, 1, numRows, numCols).setValues(gridValues).setHorizontalAlignment("center").setVerticalAlignment("middle").setFontSize(10);
   
-  // 見出し行と合計行・列の背景色
   sheet.getRange(1, 1, 1, numCols).setFontWeight("bold").setBackground("#e2e8f0");
   sheet.getRange(1, 1, numRows, 1).setFontWeight("bold").setBackground("#f8fafc");
   sheet.getRange(numRows, 1, 1, numCols).setFontWeight("bold").setBackground("#f1f5f9");
@@ -451,7 +478,6 @@ function createSubjectHoursSheet(ss, sheetName, schedule, data) {
   sheet.setFrozenRows(1);
   sheet.setFrozenColumns(1);
   
-  // 列幅の調整
   sheet.setColumnWidth(1, 120);
   for(let i = 2; i <= numCols; i++){
      sheet.setColumnWidth(i, 45);

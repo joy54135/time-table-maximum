@@ -1,140 +1,622 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TimeTable - Ver 17.4.21</title>
+/**
+ * ==========================================
+ * File: IO.gs - スプレッドシート・ドライブ連携
+ * ==========================================
+ */
+
+// --- 新規追加: 不足していたユーティリティ関数 ---
+function getDynamicDaysAndPeriods(state) {
+  const DAYS = ['月','火','水','木','金'];
+  let maxPeriod = 6;
+  if (state && state.periods) {
+    Object.values(state.periods).forEach(dObj => {
+      Object.values(dObj).forEach(v => {
+        if (parseInt(v) > maxPeriod) maxPeriod = parseInt(v);
+      });
+    });
+  }
+  const PERIODS = Array.from({length: maxPeriod}, (_, i) => i + 1);
+  return { DAYS, PERIODS };
+}
+
+function getSubjectColor(subjectName, state) {
+    if (!subjectName) return '#ffffff';
+    let hex = '#F8FAFC'; 
+    if (state && state.subjects) {
+        const sub = state.subjects.find(s => s.name === subjectName);
+        if (sub && sub.color) {
+            hex = sub.color;
+        } else {
+            if(subjectName.includes('国')||subjectName.includes('書')) hex = '#EFF6FF';
+            else if(subjectName.includes('算')||subjectName.includes('数')) hex = '#FEFCE8';
+            else if(subjectName.includes('体')) hex = '#FEF2F2';
+            else if(subjectName.includes('理')) hex = '#F0FDF4';
+            else if(subjectName.includes('社')) hex = '#FFF7ED';
+            else if(subjectName.includes('外')||subjectName.includes('英')) hex = '#FAF5FF';
+            else if(subjectName.includes('音')) hex = '#FDF2F8';
+            else if(subjectName.includes('図')||subjectName.includes('工')) hex = '#ECFEFF';
+        }
+    }
+    return lightenHex(hex, 0.7); // スプシ上で文字が見やすいように色を薄くする
+}
+
+function lightenHex(hex, factor) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (!result) return hex;
+    let r = parseInt(result[1], 16);
+    let g = parseInt(result[2], 16);
+    let b = parseInt(result[3], 16);
     
-    <!-- 外部ライブラリ -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    <script>tailwind.config={darkMode:'class'}</script>
+    r = Math.round(r + (255 - r) * factor);
+    g = Math.round(g + (255 - g) * factor);
+    b = Math.round(b + (255 - b) * factor);
     
-    <!-- ダークモード判定 -->
-    <script>
-        if(localStorage.getItem('tt_theme')==='dark'||(!('tt_theme' in localStorage)&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}else{document.documentElement.classList.remove('dark');}
-    </script>
+    return "#" + (1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1);
+}
+// ----------------------------------------------
+
+
+// インポート時の正規ID割り当て用のリスト構築（教員順に依存しない連番ID）
+function buildExpectedLessonsForImport(state) {
+    let lessons = [];
+    const teacherMap = {}; (state.teachers||[]).forEach(t => teacherMap[t.id] = t.name);
+    const roomObj = {}; (state.rooms||[]).forEach(r => roomObj[r.name] = r);
+    const rules = state.advancedRules || {};
+
+    if (state.specialBlocks) {
+      state.specialBlocks.forEach(b => {
+        let tMap = {}; (b.teachers||[]).forEach(t => tMap[t.id] = parseInt(t.hours)||0);
+        let fTimes = (b.fixedTimes || []).slice();
+        for (let i=0; i<b.hours; i++) {
+          let tIds = []; (b.teachers||[]).forEach(t => { if(tMap[t.id]>0) { tIds.push(t.id); tMap[t.id]--; }});
+          let fTime = fTimes.length > 0 ? fTimes.shift() : null;
+          lessons.push({ id:`sp_${b.id}_${i}`, subjectId:b.subjectId, subject:state.subjects.find(s=>s.id===b.subjectId)?.name||'特殊', targets:b.targets||[], teacherIds:tIds, teacherName:tIds.map(id=>teacherMap[id]||'').join(','), room:b.room||'通常教室', isSpecialist:true, length:1, totalHours:b.hours, type:'special', limitOnePerDay: b.limitOnePerDay === true, isFixed: !!fTime, fixedTime: fTime });
+        }
+      });
+    }
+    if (state.classAssignments) {
+      Object.keys(state.classAssignments).forEach(cls => {
+        const grade = cls.split('-')[0], data = state.classAssignments[cls];
+        (state.subjects||[]).forEach(sub => {
+          let stdHrs = parseInt(sub.stdHours?.[grade])||0; if(stdHrs === 0) return;
+          let specialHrs = 0; if (state.specialBlocks) { state.specialBlocks.forEach(b => { if (b.subjectId === sub.id && (b.targets||[]).includes(cls)) specialHrs += (parseInt(b.hours) || 0); }); }
+          let remainingHrs = stdHrs - specialHrs; if (remainingHrs <= 0) return;
+          const ovr = data.overrides?.[sub.id] || {}, rName = ovr.room || sub.defaultRoom || '通常教室';
+          const isCont = rules.continuousClasses?.some(rc => rc.subject === sub.name && matchRuleTarget(rc, { targets: [cls] }));
+          let fTimes = (ovr.fixedTimes || []).slice();
+          let lessonCounter = 0; 
+          
+          const proc = (tId, h) => {
+            if(!tId) return; 
+            const isSp = (roomObj[rName] || tId !== data.homeroom);
+            let localH = h;
+            while(localH > 0 && fTimes.length > 0) {
+              let fTime = fTimes.shift();
+              lessons.push({ id:`n_${cls}_${sub.id}_f${lessonCounter}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: !!fTime, fixedTime: fTime });
+              localH--; lessonCounter++;
+            }
+            if (isCont && localH >= 2) {
+              for(let i=0; i<Math.floor(localH/2); i++) {
+                lessons.push({ id:`n_${cls}_${sub.id}_p${lessonCounter}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:2, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+                lessonCounter++;
+              }
+              if(localH%2 !== 0) {
+                lessons.push({ id:`n_${cls}_${sub.id}_s${lessonCounter}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+                lessonCounter++;
+              }
+            } else {
+              for(let i=0; i<localH; i++) {
+                lessons.push({ id:`n_${cls}_${sub.id}_${lessonCounter}`, subjectId:sub.id, subject:sub.name, targets:[cls], teacherIds:[tId], teacherName:teacherMap[tId]||'', room:rName, isSpecialist:isSp, length:1, totalHours:remainingHrs, type:'normal', limitOnePerDay: false, isFixed: false });
+                lessonCounter++;
+              }
+            }
+          };
+          if (ovr.allocations?.length > 0) ovr.allocations.forEach((a) => proc(a.teacherId, parseInt(a.hours)||0)); 
+          else proc(ovr.teacherId||data.homeroom, remainingHrs);
+        });
+      });
+    }
+    return lessons;
+}
+
+function handleImportFromSS(url, state) {
+  try {
+    const idMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    if (!idMatch) return { success: false, message: "無効なスプレッドシートURLです。URLを確認してください。" };
     
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    const ssId = idMatch[1];
+    const ss = SpreadsheetApp.openById(ssId);
     
-    <!-- 部品: CSS -->
-    <?!= include('Stylesheet'); ?>
-</head>
-<body>
-    <!-- トースト通知 -->
-    <div id="toast" class="fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl font-bold text-sm flex items-center gap-2 z-[9999] transition-all opacity-0 pointer-events-none">
-        <span id="toast-msg"></span>
-    </div>
+    const sheet = ss.getSheetByName("全体(クラス)");
+    if (!sheet) return { success: false, message: "対象の「全体(クラス)」シートが見つかりません。エクスポート時のシート名を確認してください。" };
 
-    <!-- ルール違反ポップアップ -->
-    <div id="violation-popup" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-md text-white p-4 rounded-2xl shadow-2xl z-[9999] transition-all duration-300 pointer-events-none opacity-0 scale-95 border border-rose-500/50 w-[90%] max-w-md"></div>
+    const range = sheet.getDataRange();
+    const values = range.getDisplayValues(); 
+    if (values.length < 3) return { success: false, message: "シートにデータが存在しません。" };
 
-    <!-- お祝い演出 -->
-    <div id="celebration-overlay" class="fixed inset-0 z-[300] hidden items-center justify-center cursor-pointer bg-white/30 dark:bg-black/30 backdrop-blur-sm transition-opacity duration-500 opacity-0">
-        <div class="text-6xl md:text-[10rem] font-black text-transparent bg-clip-text bg-gradient-to-br from-yellow-300 via-pink-500 to-indigo-500 drop-shadow-[0_15px_20px_rgba(0,0,0,0.4)] transform scale-50 opacity-0 transition-all duration-700 ease-out tracking-tighter" id="celebration-text" style="-webkit-text-stroke: 4px white;">
-            PERFECT!!
-        </div>
-    </div>
+    const { DAYS, PERIODS } = getDynamicDaysAndPeriods(state);
+    
+    let importedSchedule = {};
+    DAYS.forEach(d => {
+      importedSchedule[d] = {};
+      PERIODS.forEach(p => importedSchedule[d][p] = []);
+    });
 
-    <!-- メインコンテナ -->
-    <div id="app-container">
-        <div class="m3-card flex-1 flex flex-col min-h-0 relative">
-            <!-- ヘッダーエリア -->
-            <div class="flex items-center justify-between mb-2 shrink-0 border-b border-slate-100 dark:border-slate-800 pb-2 flex-wrap gap-2">
-                <div class="flex items-center gap-3">
-                    <h2 id="step-title" class="text-sm md:text-base font-black text-slate-800 dark:text-slate-100 whitespace-nowrap tracking-tight"></h2>
-                    <div id="progress-dots" class="flex gap-1 hidden md:flex"></div>
-                </div>
-                <!-- ここにJS_Viewsからボタンが流し込まれる -->
-                <div id="step-header-utils" class="flex items-center gap-1.5 flex-wrap justify-end"></div>
-            </div>
-            
-            <!-- 各ステップのコンテンツ表示エリア -->
-            <div id="step-content" class="fade-in flex-1 overflow-y-auto custom-scrollbar flex flex-col relative min-h-0 pr-1"></div>
+    let errorLog = [];
+    let importCount = 0;
 
-            <!-- 下部ナビゲーション -->
-            <div class="relative flex justify-between items-center mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 shrink-0" id="bottom-navigation">
-                <button id="btn-prev" class="m3-btn-secondary w-[80px] md:w-[120px] relative z-10 !text-xs">戻る</button>
-                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none hidden md:flex">
-                    <div class="text-[11px] font-black text-slate-800 dark:text-slate-100 leading-none">Smart TimeTable</div>
-                    <div class="text-[8px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em] mt-1 opacity-80">Ver 17.4.22 (Export Modal Fix)</div>
-                </div>
-                <button id="btn-next" class="m3-btn-primary w-[140px] md:w-[180px] relative z-10 !text-xs"><span id="btn-next-text">次へ進む</span></button>
-            </div>
-        </div>
-    </div>
+    const dayRow = values[0];
+    const periodRow = values[1];
+    const colMap = {}; 
 
-    <!-- 汎用モーダル (確認ダイアログ等に使用) -->
-    <div id="modal-overlay" class="fixed inset-0 z-[150] flex items-center justify-center hidden p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm transition-all">
-        <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-2xl w-full shadow-2xl flex flex-col overflow-hidden max-h-[90vh]" id="modal-body"></div>
-    </div>
+    let currentDay = "";
+    for (let c = 1; c < dayRow.length; c++) {
+      if (dayRow[c] !== "") currentDay = dayRow[c].replace("曜", "").trim();
+      let pStr = periodRow[c];
+      if (currentDay && pStr) {
+        colMap[c] = { day: currentDay, period: parseInt(pStr, 10) };
+      }
+    }
 
-    <!-- セーブ/ロード兼用 スロット選択モーダル -->
-    <div id="slot-modal-overlay" class="fixed inset-0 z-[250] flex items-center justify-center hidden bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm transition-all">
-        <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-lg w-full shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
-            <div class="flex justify-between items-center mb-4 border-b pb-2 dark:border-slate-800">
-                <!-- Javascriptでタイトル（保存かロードか）を書き換えます -->
-                <h3 id="slot-modal-title" class="text-lg font-black text-blue-700 dark:text-blue-400 flex items-center gap-2">スロット選択</h3>
-                <button onclick="actions.closeSlotModal()" class="text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full p-1 font-bold">✕</button>
-            </div>
-            <div id="slot-list-container" class="space-y-2 overflow-y-auto custom-scrollbar pr-2 flex-1"></div>
-        </div>
-    </div>
+    const teacherNameMap = {};
+    (state.teachers || []).forEach(t => teacherNameMap[t.name.trim()] = t.id);
 
-    <!-- SS同期用モーダル -->
-    <div id="import-ss-modal-overlay" class="fixed inset-0 z-[250] flex items-center justify-center hidden bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm transition-all">
-        <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-lg w-full shadow-2xl flex flex-col overflow-hidden">
-            <div class="flex justify-between items-center mb-4 border-b pb-2 dark:border-slate-800">
-                <h3 class="text-lg font-black text-emerald-700 dark:text-emerald-400 flex items-center gap-2">🔗 スプレッドシートから同期</h3>
-                <button onclick="actions.closeImportSSModal()" class="text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full p-1 font-bold">✕</button>
-            </div>
-            <div class="space-y-4">
-                <p class="text-xs font-bold text-slate-500 dark:text-slate-400">エクスポートしたスプレッドシートのURLを入力してください。</p>
-                <input type="text" id="import-ss-url" placeholder="https://docs.google.com/spreadsheets/d/..." class="w-full p-2 border rounded-lg bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-white text-sm font-bold outline-none focus:border-emerald-500">
-                <div id="import-ss-errors" class="hidden max-h-32 overflow-y-auto text-[10px] text-rose-500 bg-rose-50 dark:bg-rose-900/30 p-2 rounded border border-rose-200 dark:border-rose-800/50"></div>
-            </div>
-            <div class="mt-6 flex justify-end gap-2">
-                <button onclick="actions.closeImportSSModal()" class="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors">キャンセル</button>
-                <button onclick="actions.executeImportSS()" id="btn-exec-import-ss" class="px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-sm hover:bg-emerald-700 shadow-md transition-colors flex items-center justify-center gap-2 min-w-[120px]">読み込む</button>
-            </div>
-        </div>
-    </div>
+    const subjectMap = {};
+    (state.subjects || []).forEach(s => subjectMap[s.name.trim()] = s.id);
 
-    <!-- AIチャレンジ用オーバーレイ -->
-    <div id="loading-overlay" class="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-[200] hidden items-center justify-center flex-col gap-4 transition-all text-white">
-        <div class="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-2 shadow-lg"></div>
-        <div class="text-center">
-            <h3 class="text-xl font-black tracking-widest mb-1" id="loading-title">AI思考中...</h3>
-            <div id="loading-timer" class="text-7xl font-black text-emerald-400 font-mono tracking-widest mb-1 drop-shadow-md">0.0s</div>
-            <p class="text-indigo-200 font-bold text-sm" id="loading-desc">しばらくお待ちください</p>
-            <div id="loading-best-container" class="hidden mt-4 items-center justify-center gap-4 text-xs font-bold text-slate-300">
-                <div class="bg-black/30 px-3 py-1.5 rounded-lg border border-white/10">歴代ベスト: <span id="loading-best-record" class="text-emerald-400 font-black text-sm">--</span> 駒</div>
-                <div class="bg-black/30 px-3 py-1.5 rounded-lg border border-white/10">今回: <span id="loading-latest-record" class="text-amber-400 font-black text-sm">--</span> 駒</div>
-            </div>
-        </div>
-        <button id="btn-cancel-gen" onclick="actions.cancelGeneration()" class="mt-6 px-8 py-3 bg-slate-800 text-slate-300 border border-slate-600 rounded-full text-sm font-bold hover:bg-rose-900 transition-colors hidden">中断して結果を見る</button>
-    </div>
+    // 一旦、スプレッドシートの記述通りに仮の駒を生成・マージする
+    for (let r = 2; r < values.length; r++) {
+      const row = values[r];
+      const clsName = row[0] ? row[0].toString().trim() : "";
+      if (!clsName) continue;
 
-    <!-- エクスポート専用オーバーレイ -->
-    <div id="export-overlay" class="fixed inset-0 bg-emerald-900/95 backdrop-blur-md z-[300] hidden items-center justify-center flex-col gap-4 text-white">
-        <div class="relative">
-            <div class="w-20 h-20 border-4 border-white/20 border-t-emerald-400 rounded-full animate-spin"></div>
-            <div class="absolute inset-0 flex items-center justify-center font-black text-xs text-emerald-100">PDF/SS</div>
-        </div>
-        <div class="text-center">
-            <h3 class="text-xl font-black tracking-widest mb-1 text-white">ドキュメント生成中</h3>
-            <p class="text-emerald-200 font-bold text-sm">サーバーでファイルを構築しています...</p>
-        </div>
-        <button onclick="actions.cancelExport()" class="mt-8 px-8 py-3 bg-white/10 hover:bg-rose-600 border border-white/20 rounded-full text-sm font-bold transition-all shadow-lg">生成を中止</button>
-    </div>
+      for (let c = 1; c < row.length; c++) {
+        const cellValue = row[c] ? row[c].toString().trim() : "";
+        if (!cellValue) continue;
 
-    <!-- 重要: 部品の読み込み順序 -->
-    <!-- 1. 状態管理(state) -->
-    <?!= include('JS_State'); ?>
-    <!-- 2. 描画(views) -->
-    <?!= include('JS_Views'); ?>
-    <!-- 3. ロジック(actions) -->
-    <?!= include('JS_Actions'); ?>
+        const cellInfo = colMap[c];
+        if (!cellInfo) continue;
 
-</body>
-</html>
+        const lines = cellValue.split('\n').map(l => l.trim());
+        if (lines[0] === "重") continue;
+
+        const subjectName = lines[0];
+        const subId = subjectMap[subjectName];
+        if (!subId) {
+          errorLog.push(`${clsName}の${cellInfo.day}曜${cellInfo.period}限: 教科「${subjectName}」が未登録です。`);
+          continue;
+        }
+
+        const teacherName = lines.length > 1 ? lines[1] : '';
+        let tIds = [];
+        if (teacherName) {
+           const names = teacherName.split(',').map(n => n.trim());
+           names.forEach(n => {
+             if (teacherNameMap[n]) tIds.push(teacherNameMap[n]);
+             else errorLog.push(`${clsName}の${cellInfo.day}曜: 教員「${n}」が見つかりません。`);
+           });
+        }
+        
+        const teacherIdsStr = tIds.slice().sort().join(',');
+
+        let existingLesson = importedSchedule[cellInfo.day][cellInfo.period].find(
+            l => l.subjectId === subId && l.teacherIds.slice().sort().join(',') === teacherIdsStr
+        );
+
+        if (existingLesson) {
+            if (!existingLesson.targets.includes(clsName)) {
+                existingLesson.targets.push(clsName);
+            }
+        } else {
+            const lessonId = `tmp_${subId}_${clsName}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            const importedLesson = {
+              id: lessonId,
+              subjectId: subId,
+              subject: subjectName,
+              targets: [clsName],
+              teacherIds: tIds.length > 0 ? tIds : [state.classAssignments?.[clsName]?.homeroom].filter(Boolean),
+              teacherName: teacherName,
+              room: state.subjects.find(s => s.id === subId)?.defaultRoom || '通常教室',
+              isSpecialist: tIds.some(tid => tid !== state.classAssignments?.[clsName]?.homeroom),
+              length: 1, 
+              totalHours: 1,
+              type: 'normal',
+              limitOnePerDay: false,
+              isFixed: true, 
+              isLocked: true 
+            };
+            importedSchedule[cellInfo.day][cellInfo.period].push(importedLesson);
+        }
+      }
+    }
+
+    const classes = Object.keys(state.classAssignments || {});
+    classes.forEach(cls => {
+      DAYS.forEach(d => {
+        let prevLesson = null;
+        PERIODS.forEach(p => {
+          let ls = importedSchedule[d][p];
+          if (!ls) return;
+          let currentIdx = ls.findIndex(l => l.targets.includes(cls));
+          if (currentIdx > -1) {
+            let current = ls[currentIdx];
+            if (prevLesson && 
+                prevLesson.subjectId === current.subjectId && 
+                prevLesson.teacherIds.slice().sort().join(',') === current.teacherIds.slice().sort().join(',')) {
+              
+              current.id = prevLesson.id;
+              prevLesson.length += 1;
+              current.length = prevLesson.length; 
+            } else {
+              prevLesson = current;
+            }
+          } else {
+            prevLesson = null;
+          }
+        });
+      });
+    });
+
+    const availableLessons = buildExpectedLessonsForImport(state);
+
+    DAYS.forEach(d => {
+      PERIODS.forEach(p => {
+        importedSchedule[d][p].forEach(l => {
+          if (!l.id.startsWith('tmp_')) return;
+
+          let bestMatchIdx = -1;
+          
+          bestMatchIdx = availableLessons.findIndex(al => 
+            al.subjectId === l.subjectId && 
+            al.targets.slice().sort().join(',') === l.targets.slice().sort().join(',') &&
+            al.length === l.length
+          );
+
+          if (bestMatchIdx === -1) {
+            bestMatchIdx = availableLessons.findIndex(al => 
+              al.subjectId === l.subjectId && 
+              al.targets.includes(l.targets[0]) &&
+              al.length === l.length
+            );
+          }
+          
+          if (bestMatchIdx === -1) {
+             bestMatchIdx = availableLessons.findIndex(al => 
+              al.subjectId === l.subjectId && 
+              al.targets.includes(l.targets[0])
+            );
+          }
+
+          if (bestMatchIdx > -1) {
+            const assignedId = availableLessons[bestMatchIdx].id;
+            const tmpId = l.id;
+            DAYS.forEach(dd => {
+              PERIODS.forEach(pp => {
+                importedSchedule[dd][pp].forEach(ll => {
+                  if (ll.id === tmpId) {
+                    ll.id = assignedId;
+                  }
+                });
+              });
+            });
+            availableLessons.splice(bestMatchIdx, 1);
+            importCount++;
+          } else {
+            errorLog.push(`${l.targets.join(',')}の${d}曜${p}限: 「${l.subject}」は設定コマ数を超過しているか、未登録のパターンです。(同期時に消去される可能性があります)`);
+          }
+        });
+      });
+    });
+
+    return { 
+      success: true, 
+      schedule: importedSchedule, 
+      importCount: importCount, 
+      errors: errorLog,
+      message: `スプレッドシートから ${importCount} 件のコマを正規IDで読み込みました。` 
+    };
+
+  } catch (e) {
+    return { success: false, message: "インポートエラー: " + e.message };
+  }
+}
+
+function handleExport(schedule, data, options) {
+  try {
+    const timestamp = Utilities.formatDate(new Date(), "JST", "yyyyMMdd_HHmm");
+    const ssName = `時間割データ_${timestamp}`;
+    const ss = SpreadsheetApp.create(ssName);
+    
+    let pdfOpts = options.pdf || {};
+    let ssOpts = options.spreadsheet || {};
+    if (!options.pdf && !options.spreadsheet) {
+        ssOpts = { matrixClass: true, individualClass: true, subjectHours: true };
+    }
+
+    const reqMatrixClass = ssOpts.matrixClass || pdfOpts.matrixClass;
+    const reqMatrixTeacher = ssOpts.matrixTeacher || pdfOpts.matrixTeacher;
+    const reqMatrixRoom = ssOpts.matrixRoom || pdfOpts.matrixRoom;
+    const reqIndivClass = ssOpts.individualClass || pdfOpts.individualClass;
+    const reqIndivTeacher = ssOpts.individualTeacher || pdfOpts.individualTeacher;
+    const reqSubjectHours = ssOpts.subjectHours || pdfOpts.subjectHours;
+
+    const defaultSheet = ss.getSheets()[0];
+    let hasSheet = false;
+    
+    if (reqMatrixClass) { createMatrixSheet(ss, `全体(クラス)`, schedule, data, 'class'); hasSheet = true; }
+    if (reqMatrixTeacher) { createMatrixSheet(ss, `全体(教員)`, schedule, data, 'teacher'); hasSheet = true; }
+    if (reqMatrixRoom) { createMatrixSheet(ss, `全体(教室)`, schedule, data, 'room'); hasSheet = true; }
+    if (reqIndivClass) { createIndividualSheet(ss, `各クラス`, schedule, data, 'class'); hasSheet = true; }
+    if (reqIndivTeacher) { createIndividualSheet(ss, `各教員`, schedule, data, 'teacher'); hasSheet = true; }
+    if (reqSubjectHours) { createSubjectHoursSheet(ss, `教科時数一覧`, schedule, data); hasSheet = true; }
+
+    if (hasSheet) ss.deleteSheet(defaultSheet);
+    
+    SpreadsheetApp.flush();
+
+    let resultUrls = {};
+    let wantsSpreadsheet = Object.keys(ssOpts).length > 0 && Object.values(ssOpts).some(v => v);
+    let wantsPdf = Object.keys(pdfOpts).length > 0 && Object.values(pdfOpts).some(v => v);
+    
+    let targetFolder = DriveApp.getRootFolder();
+    if (options.folderId) {
+        try {
+            targetFolder = DriveApp.getFolderById(options.folderId);
+        } catch(e) {
+            console.log("Folder access error, falling back to root.");
+        }
+    }
+
+    const ssFile = DriveApp.getFileById(ss.getId());
+
+    if (wantsPdf) {
+        const url = `https://docs.google.com/spreadsheets/d/${ss.getId()}/export?exportFormat=pdf&format=pdf&size=A3&portrait=false&fitw=true&top_margin=0.5&bottom_margin=0.5&left_margin=0.5&right_margin=0.5&sheetnames=false&printtitle=false&pagenumbers=false&gridlines=false&fzr=false`;
+        const token = ScriptApp.getOAuthToken();
+        const response = UrlFetchApp.fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+        const pdfBlob = response.getBlob().setName(`${ssName}.pdf`);
+        const pdfFile = targetFolder.createFile(pdfBlob);
+        resultUrls.pdfUrl = pdfFile.getDownloadUrl() || pdfFile.getUrl();
+    }
+
+    if (wantsSpreadsheet) {
+        ssFile.moveTo(targetFolder);
+        resultUrls.spreadsheetUrl = ssFile.getUrl();
+    } else if (wantsPdf) {
+        ssFile.setTrashed(true);
+    }
+    
+    return { success: true, urls: resultUrls };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+function createSubjectHoursSheet(ss, sheetName, schedule, data) {
+  const { DAYS, PERIODS } = getDynamicDaysAndPeriods(data);
+  const sheet = ss.insertSheet(sheetName);
+  
+  let classes = [];
+  if (data.grades) {
+    Object.keys(data.grades).sort((a,b) => parseInt(a) - parseInt(b)).forEach(g => {
+      for (let c = 1; c <= data.grades[g]; c++) classes.push(`${g}-${c}`);
+    });
+  } else if (data.classAssignments) {
+    classes = Object.keys(data.classAssignments).sort();
+  }
+
+  let subjects = [];
+  if (data.subjects) {
+    subjects = data.subjects.map(s => s.name);
+  }
+
+  let counts = {};
+  classes.forEach(c => {
+    counts[c] = {};
+    subjects.forEach(s => counts[c][s] = 0);
+  });
+
+  DAYS.forEach(d => {
+    PERIODS.forEach(p => {
+      if (schedule[d] && schedule[d][p]) {
+        schedule[d][p].forEach(lesson => {
+          let sub = lesson.subject;
+          if (!subjects.includes(sub)) {
+            subjects.push(sub);
+            classes.forEach(c => { if(counts[c]===undefined)counts[c]={}; counts[c][sub] = 0; });
+          }
+          if (lesson.targets) {
+            lesson.targets.forEach(c => {
+              if (counts[c] !== undefined) {
+                counts[c][sub] = (counts[c][sub] || 0) + 1;
+              }
+            });
+          }
+        });
+      }
+    });
+  });
+
+  let gridValues = [];
+  let headerRow = ["教科 \\ クラス", ...classes, "合計"];
+  gridValues.push(headerRow);
+
+  subjects.forEach(sub => {
+    let row = [sub];
+    let rowTotal = 0;
+    classes.forEach(c => {
+      let count = counts[c][sub] || 0;
+      row.push(count > 0 ? count : "");
+      rowTotal += count;
+    });
+    row.push(rowTotal > 0 ? rowTotal : "");
+    gridValues.push(row);
+  });
+
+  let totalRow = ["合計"];
+  let allTotal = 0;
+  classes.forEach(c => {
+    let colTotal = 0;
+    subjects.forEach(sub => { colTotal += (counts[c][sub] || 0); });
+    totalRow.push(colTotal > 0 ? colTotal : "");
+    allTotal += colTotal;
+  });
+  totalRow.push(allTotal > 0 ? allTotal : "");
+  gridValues.push(totalRow);
+
+  const numRows = gridValues.length;
+  const numCols = gridValues[0].length;
+
+  sheet.getRange(1, 1, numRows, numCols).setValues(gridValues).setHorizontalAlignment("center").setVerticalAlignment("middle").setFontSize(10);
+  
+  sheet.getRange(1, 1, 1, numCols).setFontWeight("bold").setBackground("#e2e8f0");
+  sheet.getRange(1, 1, numRows, 1).setFontWeight("bold").setBackground("#f8fafc");
+  sheet.getRange(numRows, 1, 1, numCols).setFontWeight("bold").setBackground("#f1f5f9");
+  sheet.getRange(1, numCols, numRows, 1).setFontWeight("bold").setBackground("#f1f5f9");
+  sheet.getRange(numRows, numCols, 1, 1).setBackground("#e2e8f0");
+  
+  sheet.getRange(1, 1, numRows, numCols).setBorder(true, true, true, true, true, true);
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(1);
+  
+  sheet.setColumnWidth(1, 120);
+  for(let i = 2; i <= numCols; i++){
+     sheet.setColumnWidth(i, 45);
+  }
+}
+
+function createMatrixSheet(ss, sheetName, schedule, data, type) {
+  const { DAYS, PERIODS } = getDynamicDaysAndPeriods(data);
+  const sheet = ss.insertSheet(sheetName);
+  
+  let rows = [];
+  if (type === 'class') {
+    Object.keys(data.grades).forEach(g => {
+      for (let c = 1; c <= data.grades[g]; c++) rows.push({id: `${g}-${c}`, name: `${g}-${c}`});
+    });
+  } else if (type === 'teacher') {
+    rows = (data.teachers || []).map(t => ({id: t.id, name: t.name}));
+  } else if (type === 'room') {
+    rows = (data.rooms || []).map(r => ({id: r.name, name: r.name}));
+  }
+
+  const totalCols = 1 + DAYS.length * PERIODS.length;
+  const totalRows = rows.length + 2;
+
+  sheet.getRange(1, 1, totalRows, totalCols).setNumberFormat("@");
+
+  let headerRow1 = ["軸 \\ 曜日"];
+  let headerRow2 = ["時限"];
+  DAYS.forEach(d => {
+    for(let i=0; i<PERIODS.length; i++) headerRow1.push(i===0 ? `${d}曜` : "");
+    PERIODS.forEach(p => headerRow2.push(p));
+  });
+  
+  sheet.getRange(1, 1, 1, totalCols).setValues([headerRow1]).setFontWeight("bold").setBackground("#e2e8f0").setHorizontalAlignment("center").setFontSize(9);
+  sheet.getRange(2, 1, 1, totalCols).setValues([headerRow2]).setFontWeight("bold").setBackground("#f8fafc").setHorizontalAlignment("center").setFontSize(9);
+  
+  let c = 2;
+  DAYS.forEach(d => {
+    if (PERIODS.length > 1) sheet.getRange(1, c, 1, PERIODS.length).merge();
+    c += PERIODS.length;
+  });
+
+  let backgrounds = [];
+  let gridValues = [];
+  
+  rows.forEach(item => {
+    let rowData = [item.name];
+    let rowColors = ["#ffffff"];
+    DAYS.forEach(d => {
+      PERIODS.forEach(p => {
+        let cellText = "", cellColor = "#ffffff";
+        if (schedule[d] && schedule[d][p]) {
+          let targetLessons = [];
+          if (type === 'class') targetLessons = schedule[d][p].filter(l => l.targets && l.targets.includes(item.id));
+          else if (type === 'teacher') targetLessons = schedule[d][p].filter(l => l.teacherIds && l.teacherIds.includes(item.id));
+          else if (type === 'room') targetLessons = schedule[d][p].filter(l => l.room === item.id);
+          
+          if (targetLessons.length > 0) {
+            let l = targetLessons[0];
+            if (targetLessons.length > 1) { cellText = "重\n" + l.subject; cellColor = "#ffcdd2"; }
+            else {
+              let subT = type === 'class' ? (l.teacherName || '') : (l.targets ? l.targets.join(',') : '');
+              if (type === 'room') subT = (l.targets ? l.targets.join(',') : '') + " " + (l.teacherName || '');
+              cellText = `${l.subject}\n${subT}`;
+              cellColor = getSubjectColor(l.subject, data);
+            }
+          }
+        }
+        rowData.push(cellText);
+        rowColors.push(cellColor);
+      });
+    });
+    gridValues.push(rowData);
+    backgrounds.push(rowColors);
+  });
+  
+  if (gridValues.length > 0) {
+    sheet.getRange(3, 1, gridValues.length, totalCols).setValues(gridValues).setBackgrounds(backgrounds);
+  }
+  
+  sheet.setRowHeights(3, rows.length, 40);
+  sheet.setColumnWidth(1, 80);
+  sheet.setColumnWidths(2, totalCols - 1, 45);
+  sheet.getRange(1, 1, totalRows, totalCols).setBorder(true, true, true, true, true, true).setHorizontalAlignment("center").setVerticalAlignment("middle").setWrap(true).setFontSize(8);
+  sheet.setFrozenRows(2);
+  sheet.setFrozenColumns(1);
+}
+
+function createIndividualSheet(ss, sheetName, schedule, data, type) {
+  const { DAYS, PERIODS } = getDynamicDaysAndPeriods(data);
+  const sheet = ss.insertSheet(sheetName);
+  
+  let items = [];
+  if (type === 'class') {
+    Object.keys(data.grades).forEach(g => {
+      for (let c = 1; c <= data.grades[g]; c++) items.push(`${g}-${c}`);
+    });
+  } else if (type === 'teacher') {
+    items = (data.teachers || []).map(t => ({id: t.id, name: t.name}));
+  }
+  
+  sheet.getRange("A:Z").setNumberFormat("@");
+
+  let currentRow = 1;
+  items.forEach(item => {
+    let title = type === 'class' ? `${item} 時間割` : `${item.name} 先生 時間割`;
+    let targetId = type === 'class' ? item : item.id;
+    
+    sheet.getRange(currentRow, 1, 1, DAYS.length + 1).merge().setValue(title).setFontWeight("bold").setFontSize(14).setBackground("#e2e8f0").setHorizontalAlignment("center").setVerticalAlignment("middle");
+    currentRow++;
+    
+    let header = ["時限 \\ 曜日", ...DAYS];
+    sheet.getRange(currentRow, 1, 1, DAYS.length + 1).setValues([header]).setFontWeight("bold").setBackground("#f8fafc").setHorizontalAlignment("center").setVerticalAlignment("middle");
+    currentRow++;
+    
+    PERIODS.forEach(p => {
+      let rowData = [`${p}限`];
+      let rowColors = ["#f8fafc"];
+      DAYS.forEach(d => {
+        let cellText = "", cellColor = "#ffffff";
+        if (schedule[d] && schedule[d][p]) {
+          let targets = schedule[d][p].filter(l => l.targets && l.targets.includes(targetId) || (type==='teacher' && l.teacherIds && l.teacherIds.includes(targetId)));
+          if (targets.length > 0) {
+             let l = targets[0];
+             if (targets.length > 1) { cellText = "重複"; cellColor = "#ffcdd2"; }
+             else {
+                 cellText = type === 'class' ? `${l.subject}\n(${l.teacherName || ''})` : `${l.subject}\n(${l.targets ? l.targets.join(',') : ''})`;
+                 cellColor = getSubjectColor(l.subject, data);
+             }
+          }
+        }
+        rowData.push(cellText);
+        rowColors.push(cellColor);
+      });
+      sheet.getRange(currentRow, 1, 1, DAYS.length + 1).setValues([rowData]).setBackgrounds([rowColors]).setHorizontalAlignment("center").setVerticalAlignment("middle").setWrap(true).setFontSize(10);
+      currentRow++;
+    });
+    sheet.getRange(currentRow - PERIODS.length - 2, 1, PERIODS.length + 2, DAYS.length + 1).setBorder(true, true, true, true, true, true);
+    sheet.setRowHeights(currentRow - PERIODS.length, PERIODS.length, 60); 
+    currentRow += 2;
+  });
+}
