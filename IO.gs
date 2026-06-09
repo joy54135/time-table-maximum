@@ -4,7 +4,7 @@
  * ==========================================
  */
 
-// --- 新規追加: 不足していたユーティリティ関数 ---
+// --- ユーティリティ関数 ---
 function getDynamicDaysAndPeriods(state) {
   const DAYS = ['月','火','水','木','金'];
   let maxPeriod = 6;
@@ -37,7 +37,7 @@ function getSubjectColor(subjectName, state) {
             else if(subjectName.includes('図')||subjectName.includes('工')) hex = '#ECFEFF';
         }
     }
-    return lightenHex(hex, 0.7); // スプシ上で文字が見やすいように色を薄くする
+    return lightenHex(hex, 0.7);
 }
 
 function lightenHex(hex, factor) {
@@ -56,7 +56,6 @@ function lightenHex(hex, factor) {
 // ----------------------------------------------
 
 
-// インポート時の正規ID割り当て用のリスト構築（教員順に依存しない連番ID）
 function buildExpectedLessonsForImport(state) {
     let lessons = [];
     const teacherMap = {}; (state.teachers||[]).forEach(t => teacherMap[t.id] = t.name);
@@ -164,7 +163,6 @@ function handleImportFromSS(url, state) {
     const subjectMap = {};
     (state.subjects || []).forEach(s => subjectMap[s.name.trim()] = s.id);
 
-    // 一旦、スプレッドシートの記述通りに仮の駒を生成・マージする
     for (let r = 2; r < values.length; r++) {
       const row = values[r];
       const clsName = row[0] ? row[0].toString().trim() : "";
@@ -370,6 +368,7 @@ function handleExport(schedule, data, options) {
     const ssFile = DriveApp.getFileById(ss.getId());
 
     if (wantsPdf) {
+        // PDF出力のURLパラメータ構築 (Fit to width で1枚に収める)
         const url = `https://docs.google.com/spreadsheets/d/${ss.getId()}/export?exportFormat=pdf&format=pdf&size=A3&portrait=false&fitw=true&top_margin=0.5&bottom_margin=0.5&left_margin=0.5&right_margin=0.5&sheetnames=false&printtitle=false&pagenumbers=false&gridlines=false&fzr=false`;
         const token = ScriptApp.getOAuthToken();
         const response = UrlFetchApp.fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
@@ -566,6 +565,7 @@ function createMatrixSheet(ss, sheetName, schedule, data, type) {
   sheet.setFrozenColumns(1);
 }
 
+// --- 大幅改修: 個別シートの右側に教科時数（目標比較）を追加出力 ---
 function createIndividualSheet(ss, sheetName, schedule, data, type) {
   const { DAYS, PERIODS } = getDynamicDaysAndPeriods(data);
   const sheet = ss.insertSheet(sheetName);
@@ -586,37 +586,171 @@ function createIndividualSheet(ss, sheetName, schedule, data, type) {
     let title = type === 'class' ? `${item} 時間割` : `${item.name} 先生 時間割`;
     let targetId = type === 'class' ? item : item.id;
     
-    sheet.getRange(currentRow, 1, 1, DAYS.length + 1).merge().setValue(title).setFontWeight("bold").setFontSize(14).setBackground("#e2e8f0").setHorizontalAlignment("center").setVerticalAlignment("middle");
+    // ベースとなる横幅（曜日分）に、クラスの場合は右側2列(教科・時数)を追加
+    let totalCols = DAYS.length + 1;
+    if (type === 'class') totalCols += 2;
+
+    sheet.getRange(currentRow, 1, 1, totalCols).merge().setValue(title).setFontWeight("bold").setFontSize(14).setBackground("#e2e8f0").setHorizontalAlignment("center").setVerticalAlignment("middle");
     currentRow++;
     
     let header = ["時限 \\ 曜日", ...DAYS];
-    sheet.getRange(currentRow, 1, 1, DAYS.length + 1).setValues([header]).setFontWeight("bold").setBackground("#f8fafc").setHorizontalAlignment("center").setVerticalAlignment("middle");
+    if (type === 'class') {
+      header.push("各教科", "時数 (目標)");
+    }
+    sheet.getRange(currentRow, 1, 1, header.length).setValues([header]).setFontWeight("bold").setBackground("#f8fafc").setHorizontalAlignment("center").setVerticalAlignment("middle");
+    
+    if (type === 'class') {
+        sheet.getRange(currentRow, DAYS.length + 2, 1, 2).setBackground("#eff6ff");
+    }
     currentRow++;
     
-    PERIODS.forEach(p => {
-      let rowData = [`${p}限`];
-      let rowColors = ["#f8fafc"];
-      DAYS.forEach(d => {
-        let cellText = "", cellColor = "#ffffff";
-        if (schedule[d] && schedule[d][p]) {
-          let targets = schedule[d][p].filter(l => l.targets && l.targets.includes(targetId) || (type==='teacher' && l.teacherIds && l.teacherIds.includes(targetId)));
-          if (targets.length > 0) {
-             let l = targets[0];
-             if (targets.length > 1) { cellText = "重複"; cellColor = "#ffcdd2"; }
-             else {
-                 cellText = type === 'class' ? `${l.subject}\n(${l.teacherName || ''})` : `${l.subject}\n(${l.targets ? l.targets.join(',') : ''})`;
-                 cellColor = getSubjectColor(l.subject, data);
-             }
-          }
-        }
-        rowData.push(cellText);
-        rowColors.push(cellColor);
+    // クラス別の時数集計ロジック（厳密マッチ）
+    let counts = {};
+    let stdHours = {};
+    let subjectList = [];
+
+    if (type === 'class') {
+      const grade = targetId.split('-')[0];
+      (data.subjects || []).forEach(sub => {
+         let std = parseInt(sub.stdHours?.[grade]) || 0;
+         stdHours[sub.name] = std;
+         counts[sub.name] = 0;
       });
-      sheet.getRange(currentRow, 1, 1, DAYS.length + 1).setValues([rowData]).setBackgrounds([rowColors]).setHorizontalAlignment("center").setVerticalAlignment("middle").setWrap(true).setFontSize(10);
+      
+      DAYS.forEach(d => {
+        PERIODS.forEach(p => {
+          if (schedule[d] && schedule[d][p]) {
+            schedule[d][p].forEach(l => {
+              if (l.targets && l.targets.includes(targetId)) {
+                 counts[l.subject] = (counts[l.subject] || 0) + 1;
+              }
+            });
+          }
+        });
+      });
+
+      // 表示する教科の抽出とソート（目標ゼロ・配置ゼロは非表示）
+      Object.keys(counts).forEach(sub => {
+        if (counts[sub] > 0 || stdHours[sub] > 0) {
+          subjectList.push(sub);
+        }
+      });
+      subjectList.sort((a, b) => {
+        let idxA = data.subjects.findIndex(s => s.name === a);
+        let idxB = data.subjects.findIndex(s => s.name === b);
+        if(idxA === -1) idxA = 999; if(idxB === -1) idxB = 999;
+        return idxA - idxB;
+      });
+    }
+
+    let startRow = currentRow;
+    // 行数は「時間割の時限数」か「教科数＋合計行」のどちらか大きい方に合わせる
+    let maxRows = Math.max(PERIODS.length, type === 'class' ? subjectList.length + 1 : 0);
+
+    for (let i = 0; i < maxRows; i++) {
+      let rowData = [];
+      let rowColors = [];
+      
+      // 左側：時間割パズル部分 (A〜F列)
+      if (i < PERIODS.length) {
+        let p = PERIODS[i];
+        rowData.push(`${p}限`);
+        rowColors.push("#f8fafc");
+        DAYS.forEach(d => {
+          let cellText = "", cellColor = "#ffffff";
+          if (schedule[d] && schedule[d][p]) {
+            let targets = schedule[d][p].filter(l => l.targets && l.targets.includes(targetId) || (type==='teacher' && l.teacherIds && l.teacherIds.includes(targetId)));
+            if (targets.length > 0) {
+               let l = targets[0];
+               if (targets.length > 1) { cellText = "重複"; cellColor = "#ffcdd2"; }
+               else {
+                   cellText = type === 'class' ? `${l.subject}\n(${l.teacherName || ''})` : `${l.subject}\n(${l.targets ? l.targets.join(',') : ''})`;
+                   cellColor = getSubjectColor(l.subject, data);
+               }
+            }
+          }
+          rowData.push(cellText);
+          rowColors.push(cellColor);
+        });
+      } else {
+        // 教科数が多い場合の時間割下部の空白埋め
+        for(let j = 0; j <= DAYS.length; j++) {
+            rowData.push("");
+            rowColors.push("#ffffff");
+        }
+      }
+
+      // 右側：集計部分 (G〜H列) インテリジェント・ステータス
+      let statsFonts = [];
+      if (type === 'class') {
+          if (i < subjectList.length) {
+              let sub = subjectList[i];
+              let count = counts[sub] || 0;
+              let std = stdHours[sub] || 0;
+              let diff = count - std;
+              let text = `${count}`;
+              let fColor = "#64748b"; // Safe (グレー)
+              if (std > 0) {
+                  text += ` (${std})`;
+                  if (diff < 0) { text += ` ⚠️${-diff}不足`; fColor = "#e11d48"; } // Danger (赤)
+                  else if (diff > 0) { text += ` ⚠️${diff}超過`; fColor = "#d97706"; } // Warning (黄)
+              }
+              rowData.push(sub, text);
+              statsFonts.push("#334155", fColor);
+          } else if (i === subjectList.length) {
+              // 最終行（合計）
+              let totalCount = 0; let totalStd = 0;
+              subjectList.forEach(s => { totalCount += (counts[s]||0); totalStd += (stdHours[s]||0); });
+              let diff = totalCount - totalStd;
+              let text = `${totalCount}`;
+              let fColor = "#475569";
+              if (totalStd > 0) {
+                  text += ` (${totalStd})`;
+                  if (diff < 0) { text += ` ⚠️${-diff}不足`; fColor = "#e11d48"; }
+                  else if (diff > 0) { text += ` ⚠️${diff}超過`; fColor = "#d97706"; }
+              }
+              rowData.push("合計", text);
+              statsFonts.push("#0f172a", fColor);
+          } else {
+              rowData.push("", "");
+              statsFonts.push("#000000", "#000000");
+          }
+          rowColors.push("#ffffff", "#ffffff");
+      }
+
+      // 行の書き込み
+      let rng = sheet.getRange(currentRow, 1, 1, rowData.length);
+      rng.setValues([rowData]).setBackgrounds([rowColors]).setHorizontalAlignment("center").setVerticalAlignment("middle").setWrap(true).setFontSize(10);
+      
+      // 右側のフォントカラーと太字装飾の適用
+      if (type === 'class') {
+          sheet.getRange(currentRow, DAYS.length + 2, 1, 2).setFontColors([statsFonts]);
+          if (i === subjectList.length) {
+              sheet.getRange(currentRow, DAYS.length + 2, 1, 2).setFontWeight("bold").setBackground("#f1f5f9");
+          }
+      }
+      
       currentRow++;
-    });
-    sheet.getRange(currentRow - PERIODS.length - 2, 1, PERIODS.length + 2, DAYS.length + 1).setBorder(true, true, true, true, true, true);
-    sheet.setRowHeights(currentRow - PERIODS.length, PERIODS.length, 60); 
-    currentRow += 2;
+    }
+
+    // 罫線と幅・高さの最終調整
+    sheet.getRange(startRow - 1, 1, PERIODS.length + 1, DAYS.length + 1).setBorder(true, true, true, true, true, true);
+    
+    if (type === 'class') {
+        let statsRows = subjectList.length + 2; 
+        sheet.getRange(startRow - 1, DAYS.length + 2, statsRows, 2).setBorder(true, true, true, true, true, true);
+        
+        // 分離と幅調整
+        sheet.setColumnWidth(DAYS.length + 2, 80);
+        sheet.setColumnWidth(DAYS.length + 3, 120);
+    }
+
+    sheet.setRowHeights(startRow, PERIODS.length, 60); 
+    // 時間割の枠外にはみ出した教科集計行は高さを縮める
+    if (type === 'class' && maxRows > PERIODS.length) {
+        sheet.setRowHeights(startRow + PERIODS.length, maxRows - PERIODS.length, 25);
+    }
+
+    currentRow += 2; // 次のクラスへのマージン
   });
 }
